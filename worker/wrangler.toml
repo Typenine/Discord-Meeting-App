@@ -1,0 +1,18 @@
+name = "discord-agenda-activity-worker"
+main = "src/index.mjs"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[vars]
+DISCORD_CLIENT_ID = "1467595700689703012"
+DISCORD_REDIRECT_URI = "https://1467595700689703012.discordsays.com"
+HOST_USER_IDS = "319255380074954753"
+
+[durable_objects]
+bindings = [
+  { name = "MEETING_ROOM", class_name = "MeetingRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["MeetingRoom"]

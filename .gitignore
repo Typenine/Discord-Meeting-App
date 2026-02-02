@@ -1,0 +1,25 @@
+﻿# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+.out/
+.vercel/
+
+# env files
+.env
+.env.*
+!.env.example
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
