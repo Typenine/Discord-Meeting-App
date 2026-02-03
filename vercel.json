@@ -1,0 +1,19 @@
+{
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/dist",
+  "rewrites": [
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    },
+    {
+      "comment": "Discord Activity proxy routes - /proxy/api/* and /proxy/health",
+      "source": "/proxy/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/proxy/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ]
+}
