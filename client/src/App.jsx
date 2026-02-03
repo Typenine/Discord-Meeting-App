@@ -37,7 +37,23 @@ export default function App() {
   const [state, setState] = useState(null);
   const [revision, setRevision] = useState(null);
   const [status, setStatus] = useState("init"); // 'init', 'joined', 'ended'
+  const [healthStatus, setHealthStatus] = useState(null);
+  const [error, setError] = useState(null);
   const isHost = state && state.hostUserId === String(userId);
+
+  // Poll health status on mount
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const res = await fetch(`${API_BASE.replace('/api', '')}/health`);
+        const data = await res.json();
+        setHealthStatus(data);
+      } catch (err) {
+        console.error('Health check failed:', err);
+      }
+    };
+    checkHealth();
+  }, []);
 
   // Polling effect: fetch session state every second
   useEffect(() => {
@@ -72,12 +88,27 @@ export default function App() {
 
   const startMeeting = async () => {
     try {
+      setError(null);
       const res = await fetch(`${API_BASE}/session/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, username }),
       });
       const data = await res.json();
+      
+      if (res.status === 403 && data.error === 'unauthorized_host') {
+        setError({ 
+          type: 'unauthorized', 
+          message: 'You are not authorized to host meetings. Please contact an administrator.' 
+        });
+        return;
+      }
+      
+      if (!res.ok) {
+        setError({ type: 'error', message: data.error || 'Failed to start meeting' });
+        return;
+      }
+      
       if (data.sessionId) {
         setSessionId(data.sessionId);
         setState(data.state);
@@ -86,6 +117,7 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
+      setError({ type: 'error', message: 'Network error. Please try again.' });
     }
   };
 
@@ -93,12 +125,19 @@ export default function App() {
     const id = sessionInput.trim();
     if (!id) return;
     try {
+      setError(null);
       const res = await fetch(`${API_BASE}/session/${id}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, username }),
       });
       const data = await res.json();
+      
+      if (!res.ok) {
+        setError({ type: 'error', message: data.error === 'not_found' ? 'Meeting not found' : 'Failed to join meeting' });
+        return;
+      }
+      
       if (data.state) {
         setSessionId(id);
         setState(data.state);
@@ -107,10 +146,11 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
+      setError({ type: 'error', message: 'Network error. Please try again.' });
     }
   };
 
-  // Helper functions for HTTP actions
+  // Helper functions for HTTP actions with error handling
   const post = async (path, body) => {
     try {
       const res = await fetch(`${API_BASE}${path}`, {
@@ -118,9 +158,24 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      return await res.json();
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (res.status === 403) {
+          setError({ 
+            type: 'forbidden', 
+            message: 'Host access required for this operation. You may have lost host privileges.' 
+          });
+        } else {
+          setError({ type: 'error', message: data.error || 'Operation failed' });
+        }
+        return null;
+      }
+      
+      return data;
     } catch (err) {
       console.error(err);
+      setError({ type: 'error', message: 'Network error. Please check your connection.' });
       return null;
     }
   };
@@ -132,9 +187,24 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      return await res.json();
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (res.status === 403) {
+          setError({ 
+            type: 'forbidden', 
+            message: 'Host access required for this operation.' 
+          });
+        } else {
+          setError({ type: 'error', message: data.error || 'Operation failed' });
+        }
+        return null;
+      }
+      
+      return data;
     } catch (err) {
       console.error(err);
+      setError({ type: 'error', message: 'Network error. Please check your connection.' });
       return null;
     }
   };
@@ -146,9 +216,24 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      return await res.json();
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (res.status === 403) {
+          setError({ 
+            type: 'forbidden', 
+            message: 'Host access required for this operation.' 
+          });
+        } else {
+          setError({ type: 'error', message: data.error || 'Operation failed' });
+        }
+        return null;
+      }
+      
+      return data;
     } catch (err) {
       console.error(err);
+      setError({ type: 'error', message: 'Network error. Please check your connection.' });
       return null;
     }
   };
@@ -240,6 +325,41 @@ export default function App() {
 
   return (
     <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
+      {/* Health Status Banner */}
+      {healthStatus && healthStatus.warnings && healthStatus.warnings.length > 0 && (
+        <div style={{ 
+          padding: "0.75rem", 
+          marginBottom: "1rem", 
+          backgroundColor: "#fff3cd", 
+          border: "1px solid #ffc107", 
+          borderRadius: "4px",
+          color: "#856404"
+        }}>
+          <strong>⚠️ System Warnings:</strong>
+          <ul style={{ margin: "0.5rem 0 0 0", paddingLeft: "1.5rem" }}>
+            {healthStatus.warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+      
+      {/* Error Banner */}
+      {error && (
+        <div style={{ 
+          padding: "0.75rem", 
+          marginBottom: "1rem", 
+          backgroundColor: error.type === 'unauthorized' ? "#f8d7da" : "#f8d7da", 
+          border: "1px solid #dc3545", 
+          borderRadius: "4px",
+          color: "#721c24"
+        }}>
+          <strong>{error.type === 'unauthorized' ? '🔒 Authorization Error' : '❌ Error'}:</strong> {error.message}
+          <button 
+            onClick={() => setError(null)} 
+            style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
+          >×</button>
+        </div>
+      )}
+      
       {status === "init" && (
         <div>
           <h2>Join or Start Meeting</h2>
@@ -259,8 +379,48 @@ export default function App() {
       )}
       {status === "joined" && state && (
         <div>
-          <h2>Meeting {sessionId}</h2>
-          <p>You are {username} {isHost ? "(Host)" : ""}</p>
+          {/* Connection & Host Status Bar */}
+          <div style={{ 
+            padding: "0.5rem 0.75rem", 
+            marginBottom: "1rem", 
+            backgroundColor: "#e7f3ff", 
+            border: "1px solid #0066cc", 
+            borderRadius: "4px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <div>
+              <strong>Meeting ID:</strong> {sessionId}
+            </div>
+            <div>
+              {isHost ? (
+                <span style={{ 
+                  padding: "0.25rem 0.5rem", 
+                  backgroundColor: "#28a745", 
+                  color: "white", 
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                  fontWeight: "bold"
+                }}>
+                  ✓ HOST ACCESS
+                </span>
+              ) : (
+                <span style={{ 
+                  padding: "0.25rem 0.5rem", 
+                  backgroundColor: "#6c757d", 
+                  color: "white", 
+                  borderRadius: "4px",
+                  fontSize: "0.85rem"
+                }}>
+                  ATTENDEE
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <h2>Meeting Controls</h2>
+          <p>You are <strong>{username}</strong> {isHost && "(with host privileges)"}</p>
           <h3>Attendance</h3>
           <ul>
             {Object.values(state.attendance || {}).map((att) => (

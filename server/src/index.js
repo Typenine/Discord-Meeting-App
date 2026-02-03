@@ -48,17 +48,44 @@ import express from "express";
 // HTTP endpoints.  See store.js for details.
 import * as store from "./store.js";
 
+// Initialize store with host authorization configuration
+store.setHostAuthConfig({
+  allowAll: HOST_ALLOW_ALL,
+  hostIds: HOST_IDS,
+});
+
 const app = express();
 app.use(express.json());
 
 app.get("/health", (req, res) => {
+  const storeDiagnostics = store.getStoreDiagnostics();
+  
+  // Determine overall health status
+  const hasConfigIssues = !CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI;
+  const hasPersistenceIssues = storeDiagnostics.persistence.consecutiveFailures > 3;
+  
   res.json({
-    ok: true,
-    redirectUri: REDIRECT_URI,
-    clientId: CLIENT_ID,
-    secretLength: (CLIENT_SECRET || "").length,
-    hostAllowAll: HOST_ALLOW_ALL,
-    hostIdsCount: HOST_IDS.size,
+    ok: !hasConfigIssues && !hasPersistenceIssues,
+    timestamp: new Date().toISOString(),
+    config: {
+      redirectUri: REDIRECT_URI,
+      clientId: CLIENT_ID,
+      secretConfigured: !!(CLIENT_SECRET && CLIENT_SECRET.length > 0),
+      secretLength: (CLIENT_SECRET || "").length,
+    },
+    hostAuth: {
+      allowAll: HOST_ALLOW_ALL,
+      hostIdsCount: HOST_IDS.size,
+      configured: storeDiagnostics.hostAuth.configured,
+    },
+    store: storeDiagnostics,
+    warnings: [
+      ...(!CLIENT_ID ? ['DISCORD_CLIENT_ID not configured'] : []),
+      ...(!CLIENT_SECRET ? ['DISCORD_CLIENT_SECRET not configured'] : []),
+      ...(!REDIRECT_URI ? ['DISCORD_REDIRECT_URI not configured'] : []),
+      ...(hasPersistenceIssues ? ['Persistence failures detected'] : []),
+      ...(!storeDiagnostics.persistence.dataDirWritable ? ['Data directory not writable'] : []),
+    ],
   });
 });
 
@@ -148,9 +175,18 @@ const apiRouter = express.Router();
 apiRouter.post('/session/start', (req, res) => {
   const { userId, username, sessionId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
-  const state = store.createSession({ userId, username, sessionId });
-  const raw = store.getSession(state.id);
-  return res.json({ sessionId: raw.id, state, revision: raw.revision, serverNow: Date.now() });
+  const result = store.createSession({ userId, username, sessionId });
+  
+  // Handle unauthorized host error
+  if (result && result.error === 'unauthorized_host') {
+    return res.status(403).json({ 
+      error: 'unauthorized_host',
+      message: 'You are not authorized to create meetings. Contact an administrator.',
+    });
+  }
+  
+  const raw = store.getSession(result.id);
+  return res.json({ sessionId: raw.id, state: result, revision: raw.revision, serverNow: Date.now() });
 });
 
 // Join an existing session.  Adds user to attendance.  Body must include userId.
