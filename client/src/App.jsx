@@ -1,489 +1,340 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { DiscordSDK } from "@discord/embedded-app-sdk";
+import React, { useState, useEffect } from "react";
 
-// Only true when Discord actually launches your Activity
-const IN_DISCORD =
-  typeof window !== "undefined" &&
-  window.location.hostname.endsWith("discordsays.com");
-
-// Raw API base from environment for non-Discord deploys (for example, Vercel)
+// Determine API base for HTTP polling.
+const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
 const RAW_ENV_API_BASE = import.meta.env.VITE_API_BASE;
-
 function normalizeApiBase(base) {
   if (!base) return base;
   return String(base).replace(/\/+$/, "");
 }
-
-// 3-mode routing for HTTP API:
-// 1) Inside Discord: use Activity proxy (/proxy/api)
-// 2) Deployed (non-Discord) with VITE_API_BASE: use that
-// 3) Local dev fallback: http://127.0.0.1:8787/api
 const API_BASE = (() => {
   if (IN_DISCORD) return "/proxy/api";
-
   const envBase = RAW_ENV_API_BASE && String(RAW_ENV_API_BASE).trim();
   if (envBase) return normalizeApiBase(envBase);
-
   return "http://127.0.0.1:8787/api";
 })();
 
-function formatMMSS(totalSec) {
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
 export default function App() {
-  const [status, setStatus] = useState("booting");
-  const [authUser, setAuthUser] = useState(null);
+  // Persist a random userId in localStorage so the same browser retains identity.
+  const [userId] = useState(() => {
+    let id = null;
+    if (typeof window !== "undefined") {
+      id = localStorage.getItem("userId");
+      if (!id) {
+        if (typeof crypto !== "undefined" && crypto.randomUUID) {
+          id = crypto.randomUUID();
+        } else {
+          id = String(Math.random()).slice(2);
+        }
+        localStorage.setItem("userId", id);
+      }
+    }
+    return id || String(Math.random()).slice(2);
+  });
+  const [username, setUsername] = useState("");
+  const [sessionInput, setSessionInput] = useState("");
+  const [sessionId, setSessionId] = useState("");
   const [state, setState] = useState(null);
+  const [revision, setRevision] = useState(null);
+  const [status, setStatus] = useState("init"); // 'init', 'joined', 'ended'
+  const isHost = state && state.hostUserId === String(userId);
 
-  const wsRef = useRef(null);
-
-  // IMPORTANT:
-  // DiscordSDK MUST NOT be constructed outside Discord, or it throws "frame_id query param is not defined"
-  const discordSdk = useMemo(() => {
-    if (!IN_DISCORD) return null;
-    const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-    if (!clientId) return null;
-    return new DiscordSDK(clientId);
-  }, []);
-
-  const sessionId = useMemo(() => {
-    const qs = new URLSearchParams(window.location.search);
-    return (
-      qs.get("channel_id") ||
-      qs.get("instance_id") ||
-      qs.get("guild_id") ||
-      "local-dev"
-    );
-  }, []);
-
-  // --- 1) Authenticate inside Discord (skip entirely in non-Discord) ---
+  // Polling effect: fetch session state every second
   useEffect(() => {
-    let cancelled = false;
-
-    async function run() {
+    if (status !== "joined" || !sessionId) return;
+    let stopped = false;
+    const poll = async () => {
       try {
-        if (!IN_DISCORD) {
-          setStatus("local-dev");
-          setAuthUser({ id: "local-host", username: "Local Dev" });
-          return;
+        const params = new URLSearchParams();
+        if (revision != null) params.set("sinceRevision", revision);
+        params.set("userId", userId);
+        const res = await fetch(`${API_BASE}/session/${sessionId}/state?${params.toString()}`);
+        const data = await res.json();
+        if (!stopped) {
+          if (!data.unchanged) {
+            if (data.state) setState(data.state);
+            if (data.revision != null) setRevision(data.revision);
+          } else {
+            if (data.revision != null) setRevision(data.revision);
+          }
         }
-
-        if (!discordSdk) {
-          setStatus("missing_client_id");
-          return;
-        }
-
-        setStatus("discord_ready");
-        await discordSdk.ready();
-
-        const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-
-        const { code } = await discordSdk.commands.authorize({
-          client_id: clientId,
-          response_type: "code",
-          state: "",
-          prompt: "none",
-          scope: ["identify"],
-        });
-
-        const tokenResp = await fetch(`${API_BASE}/token`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code }),
-        });
-
-        const tokenJson = await tokenResp.json();
-        if (!tokenResp.ok) throw new Error(JSON.stringify(tokenJson));
-
-        const auth = await discordSdk.commands.authenticate({
-          access_token: tokenJson.access_token,
-        });
-
-        if (cancelled) return;
-
-        setAuthUser(auth?.user ?? null);
-        setStatus("authed");
-      } catch (e) {
-        console.error(e);
-        setStatus("auth_failed");
+      } catch (err) {
+        console.error(err);
       }
-    }
-
-    run();
-    return () => {
-      cancelled = true;
     };
-  }, [discordSdk]);
+    const interval = setInterval(poll, 1000);
+    poll();
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, [status, sessionId, revision, userId]);
 
-  const userId = authUser?.id || "local-host";
-
-  // --- 2) Connect to WS and sync state ---
-  useEffect(() => {
-    if (!userId) return;
-
-    let wsUrl;
-
-    if (IN_DISCORD) {
-      wsUrl = `${window.location.origin.replace(
-        /^http/,
-        "ws"
-      )}/proxy/api/ws?room=${encodeURIComponent(sessionId)}`;
-    } else {
-      // Derive WS base from API_BASE by converting scheme:
-      // https:// -> wss://, http:// -> ws://
-      let wsBase = API_BASE;
-      if (wsBase.startsWith("https://")) {
-        wsBase = "wss://" + wsBase.slice("https://".length);
-      } else if (wsBase.startsWith("http://")) {
-        wsBase = "ws://" + wsBase.slice("http://".length);
+  const startMeeting = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/session/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, username }),
+      });
+      const data = await res.json();
+      if (data.sessionId) {
+        setSessionId(data.sessionId);
+        setState(data.state);
+        setRevision(data.revision);
+        setStatus("joined");
       }
-
-      wsUrl = `${wsBase}/ws?room=${encodeURIComponent(sessionId)}`;
+    } catch (err) {
+      console.error(err);
     }
+  };
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.addEventListener("open", () => {
-      ws.send(JSON.stringify({ type: "HELLO", sessionId, userId }));
-    });
-
-    ws.addEventListener("message", (ev) => {
-      try {
-        const msg = JSON.parse(String(ev.data));
-        if (msg.type === "STATE") setState(msg.state);
-      } catch {
-        // ignore
+  const joinMeeting = async () => {
+    const id = sessionInput.trim();
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_BASE}/session/${id}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, username }),
+      });
+      const data = await res.json();
+      if (data.state) {
+        setSessionId(id);
+        setState(data.state);
+        setRevision(data.revision);
+        setStatus("joined");
       }
-    });
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-    ws.addEventListener("error", (e) => {
-      console.error("[ws] error", e);
-    });
+  // Helper functions for HTTP actions
+  const post = async (path, body) => {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+  };
 
-    ws.addEventListener("close", (e) => {
-      console.warn("[ws] closed", e);
-    });
+  const put = async (path, body) => {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+  };
 
-    return () => ws.close();
-  }, [sessionId, userId]);
+  const del = async (path, body) => {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+  };
 
-  const isHost = !!state?.hostUserId && state.hostUserId === userId;
+  // Agenda operations
+  const addAgenda = async (title, durationSec) => {
+    const data = await post(`/session/${sessionId}/agenda`, { userId, title, durationSec });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
 
-  function send(msg) {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify(msg));
-  }
+  const deleteAgendaItem = async (agendaId) => {
+    const data = await del(`/session/${sessionId}/agenda/${agendaId}`, { userId });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
 
-  if (status === "missing_client_id") {
-    return (
-      <div style={{ padding: 16 }}>
-        <h2>Missing VITE_DISCORD_CLIENT_ID</h2>
-        <p>
-          Create <code>client\.env.local</code> with:
-        </p>
-        <pre style={{ background: "#111827", padding: 12, borderRadius: 8 }}>
-VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
-        </pre>
-      </div>
-    );
-  }
+  const setActiveAgenda = async (agendaId) => {
+    const data = await post(`/session/${sessionId}/agenda/${agendaId}/active`, { userId });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
 
-  if (status === "auth_failed") {
-    return (
-      <div style={{ padding: 16 }}>
-        <h2>Auth failed</h2>
-        <p>
-          Most common cause is OAuth Redirect URI mismatch. We’ll fix this once local is working.
-        </p>
-      </div>
-    );
-  }
+  // Timer controls
+  const startTimer = async () => {
+    const data = await post(`/session/${sessionId}/timer/start`, { userId });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
+  const pauseTimer = async () => {
+    const data = await post(`/session/${sessionId}/timer/pause`, { userId });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
+  const extendTimer = async (seconds) => {
+    const data = await post(`/session/${sessionId}/timer/extend`, { userId, seconds });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
 
-  if (!state) {
-    return (
-      <div style={{ padding: 16 }}>
-        <h2>Connecting…</h2>
-        <p>Status: {status}</p>
-      </div>
-    );
-  }
+  // Voting
+  const openVote = async (question, options) => {
+    const data = await post(`/session/${sessionId}/vote/open`, { userId, question, options });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
+  const castVote = async (optionIndex) => {
+    const data = await post(`/session/${sessionId}/vote/cast`, { userId, optionIndex });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
+  const closeVote = async () => {
+    const data = await post(`/session/${sessionId}/vote/close`, { userId });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
 
-  const active = state.agenda.find((a) => a.id === state.activeAgendaId);
-  const voteOpen = state.vote.open;
+  // End meeting
+  const endMeeting = async () => {
+    const data = await post(`/session/${sessionId}/end`, { userId });
+    if (data && data.minutes) {
+      setStatus("ended");
+    }
+  };
+
+  // Local form states
+  const [newAgendaTitle, setNewAgendaTitle] = useState("");
+  const [newAgendaDuration, setNewAgendaDuration] = useState("");
+  const [voteQuestion, setVoteQuestion] = useState("");
+  const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "360px 1fr 420px",
-        height: "100vh",
-        background: "#0b0d12",
-        color: "#e9eefc",
-        fontFamily: "system-ui, Segoe UI, Roboto, Arial",
-      }}
-    >
-      {/* Left: Agenda */}
-      <div style={{ borderRight: "1px solid #1c2233", padding: 16, overflow: "auto" }}>
-        <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>League Meeting</div>
-        <div style={{ opacity: 0.8, fontSize: 12, marginBottom: 12 }}>
-          Session: <code>{state.sessionId}</code>
-          <br />
-          You: <b>{authUser?.username || "Local Dev"}</b> {isHost ? "(Host)" : ""}
+    <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
+      {status === "init" && (
+        <div>
+          <h2>Join or Start Meeting</h2>
+          <div>
+            <label>Your name:</label>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} />
+          </div>
+          <div style={{ marginTop: "0.5rem" }}>
+            <button onClick={startMeeting} disabled={!username}>Start new meeting</button>
+          </div>
+          <div style={{ marginTop: "0.5rem" }}>
+            <label>Meeting ID:</label>
+            <input value={sessionInput} onChange={(e) => setSessionInput(e.target.value)} />
+            <button onClick={joinMeeting} disabled={!username || !sessionInput}>Join meeting</button>
+          </div>
         </div>
-
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Agenda</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {state.agenda.map((item) => {
-            const isActive = item.id === state.activeAgendaId;
-            return (
-              <button
-                key={item.id}
-                onClick={() => isHost && send({ type: "AGENDA_SET_ACTIVE", agendaId: item.id })}
-                disabled={!isHost}
-                style={{
-                  textAlign: "left",
-                  padding: 10,
-                  borderRadius: 10,
-                  border: isActive ? "1px solid #5b7cfa" : "1px solid #1c2233",
-                  background: isActive ? "#121a33" : "#0f1422",
-                  color: "#e9eefc",
-                  cursor: isHost ? "pointer" : "default",
-                }}
-              >
-                <div style={{ fontWeight: 700 }}>{item.title}</div>
-                <div style={{ opacity: 0.8, fontSize: 12 }}>{item.minutes} min</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Center: Timer + Host controls */}
-      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ border: "1px solid #1c2233", borderRadius: 14, padding: 16, background: "#0f1422" }}>
-          <div style={{ opacity: 0.8, fontSize: 12 }}>Current Item</div>
-          <div style={{ fontSize: 22, fontWeight: 900, marginTop: 6 }}>
-            {active?.title || "—"}
-          </div>
-
-          <div style={{ marginTop: 14, fontSize: 64, fontWeight: 900, letterSpacing: -1 }}>
-            {formatMMSS(state.timer.remainingSec)}
-          </div>
-
-          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-            <button
-              onClick={() => send({ type: "TIMER_START" })}
-              disabled={!isHost}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #1c2233",
-                background: isHost ? "#1a2a5a" : "#101629",
-                color: "#e9eefc",
-              }}
-            >
-              Start
-            </button>
-            <button
-              onClick={() => send({ type: "TIMER_PAUSE" })}
-              disabled={!isHost}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #1c2233",
-                background: isHost ? "#2a1a5a" : "#101629",
-                color: "#e9eefc",
-              }}
-            >
-              Pause
-            </button>
-            <button
-              onClick={() => send({ type: "TIMER_RESET" })}
-              disabled={!isHost}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #1c2233",
-                background: isHost ? "#3a2a1a" : "#101629",
-                color: "#e9eefc",
-              }}
-            >
-              Reset
-            </button>
-          </div>
-
-          {!isHost && (
-            <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12 }}>
-              Host controls are commissioner-only.
+      )}
+      {status === "joined" && state && (
+        <div>
+          <h2>Meeting {sessionId}</h2>
+          <p>You are {username} {isHost ? "(Host)" : ""}</p>
+          <h3>Attendance</h3>
+          <ul>
+            {Object.values(state.attendance || {}).map((att) => (
+              <li key={att.userId}>{att.displayName || att.userId}</li>
+            ))}
+          </ul>
+          <h3>Agenda</h3>
+          <ul>
+            {state.agenda.map((item) => (
+              <li key={item.id} style={{ marginBottom: '0.5rem' }}>
+                <strong>{item.title}</strong> ({item.durationSec || 0}s) {state.currentAgendaItemId === item.id && <span>[Active]</span>}
+                {isHost && (
+                  <>
+                    <button onClick={() => setActiveAgenda(item.id)} style={{ marginLeft: '0.25rem' }}>Set Active</button>
+                    <button onClick={() => deleteAgendaItem(item.id)} style={{ marginLeft: '0.25rem' }}>Delete</button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+          {isHost && (
+            <div style={{ marginBottom: '1rem' }}>
+              <input placeholder="Agenda title" value={newAgendaTitle} onChange={(e) => setNewAgendaTitle(e.target.value)} />
+              <input placeholder="Duration (sec)" type="number" value={newAgendaDuration} onChange={(e) => setNewAgendaDuration(e.target.value)} style={{ marginLeft: '0.25rem' }} />
+              <button onClick={() => { addAgenda(newAgendaTitle, Number(newAgendaDuration) || 0); setNewAgendaTitle(''); setNewAgendaDuration(''); }} style={{ marginLeft: '0.25rem' }}>Add Agenda</button>
+            </div>
+          )}
+          <h3>Timer</h3>
+          <p>{state.timer.running ? 'Running' : 'Paused'} - Remaining: {state.timer.remainingSec}s</p>
+          {isHost && (
+            <div>
+              <button onClick={startTimer}>Start</button>
+              <button onClick={pauseTimer} style={{ marginLeft: '0.25rem' }}>Pause</button>
+              <button onClick={() => extendTimer(60)} style={{ marginLeft: '0.25rem' }}>+60s</button>
+            </div>
+          )}
+          <h3>Voting</h3>
+          {state.vote.open ? (
+            <div>
+              <p>{state.vote.question}</p>
+              <ul>
+                {state.vote.options.map((opt, idx) => (
+                  <li key={idx}>
+                    {opt}{' '}
+                    {!isHost && (
+                      <button onClick={() => castVote(idx)} disabled={state.vote.votesByUserId && state.vote.votesByUserId[userId] !== undefined}>Vote</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {isHost && <button onClick={closeVote}>Close vote</button>}
+            </div>
+          ) : (
+            isHost && (
+              <div>
+                <input placeholder="Vote question" value={voteQuestion} onChange={(e) => setVoteQuestion(e.target.value)} />
+                <input placeholder="Options comma separated" value={voteOptions} onChange={(e) => setVoteOptions(e.target.value)} style={{ marginLeft: '0.25rem' }} />
+                <button onClick={() => { openVote(voteQuestion, voteOptions.split(',').map((s) => s.trim()).filter(Boolean)); setVoteQuestion(''); }} style={{ marginLeft: '0.25rem' }}>Open vote</button>
+              </div>
+            )
+          )}
+          {isHost && (
+            <div style={{ marginTop: '1rem' }}>
+              <button onClick={endMeeting}>End meeting</button>
             </div>
           )}
         </div>
-
-        <div
-          style={{
-            border: "1px solid #1c2233",
-            borderRadius: 14,
-            padding: 16,
-            background: "#0f1422",
-            flex: 1,
-            overflow: "auto",
-          }}
-        >
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>Meeting Log</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, opacity: 0.9 }}>
-            {state.log
-              .slice()
-              .reverse()
-              .map((e, idx) => (
-                <div key={idx}>
-                  <code>{new Date(e.ts).toLocaleTimeString()}</code> — {e.type}
-                </div>
-              ))}
-            {state.log.length === 0 && <div style={{ opacity: 0.7 }}>No events yet.</div>}
-          </div>
+      )}
+      {status === 'ended' && (
+        <div>
+          <h2>Meeting ended</h2>
+          <p>Minutes have been generated and stored.</p>
         </div>
-      </div>
-
-      {/* Right: Voting */}
-      <div style={{ borderLeft: "1px solid #1c2233", padding: 16, overflow: "auto" }}>
-        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 10 }}>Voting</div>
-
-        {voteOpen ? (
-          <div style={{ border: "1px solid #1c2233", borderRadius: 14, padding: 16, background: "#0f1422" }}>
-            <div style={{ opacity: 0.8, fontSize: 12 }}>Open Vote</div>
-            <div style={{ fontWeight: 900, marginTop: 6 }}>{state.vote.question}</div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-              {state.vote.options.map((opt, i) => (
-                <button
-                  key={i}
-                  onClick={() => send({ type: "VOTE_CAST", optionIndex: i })}
-                  style={{
-                    padding: 10,
-                    borderRadius: 10,
-                    border: "1px solid #1c2233",
-                    background: "#101629",
-                    color: "#e9eefc",
-                    textAlign: "left",
-                  }}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-
-            {isHost && (
-              <button
-                onClick={() => send({ type: "VOTE_CLOSE" })}
-                style={{
-                  marginTop: 12,
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #1c2233",
-                  background: "#5a1a1a",
-                  color: "#e9eefc",
-                }}
-              >
-                Close Vote
-              </button>
-            )}
-          </div>
-        ) : (
-          <HostVoteControls isHost={isHost} send={send} />
-        )}
-
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>Recent Results</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {state.vote.closedResults
-              .slice()
-              .reverse()
-              .map((r, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    border: "1px solid #1c2233",
-                    borderRadius: 14,
-                    padding: 12,
-                    background: "#0f1422",
-                  }}
-                >
-                  <div style={{ fontWeight: 800 }}>{r.question}</div>
-                  <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>
-                    Total votes: {r.totalVotes}
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: 12 }}>
-                    {r.options.map((opt, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                        <span>{opt}</span>
-                        <b>{r.tally[i]}</b>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            {state.vote.closedResults.length === 0 && (
-              <div style={{ opacity: 0.7, fontSize: 12 }}>No votes yet.</div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HostVoteControls({ isHost, send }) {
-  const [question, setQuestion] = useState("Approve proposal?");
-  const [optionsText, setOptionsText] = useState("Yes\nNo\nTable");
-
-  if (!isHost) {
-    return (
-      <div style={{ border: "1px solid #1c2233", borderRadius: 14, padding: 16, background: "#0f1422", opacity: 0.9 }}>
-        <div style={{ opacity: 0.8, fontSize: 12 }}>No open vote</div>
-        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
-          The host can open votes here. When a vote opens, you’ll get buttons to cast your vote.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ border: "1px solid #1c2233", borderRadius: 14, padding: 16, background: "#0f1422" }}>
-      <div style={{ opacity: 0.8, fontSize: 12 }}>Create Vote (Host)</div>
-
-      <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>Question</div>
-      <input
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-        style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: "1px solid #1c2233", background: "#101629", color: "#e9eefc" }}
-      />
-
-      <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>Options (one per line)</div>
-      <textarea
-        value={optionsText}
-        onChange={(e) => setOptionsText(e.target.value)}
-        rows={4}
-        style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: "1px solid #1c2233", background: "#101629", color: "#e9eefc", resize: "vertical" }}
-      />
-
-      <button
-        onClick={() => {
-          const options = optionsText
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean);
-          if (options.length < 2) return;
-          send({ type: "VOTE_OPEN", question, options });
-        }}
-        style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, border: "1px solid #1c2233", background: "#1a5a2a", color: "#e9eefc" }}
-      >
-        Open Vote
-      </button>
+      )}
     </div>
   );
 }
