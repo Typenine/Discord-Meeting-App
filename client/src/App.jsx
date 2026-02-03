@@ -41,19 +41,35 @@ export default function App() {
   const [error, setError] = useState(null);
   const isHost = state && state.hostUserId === String(userId);
 
-  // Poll health status on mount
+  // Poll health status on mount and periodically during meetings
   useEffect(() => {
     const checkHealth = async () => {
       try {
         const res = await fetch(`${API_BASE.replace('/api', '')}/health`);
         const data = await res.json();
         setHealthStatus(data);
+        
+        // Show warning if health check fails
+        if (!data.ok && status === "joined") {
+          console.warn('[Health Check] System health degraded:', data.warnings);
+        }
       } catch (err) {
         console.error('Health check failed:', err);
       }
     };
+    
     checkHealth();
-  }, []);
+    
+    // Re-check health every 30 seconds during active meetings
+    let interval;
+    if (status === "joined") {
+      interval = setInterval(checkHealth, 30000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [status]);
 
   // Polling effect: fetch session state every second
   useEffect(() => {
@@ -418,6 +434,55 @@ export default function App() {
               )}
             </div>
           </div>
+          
+          {/* System Health Panel for Hosts */}
+          {isHost && healthStatus && (
+            <details style={{ 
+              marginBottom: "1rem", 
+              padding: "0.75rem",
+              backgroundColor: "#f8f9fa",
+              border: "1px solid #dee2e6",
+              borderRadius: "4px"
+            }}>
+              <summary style={{ cursor: "pointer", fontWeight: "bold", marginBottom: "0.5rem" }}>
+                📊 System Diagnostics {healthStatus.ok ? "✅" : "⚠️"}
+              </summary>
+              <div style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong>Configuration:</strong>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                    <li>Client ID: {healthStatus.config?.clientId ? "✓ Configured" : "❌ Missing"}</li>
+                    <li>Client Secret: {healthStatus.config?.secretConfigured ? "✓ Configured" : "❌ Missing"}</li>
+                    <li>Redirect URI: {healthStatus.config?.redirectUri ? "✓ Configured" : "❌ Missing"}</li>
+                  </ul>
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong>Host Authorization:</strong>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                    <li>Allow All: {healthStatus.hostAuth?.allowAll ? "Yes" : "No"}</li>
+                    <li>Authorized Hosts: {healthStatus.hostAuth?.hostIdsCount || 0}</li>
+                  </ul>
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong>Persistence:</strong>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                    <li>Total Saves: {healthStatus.store?.persistence?.totalSaves || 0}</li>
+                    <li>Total Failures: {healthStatus.store?.persistence?.totalFailures || 0}</li>
+                    <li>Consecutive Failures: {healthStatus.store?.persistence?.consecutiveFailures || 0}</li>
+                    <li>Data Directory: {healthStatus.store?.persistence?.dataDirWritable ? "✓ Writable" : "⚠️ Not Writable"}</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>Sessions:</strong>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                    <li>Active: {healthStatus.store?.sessions?.active || 0}</li>
+                    <li>Ended: {healthStatus.store?.sessions?.ended || 0}</li>
+                    <li>Total: {healthStatus.store?.sessions?.total || 0}</li>
+                  </ul>
+                </div>
+              </div>
+            </details>
+          )}
           
           <h2>Meeting Controls</h2>
           <p>You are <strong>{username}</strong> {isHost && "(with host privileges)"}</p>
