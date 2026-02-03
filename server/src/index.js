@@ -195,10 +195,11 @@ apiRouter.use((req, res, next) => {
 });
 
 // Start a new session.  Body must include userId; username is optional.
+// Enhanced to support Discord channel context (channelId, guildId)
 apiRouter.post('/session/start', (req, res) => {
-  const { userId, username, sessionId } = req.body || {};
+  const { userId, username, sessionId, channelId, guildId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
-  const result = store.createSession({ userId, username, sessionId });
+  const result = store.createSession({ userId, username, sessionId, channelId, guildId });
   
   // Handle unauthorized host error
   if (result && result.error === 'unauthorized_host') {
@@ -318,12 +319,12 @@ apiRouter.post('/session/:id/agenda/:agendaId/active', (req, res) => {
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
 
-// Timer controls.  Host‑only.
+// Timer controls.  Host‑only. Enhanced to support decimal minutes
 apiRouter.post('/session/:id/timer/start', (req, res) => {
   const sessionId = req.params.id;
-  const { userId } = req.body || {};
+  const { userId, durationMinutes } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
-  const state = store.startTimer({ sessionId, userId });
+  const state = store.startTimer({ sessionId, userId, durationMinutes });
   if (!state) {
     console.warn('[Authorization] User attempted timer start without host access:', {
       sessionId,

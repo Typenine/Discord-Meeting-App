@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { generateMinutes } from './minutesGenerator.js';
 
 // Location on disk where session data is stored.  We derive this from
 // __dirname so tests and deployments behave the same regardless of
@@ -145,7 +146,7 @@ function snapshotSession(session) {
 // Create a new meeting session and assign hostUserId.  Returns a
 // snapshot of the created session.  The session id is a UUID.
 // Enhanced to validate host authorization against global config.
-export function createSession({ userId, username, sessionId }) {
+export function createSession({ userId, username, sessionId, channelId, guildId }) {
   // Validate that the creating user is an authorized host
   if (!isAuthorizedHost(userId)) {
     console.warn('[store] Unauthorized host attempt:', { userId });
@@ -166,12 +167,16 @@ export function createSession({ userId, username, sessionId }) {
     updatedAt: now,
     hostUserId: String(userId),
     hostAuthorized: true, // Track that host was validated
+    // Discord context for channel-specific meetings
+    channelId: channelId ? String(channelId) : null,
+    guildId: guildId ? String(guildId) : null,
     attendance: {
       [userId]: {
         userId: String(userId),
         displayName: username || '',
         joinedAt: now,
         lastSeenAt: now,
+        leftAt: null,
       },
     },
     agenda: [],
@@ -180,6 +185,7 @@ export function createSession({ userId, username, sessionId }) {
       running: false,
       endsAtMs: null,
       remainingSec: 0,
+      durationSet: 0, // Track original duration for validation
     },
     vote: {
       open: false,
@@ -187,11 +193,12 @@ export function createSession({ userId, username, sessionId }) {
       options: [],
       votesByUserId: {},
       closedResults: [],
+      linkedAgendaId: null, // Link current vote to agenda item
     },
     minutes: '',
   };
   saveSessions();
-  console.log('[store] Session created:', { sessionId: id, hostUserId: userId });
+  console.log('[store] Session created:', { sessionId: id, hostUserId: userId, channelId, guildId });
   return snapshotSession(sessions[id]);
 }
 
@@ -252,13 +259,22 @@ function bumpRevision(session) {
   session.updatedAt = Date.now();
 }
 
-// Agenda management - Enhanced with validateHostAccess
+// Agenda management - Enhanced with validateHostAccess and status tracking
 export function addAgenda({ sessionId, userId, title, durationSec }) {
   const session = sessions[sessionId];
   if (!session) return null;
   if (!validateHostAccess(session, userId)) return null;
   const id = randomUUID();
-  session.agenda.push({ id, title: String(title), durationSec: Number(durationSec) || 0, notes: '' });
+  session.agenda.push({ 
+    id, 
+    title: String(title), 
+    durationSec: Number(durationSec) || 0, 
+    notes: '',
+    status: 'pending', // 'pending' | 'active' | 'completed'
+    startedAt: null,
+    completedAt: null,
+    timeSpent: 0,
+  });
   if (!session.currentAgendaItemId) session.currentAgendaItemId = id;
   bumpRevision(session);
   saveSessions();
@@ -285,6 +301,14 @@ export function deleteAgenda({ sessionId, userId, agendaId }) {
   if (!validateHostAccess(session, userId)) return null;
   const idx = session.agenda.findIndex((a) => a.id === agendaId);
   if (idx < 0) return null;
+  
+  // Prevent deletion of active agenda item - must be completed or changed first
+  const item = session.agenda[idx];
+  if (item.status === 'active') {
+    console.warn('[store] Cannot delete active agenda item:', { agendaId });
+    return { error: 'active_item', message: 'Cannot delete active agenda item. Please mark as completed or switch to another item first.' };
+  }
+  
   session.agenda.splice(idx, 1);
   // If active item was removed, clear currentAgendaItemId
   if (session.currentAgendaItemId === agendaId) {
@@ -305,6 +329,28 @@ export function setActiveAgenda({ sessionId, userId, agendaId }) {
   if (!validateHostAccess(session, userId)) return null;
   const exists = session.agenda.some((a) => a.id === agendaId);
   if (!exists) return null;
+  
+  // Mark previous active item as completed
+  if (session.currentAgendaItemId) {
+    const prevItem = session.agenda.find((a) => a.id === session.currentAgendaItemId);
+    if (prevItem && prevItem.status === 'active') {
+      prevItem.status = 'completed';
+      prevItem.completedAt = Date.now();
+      if (prevItem.startedAt) {
+        prevItem.timeSpent = prevItem.completedAt - prevItem.startedAt;
+      }
+    }
+  }
+  
+  // Mark new item as active
+  const newItem = session.agenda.find((a) => a.id === agendaId);
+  if (newItem) {
+    newItem.status = 'active';
+    if (!newItem.startedAt) {
+      newItem.startedAt = Date.now();
+    }
+  }
+  
   session.currentAgendaItemId = agendaId;
   // Reset timer based on agenda duration if timer not running
   if (!session.timer.running) {
@@ -312,19 +358,30 @@ export function setActiveAgenda({ sessionId, userId, agendaId }) {
     const sec = item ? Math.max(0, Math.round(item.durationSec)) : 0;
     session.timer.remainingSec = sec;
     session.timer.endsAtMs = null;
+    session.timer.durationSet = sec;
   }
   bumpRevision(session);
   saveSessions();
   return snapshotSession(session);
 }
 
-// Timer controls - Enhanced with validateHostAccess
-export function startTimer({ sessionId, userId }) {
+// Timer controls - Enhanced with validateHostAccess and decimal minute support
+export function startTimer({ sessionId, userId, durationMinutes }) {
   const session = sessions[sessionId];
   if (!session) return null;
   if (!validateHostAccess(session, userId)) return null;
   if (session.timer.running) return snapshotSession(session);
-  const remaining = computeRemainingSec(session);
+  
+  // Support decimal minutes (e.g., 2.5 minutes = 150 seconds)
+  let remaining = computeRemainingSec(session);
+  if (durationMinutes !== undefined) {
+    const minutes = Number(durationMinutes);
+    if (!Number.isNaN(minutes) && minutes > 0) {
+      remaining = Math.round(minutes * 60);
+      session.timer.durationSet = remaining;
+    }
+  }
+  
   session.timer.running = true;
   session.timer.remainingSec = remaining;
   session.timer.endsAtMs = Date.now() + remaining * 1000;
@@ -352,7 +409,20 @@ export function extendTimer({ sessionId, userId, seconds }) {
   if (!validateHostAccess(session, userId)) return null;
   const delta = Number(seconds) || 0;
   if (delta === 0) return snapshotSession(session);
+  
+  // Validate timer extensions - prevent excessive negative values
   if (session.timer.running && session.timer.endsAtMs != null) {
+    const currentRemaining = Math.max(0, Math.floor((session.timer.endsAtMs - Date.now()) / 1000));
+    const newRemaining = currentRemaining + delta;
+    if (newRemaining < 0) {
+      console.warn('[store] Timer extension would result in negative time:', { delta, currentRemaining });
+      return { error: 'invalid_extension', message: 'Timer extension would result in negative time' };
+    }
+    // Prevent excessive extensions (more than 2x original duration)
+    if (session.timer.durationSet > 0 && newRemaining > session.timer.durationSet * 2) {
+      console.warn('[store] Timer extension exceeds 2x original duration:', { delta, durationSet: session.timer.durationSet });
+      return { error: 'excessive_extension', message: 'Timer extension exceeds 2x original duration' };
+    }
     session.timer.endsAtMs += delta * 1000;
   } else {
     session.timer.remainingSec = Math.max(0, session.timer.remainingSec + delta);
@@ -362,7 +432,7 @@ export function extendTimer({ sessionId, userId, seconds }) {
   return snapshotSession(session);
 }
 
-// Voting - Enhanced with validateHostAccess
+// Voting - Enhanced with validateHostAccess and duplicate prevention
 export function openVote({ sessionId, userId, question, options }) {
   const session = sessions[sessionId];
   if (!session) return null;
@@ -372,6 +442,7 @@ export function openVote({ sessionId, userId, question, options }) {
   session.vote.question = String(question || '');
   session.vote.options = options.map((o) => String(o));
   session.vote.votesByUserId = {};
+  session.vote.linkedAgendaId = session.currentAgendaItemId; // Link to current agenda
   bumpRevision(session);
   saveSessions();
   return snapshotSession(session);
@@ -383,6 +454,8 @@ export function castVote({ sessionId, userId, optionIndex }) {
   if (!session.vote.open) return null;
   const idx = Number(optionIndex);
   if (Number.isNaN(idx) || idx < 0 || idx >= session.vote.options.length) return null;
+  
+  // Allow users to change their vote, but track that they voted
   session.vote.votesByUserId[String(userId)] = idx;
   bumpRevision(session);
   saveSessions();
@@ -417,43 +490,59 @@ export function closeVote({ sessionId, userId }) {
   return snapshotSession(session);
 }
 
-// End meeting and generate minutes.  For simplicity, the minutes are a
-// plain‑text summary of the agenda, votes, and a placeholder for action
-// items.  Returns the minutes string. Enhanced with validateHostAccess.
+// End meeting and generate minutes.  Enhanced with Markdown formatting,
+// action item extraction, and comprehensive meeting statistics.
 export function endMeeting({ sessionId, userId }) {
   const session = sessions[sessionId];
   if (!session) return null;
   if (!validateHostAccess(session, userId)) return null;
   if (session.status === 'ended') return session.minutes;
-  // Build minutes summary
-  const lines = [];
-  lines.push(`Meeting ID: ${session.id}`);
-  lines.push(`Started at: ${new Date(session.createdAt).toLocaleString()}`);
-  lines.push('');
-  lines.push('Agenda:');
-  session.agenda.forEach((item, idx) => {
-    lines.push(`${idx + 1}. ${item.title} (${item.durationSec || 0}s)`);
-    if (item.notes) lines.push(`   Notes: ${item.notes}`);
-  });
-  lines.push('');
-  // Votes summary
-  if (session.vote.closedResults.length > 0) {
-    lines.push('Votes:');
-    session.vote.closedResults.forEach((r, idx) => {
-      lines.push(`Q${idx + 1}. ${r.question}`);
-      r.options.forEach((opt, oi) => {
-        lines.push(`   ${opt}: ${r.tally[oi]} votes`);
-      });
-      lines.push(`   Total votes: ${r.totalVotes}`);
-    });
-    lines.push('');
+  
+  // Validate meeting state before ending
+  const warnings = [];
+  
+  // Check for incomplete agenda items
+  const incompleteItems = session.agenda.filter(a => a.status === 'pending' || a.status === 'active');
+  if (incompleteItems.length > 0) {
+    warnings.push(`${incompleteItems.length} agenda item(s) not completed`);
   }
-  lines.push('Action items:');
-  lines.push('- [ ] TODO');
-  session.minutes = lines.join('\n');
+  
+  // Check for open votes
+  if (session.vote.open) {
+    warnings.push('Vote is still open');
+  }
+  
+  // Log warnings but allow meeting to end
+  if (warnings.length > 0) {
+    console.warn('[store] Meeting ended with warnings:', { sessionId, warnings });
+  }
+  
+  // Mark any active agenda items as completed
+  session.agenda.forEach(item => {
+    if (item.status === 'active') {
+      item.status = 'completed';
+      item.completedAt = Date.now();
+      if (item.startedAt) {
+        item.timeSpent = item.completedAt - item.startedAt;
+      }
+    }
+  });
+  
+  // Generate enhanced minutes using minutesGenerator
+  session.minutes = generateMinutes(session);
   session.status = 'ended';
+  session.endedAt = Date.now();
   bumpRevision(session);
   saveSessions();
+  
+  console.log('[store] Meeting ended:', { 
+    sessionId, 
+    duration: session.endedAt - session.createdAt,
+    agendaItems: session.agenda.length,
+    votes: session.vote.closedResults.length,
+    warnings: warnings.length,
+  });
+  
   return session.minutes;
 }
 
