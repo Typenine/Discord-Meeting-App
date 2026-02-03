@@ -44,13 +44,19 @@ export function setHostAuthConfig(config) {
   });
 }
 
-// Validate if a user is an authorized host according to global config
+// Validate if a user is an authorized host according to global config.
+// If no hostIds are configured, all users are allowed (default behavior).
+// If hostIds are configured, they act as an additional allowlist.
 function isAuthorizedHost(userId) {
   if (!hostAuthConfig) {
     console.warn('[store] Host auth config not initialized');
     return false;
   }
+  // If allowAll is set (*), everyone is allowed
   if (hostAuthConfig.allowAll) return true;
+  // If no specific host IDs are configured, allow anyone (optional allowlist)
+  if (hostAuthConfig.hostIds.size === 0) return true;
+  // If host IDs are configured, check if user is in the allowlist
   return hostAuthConfig.hostIds.has(String(userId));
 }
 
@@ -145,7 +151,8 @@ function snapshotSession(session) {
 
 // Create a new meeting session and assign hostUserId.  Returns a
 // snapshot of the created session.  The session id is a UUID.
-// Enhanced to validate host authorization against global config.
+// Host authorization: If HOST_USER_IDS is not set, anyone can create meetings.
+// If HOST_USER_IDS is set, it acts as an additional allowlist for extra safety.
 export function createSession({ userId, username, sessionId, channelId, guildId }) {
   // Validate that the creating user is an authorized host
   if (!isAuthorizedHost(userId)) {
@@ -237,16 +244,17 @@ export function getSession(sessionId) {
 }
 
 // Internal helper to validate host access for a session.
-// Returns true if userId is the session host AND authorized globally.
+// Returns true if userId is the session host AND (authorized globally OR no allowlist configured).
 function validateHostAccess(session, userId) {
   if (!session) return false;
   const isSessionHost = session.hostUserId === String(userId);
   const isGloballyAuthorized = isAuthorizedHost(userId);
   
   if (isSessionHost && !isGloballyAuthorized) {
-    console.warn('[store] Session host no longer globally authorized:', {
+    console.warn('[store] Session host blocked by allowlist:', {
       sessionId: session.id,
       hostUserId: session.hostUserId,
+      note: 'HOST_USER_IDS is configured and user is not in allowlist',
     });
   }
   

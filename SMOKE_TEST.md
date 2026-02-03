@@ -158,7 +158,7 @@ Expected fields:
 
 If smoke test fails:
 1. Check server logs: `tail -f server/logs/app.log` (if configured)
-2. Verify environment: `HOST_USER_IDS` set (use `*` for testing)
+2. Verify environment: `HOST_USER_IDS` optional (not set = all users allowed, set = allowlist)
 3. Check data directory writable: `ls -la server/data/`
 4. Revert: `git revert <commit-hash>`
 

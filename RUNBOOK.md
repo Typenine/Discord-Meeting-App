@@ -19,9 +19,12 @@ DISCORD_CLIENT_ID=your_client_id
 DISCORD_CLIENT_SECRET=your_secret
 DISCORD_REDIRECT_URI=http://localhost:8787/callback
 
-# Host Authorization (required)
-HOST_USER_IDS=*                    # Allow all (development)
-# HOST_USER_IDS=user123,user456    # Specific users (production)
+# Host Authorization (optional - adds extra safety layer)
+# If not set: anyone who starts a meeting becomes the host
+# If set to *: explicitly allow all users
+# If set to specific IDs: only those users can host meetings
+# HOST_USER_IDS=*                    # Allow all (explicit)
+# HOST_USER_IDS=user123,user456      # Only specific users can host
 
 # Optional
 PORT=8787                          # Default: 8787
@@ -65,12 +68,16 @@ npm run preview
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8787` | Server port |
-| `HOST_USER_IDS` | _(none)_ | Comma-separated Discord user IDs or `*` for all |
+| `HOST_USER_IDS` | _(not set)_ | Optional: Comma-separated Discord user IDs or `*` for all. Acts as allowlist when set. |
 | `VITE_API_BASE` | `http://127.0.0.1:8787/api` | Client API endpoint |
 
 **If not set**:
-- `HOST_USER_IDS` → Nobody can create meetings
+- `HOST_USER_IDS` → Anyone who starts a meeting becomes the host (default behavior)
 - `DISCORD_*` → OAuth disabled, basic meeting features work
+
+**If set**:
+- `HOST_USER_IDS=*` → Explicitly allow all users to host
+- `HOST_USER_IDS=user1,user2` → Only listed users can host (allowlist for extra security)
 
 ## Key Features
 
@@ -167,9 +174,10 @@ Server logs to console by default. Key patterns:
 
 ### Issue: Users can't create meetings
 **Solution**: 
-1. Check `HOST_USER_IDS` is set
-2. Use `HOST_USER_IDS=*` for testing
-3. For production, add Discord user IDs: `HOST_USER_IDS=123456,789012`
+1. If `HOST_USER_IDS` is not set, all users should be able to create meetings by default
+2. If `HOST_USER_IDS` is set and users can't create meetings, check that their user IDs are in the allowlist
+3. For testing, use `HOST_USER_IDS=*` to explicitly allow all users
+4. For production security, set specific Discord user IDs: `HOST_USER_IDS=123456,789012`
 
 ### Issue: Persistence failures
 **Solution**:
