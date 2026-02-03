@@ -6,8 +6,26 @@ const IN_DISCORD =
   typeof window !== "undefined" &&
   window.location.hostname.endsWith("discordsays.com");
 
-// Proxy endpoints inside Discord
-const API_BASE = IN_DISCORD ? "/proxy/api" : "http://127.0.0.1:8787/api";
+// Raw API base from environment for non-Discord deploys (for example, Vercel)
+const RAW_ENV_API_BASE = import.meta.env.VITE_API_BASE;
+
+function normalizeApiBase(base) {
+  if (!base) return base;
+  return String(base).replace(/\/+$/, "");
+}
+
+// 3-mode routing for HTTP API:
+// 1) Inside Discord: use Activity proxy (/proxy/api)
+// 2) Deployed (non-Discord) with VITE_API_BASE: use that
+// 3) Local dev fallback: http://127.0.0.1:8787/api
+const API_BASE = (() => {
+  if (IN_DISCORD) return "/proxy/api";
+
+  const envBase = RAW_ENV_API_BASE && String(RAW_ENV_API_BASE).trim();
+  if (envBase) return normalizeApiBase(envBase);
+
+  return "http://127.0.0.1:8787/api";
+})();
 
 function formatMMSS(totalSec) {
   const m = Math.floor(totalSec / 60);
@@ -41,7 +59,7 @@ export default function App() {
     );
   }, []);
 
-  // --- 1) Authenticate inside Discord (skip entirely in local dev) ---
+  // --- 1) Authenticate inside Discord (skip entirely in non-Discord) ---
   useEffect(() => {
     let cancelled = false;
 
@@ -68,20 +86,20 @@ export default function App() {
           response_type: "code",
           state: "",
           prompt: "none",
-          scope: ["identify"]
+          scope: ["identify"],
         });
 
         const tokenResp = await fetch(`${API_BASE}/token`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code })
+          body: JSON.stringify({ code }),
         });
 
         const tokenJson = await tokenResp.json();
         if (!tokenResp.ok) throw new Error(JSON.stringify(tokenJson));
 
         const auth = await discordSdk.commands.authenticate({
-          access_token: tokenJson.access_token
+          access_token: tokenJson.access_token,
         });
 
         if (cancelled) return;
@@ -106,11 +124,25 @@ export default function App() {
   useEffect(() => {
     if (!userId) return;
 
-    const wsUrl = IN_DISCORD
-      ? `${window.location.origin.replace(/^http/, "ws")}/proxy/api/ws?room=${encodeURIComponent(
-          sessionId,
-        )}`
-      : `ws://127.0.0.1:8787/api/ws?room=${encodeURIComponent(sessionId)}`;
+    let wsUrl;
+
+    if (IN_DISCORD) {
+      wsUrl = `${window.location.origin.replace(
+        /^http/,
+        "ws"
+      )}/proxy/api/ws?room=${encodeURIComponent(sessionId)}`;
+    } else {
+      // Derive WS base from API_BASE by converting scheme:
+      // https:// -> wss://, http:// -> ws://
+      let wsBase = API_BASE;
+      if (wsBase.startsWith("https://")) {
+        wsBase = "wss://" + wsBase.slice("https://".length);
+      } else if (wsBase.startsWith("http://")) {
+        wsBase = "ws://" + wsBase.slice("http://".length);
+      }
+
+      wsUrl = `${wsBase}/ws?room=${encodeURIComponent(sessionId)}`;
+    }
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -123,7 +155,9 @@ export default function App() {
       try {
         const msg = JSON.parse(String(ev.data));
         if (msg.type === "STATE") setState(msg.state);
-      } catch {}
+      } catch {
+        // ignore
+      }
     });
 
     ws.addEventListener("error", (e) => {
@@ -137,7 +171,7 @@ export default function App() {
     return () => ws.close();
   }, [sessionId, userId]);
 
-  const isHost = state?.hostUserId && state.hostUserId === userId;
+  const isHost = !!state?.hostUserId && state.hostUserId === userId;
 
   function send(msg) {
     const ws = wsRef.current;
@@ -190,7 +224,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
         height: "100vh",
         background: "#0b0d12",
         color: "#e9eefc",
-        fontFamily: "system-ui, Segoe UI, Roboto, Arial"
+        fontFamily: "system-ui, Segoe UI, Roboto, Arial",
       }}
     >
       {/* Left: Agenda */}
@@ -218,7 +252,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
                   border: isActive ? "1px solid #5b7cfa" : "1px solid #1c2233",
                   background: isActive ? "#121a33" : "#0f1422",
                   color: "#e9eefc",
-                  cursor: isHost ? "pointer" : "default"
+                  cursor: isHost ? "pointer" : "default",
                 }}
               >
                 <div style={{ fontWeight: 700 }}>{item.title}</div>
@@ -250,7 +284,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
                 borderRadius: 10,
                 border: "1px solid #1c2233",
                 background: isHost ? "#1a2a5a" : "#101629",
-                color: "#e9eefc"
+                color: "#e9eefc",
               }}
             >
               Start
@@ -263,7 +297,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
                 borderRadius: 10,
                 border: "1px solid #1c2233",
                 background: isHost ? "#2a1a5a" : "#101629",
-                color: "#e9eefc"
+                color: "#e9eefc",
               }}
             >
               Pause
@@ -276,7 +310,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
                 borderRadius: 10,
                 border: "1px solid #1c2233",
                 background: isHost ? "#3a2a1a" : "#101629",
-                color: "#e9eefc"
+                color: "#e9eefc",
               }}
             >
               Reset
@@ -297,7 +331,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
             padding: 16,
             background: "#0f1422",
             flex: 1,
-            overflow: "auto"
+            overflow: "auto",
           }}
         >
           <div style={{ fontWeight: 800, marginBottom: 8 }}>Meeting Log</div>
@@ -335,7 +369,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
                     border: "1px solid #1c2233",
                     background: "#101629",
                     color: "#e9eefc",
-                    textAlign: "left"
+                    textAlign: "left",
                   }}
                 >
                   {opt}
@@ -352,7 +386,7 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
                   borderRadius: 10,
                   border: "1px solid #1c2233",
                   background: "#5a1a1a",
-                  color: "#e9eefc"
+                  color: "#e9eefc",
                 }}
               >
                 Close Vote
@@ -370,7 +404,15 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
               .slice()
               .reverse()
               .map((r, idx) => (
-                <div key={idx} style={{ border: "1px solid #1c2233", borderRadius: 14, padding: 12, background: "#0f1422" }}>
+                <div
+                  key={idx}
+                  style={{
+                    border: "1px solid #1c2233",
+                    borderRadius: 14,
+                    padding: 12,
+                    background: "#0f1422",
+                  }}
+                >
                   <div style={{ fontWeight: 800 }}>{r.question}</div>
                   <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>
                     Total votes: {r.totalVotes}
@@ -385,7 +427,9 @@ VITE_DISCORD_CLIENT_ID=YOUR_APP_ID
                   </div>
                 </div>
               ))}
-            {state.vote.closedResults.length === 0 && <div style={{ opacity: 0.7, fontSize: 12 }}>No votes yet.</div>}
+            {state.vote.closedResults.length === 0 && (
+              <div style={{ opacity: 0.7, fontSize: 12 }}>No votes yet.</div>
+            )}
           </div>
         </div>
       </div>
@@ -429,7 +473,10 @@ function HostVoteControls({ isHost, send }) {
 
       <button
         onClick={() => {
-          const options = optionsText.split("\n").map((s) => s.trim()).filter(Boolean);
+          const options = optionsText
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean);
           if (options.length < 2) return;
           send({ type: "VOTE_OPEN", question, options });
         }}
