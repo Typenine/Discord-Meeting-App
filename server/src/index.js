@@ -48,17 +48,44 @@ import express from "express";
 // HTTP endpoints.  See store.js for details.
 import * as store from "./store.js";
 
+// Initialize store with host authorization configuration
+store.setHostAuthConfig({
+  allowAll: HOST_ALLOW_ALL,
+  hostIds: HOST_IDS,
+});
+
 const app = express();
 app.use(express.json());
 
 app.get("/health", (req, res) => {
+  const storeDiagnostics = store.getStoreDiagnostics();
+  
+  // Determine overall health status
+  const hasConfigIssues = !CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI;
+  const hasPersistenceIssues = storeDiagnostics.persistence.consecutiveFailures > 3;
+  
   res.json({
-    ok: true,
-    redirectUri: REDIRECT_URI,
-    clientId: CLIENT_ID,
-    secretLength: (CLIENT_SECRET || "").length,
-    hostAllowAll: HOST_ALLOW_ALL,
-    hostIdsCount: HOST_IDS.size,
+    ok: !hasConfigIssues && !hasPersistenceIssues,
+    timestamp: new Date().toISOString(),
+    config: {
+      redirectUri: REDIRECT_URI,
+      clientId: CLIENT_ID,
+      secretConfigured: !!(CLIENT_SECRET && CLIENT_SECRET.length > 0),
+      secretLength: (CLIENT_SECRET || "").length,
+    },
+    hostAuth: {
+      allowAll: HOST_ALLOW_ALL,
+      hostIdsCount: HOST_IDS.size,
+      configured: storeDiagnostics.hostAuth.configured,
+    },
+    store: storeDiagnostics,
+    warnings: [
+      ...(!CLIENT_ID ? ['DISCORD_CLIENT_ID not configured'] : []),
+      ...(!CLIENT_SECRET ? ['DISCORD_CLIENT_SECRET not configured'] : []),
+      ...(!REDIRECT_URI ? ['DISCORD_REDIRECT_URI not configured'] : []),
+      ...(hasPersistenceIssues ? ['Persistence failures detected'] : []),
+      ...(!storeDiagnostics.persistence.dataDirWritable ? ['Data directory not writable'] : []),
+    ],
   });
 });
 
@@ -144,13 +171,45 @@ const server = app.listen(PORT, () => {
 
 const apiRouter = express.Router();
 
+// Logging middleware for API routes - helps with diagnostics
+apiRouter.use((req, res, next) => {
+  const start = Date.now();
+  const originalSend = res.json;
+  
+  res.json = function(data) {
+    const duration = Date.now() - start;
+    const isError = res.statusCode >= 400;
+    const logLevel = isError ? 'warn' : 'info';
+    
+    console[logLevel](`[API ${req.method} ${req.path}]`, {
+      status: res.statusCode,
+      duration: `${duration}ms`,
+      userId: req.body?.userId || req.query?.userId || 'anonymous',
+      error: isError ? data.error : undefined,
+    });
+    
+    return originalSend.call(this, data);
+  };
+  
+  next();
+});
+
 // Start a new session.  Body must include userId; username is optional.
 apiRouter.post('/session/start', (req, res) => {
   const { userId, username, sessionId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
-  const state = store.createSession({ userId, username, sessionId });
-  const raw = store.getSession(state.id);
-  return res.json({ sessionId: raw.id, state, revision: raw.revision, serverNow: Date.now() });
+  const result = store.createSession({ userId, username, sessionId });
+  
+  // Handle unauthorized host error
+  if (result && result.error === 'unauthorized_host') {
+    return res.status(403).json({ 
+      error: 'unauthorized_host',
+      message: 'You are not authorized to create meetings. Contact an administrator.',
+    });
+  }
+  
+  const raw = store.getSession(result.id);
+  return res.json({ sessionId: raw.id, state: result, revision: raw.revision, serverNow: Date.now() });
 });
 
 // Join an existing session.  Adds user to attendance.  Body must include userId.
@@ -187,7 +246,14 @@ apiRouter.post('/session/:id/agenda', (req, res) => {
   const { userId, title, durationSec } = req.body || {};
   if (!userId || !title) return res.status(400).json({ error: 'missing_fields' });
   const state = store.addAgenda({ sessionId, userId, title, durationSec });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted agenda operation without host access:', {
+      sessionId,
+      userId,
+      operation: 'addAgenda',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -199,7 +265,15 @@ apiRouter.put('/session/:id/agenda/:agendaId', (req, res) => {
   const { userId, title, durationSec, notes } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
   const state = store.updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted agenda update without host access:', {
+      sessionId,
+      userId,
+      agendaId,
+      operation: 'updateAgenda',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -211,7 +285,15 @@ apiRouter.delete('/session/:id/agenda/:agendaId', (req, res) => {
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
   const state = store.deleteAgenda({ sessionId, userId, agendaId });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted agenda delete without host access:', {
+      sessionId,
+      userId,
+      agendaId,
+      operation: 'deleteAgenda',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -223,7 +305,15 @@ apiRouter.post('/session/:id/agenda/:agendaId/active', (req, res) => {
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
   const state = store.setActiveAgenda({ sessionId, userId, agendaId });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted set active agenda without host access:', {
+      sessionId,
+      userId,
+      agendaId,
+      operation: 'setActiveAgenda',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -234,7 +324,14 @@ apiRouter.post('/session/:id/timer/start', (req, res) => {
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
   const state = store.startTimer({ sessionId, userId });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted timer start without host access:', {
+      sessionId,
+      userId,
+      operation: 'startTimer',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -244,7 +341,14 @@ apiRouter.post('/session/:id/timer/pause', (req, res) => {
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
   const state = store.pauseTimer({ sessionId, userId });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted timer pause without host access:', {
+      sessionId,
+      userId,
+      operation: 'pauseTimer',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -254,7 +358,14 @@ apiRouter.post('/session/:id/timer/extend', (req, res) => {
   const { userId, seconds } = req.body || {};
   if (!userId || seconds == null) return res.status(400).json({ error: 'missing_fields' });
   const state = store.extendTimer({ sessionId, userId, seconds });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted timer extend without host access:', {
+      sessionId,
+      userId,
+      operation: 'extendTimer',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -265,7 +376,14 @@ apiRouter.post('/session/:id/vote/open', (req, res) => {
   const { userId, question, options } = req.body || {};
   if (!userId || !question || !Array.isArray(options)) return res.status(400).json({ error: 'missing_fields' });
   const state = store.openVote({ sessionId, userId, question, options });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted vote open without host access:', {
+      sessionId,
+      userId,
+      operation: 'openVote',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -275,7 +393,7 @@ apiRouter.post('/session/:id/vote/cast', (req, res) => {
   const { userId, optionIndex } = req.body || {};
   if (!userId || optionIndex == null) return res.status(400).json({ error: 'missing_fields' });
   const state = store.castVote({ sessionId, userId, optionIndex });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) return res.status(403).json({ error: 'forbidden', message: 'Vote not open or invalid option' });
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -285,7 +403,14 @@ apiRouter.post('/session/:id/vote/close', (req, res) => {
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
   const state = store.closeVote({ sessionId, userId });
-  if (!state) return res.status(403).json({ error: 'forbidden' });
+  if (!state) {
+    console.warn('[Authorization] User attempted vote close without host access:', {
+      sessionId,
+      userId,
+      operation: 'closeVote',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
   const raw = store.getSession(sessionId);
   return res.json({ state, revision: raw.revision, serverNow: Date.now() });
 });
@@ -296,7 +421,16 @@ apiRouter.post('/session/:id/end', (req, res) => {
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'missing_userId' });
   const minutes = store.endMeeting({ sessionId, userId });
-  if (!minutes) return res.status(403).json({ error: 'forbidden' });
+  if (!minutes) {
+    console.warn('[Authorization] User attempted end meeting without host access:', {
+      sessionId,
+      userId,
+      operation: 'endMeeting',
+    });
+    return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+  }
+  return res.json({ minutes, serverNow: Date.now() });
+});
   return res.json({ minutes, serverNow: Date.now() });
 });
 
