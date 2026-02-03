@@ -62,9 +62,10 @@ function createMeetingSession({ sessionId, hostKey = null }) {
     activeAgendaId: null,
     timer: {
       running: false,
-      // When running: endsAtMs is authoritative
-      endsAtMs: null,
-      remainingSec: 0,
+      endsAtMs: null, // Authoritative absolute end time (when running)
+      durationSec: 0, // Duration for current agenda item
+      pausedRemainingSec: null, // Remaining seconds when paused
+      updatedAtMs: Date.now(), // Server timestamp of last timer state change
     },
     vote: {
       open: false,
@@ -93,8 +94,11 @@ function setActiveItem(session, agendaId) {
 
   const item = getActiveItem(session);
   if (!session.timer.running && item) {
-    session.timer.remainingSec = Math.max(0, Math.round(item.minutes * 60));
+    // When switching items, set the duration for the new item
+    session.timer.durationSec = item.durationSec || 0;
+    session.timer.pausedRemainingSec = null;
     session.timer.endsAtMs = null;
+    session.timer.updatedAtMs = Date.now();
   }
 
   return true;
@@ -102,37 +106,51 @@ function setActiveItem(session, agendaId) {
 
 function timerStart(session) {
   if (session.timer.running) return;
+  const serverNowMs = Date.now();
   session.timer.running = true;
-  session.timer.endsAtMs = Date.now() + session.timer.remainingSec * 1000;
+  session.timer.endsAtMs = serverNowMs + session.timer.durationSec * 1000;
+  session.timer.pausedRemainingSec = null;
+  session.timer.updatedAtMs = serverNowMs;
 }
 
 function timerPause(session) {
   if (!session.timer.running) return;
-  const remainingMs = Math.max(0, session.timer.endsAtMs - Date.now());
-  session.timer.remainingSec = Math.ceil(remainingMs / 1000);
+  const serverNowMs = Date.now();
+  const remainingMs = Math.max(0, session.timer.endsAtMs - serverNowMs);
+  session.timer.pausedRemainingSec = Math.ceil(remainingMs / 1000);
   session.timer.running = false;
   session.timer.endsAtMs = null;
+  session.timer.updatedAtMs = serverNowMs;
+}
+
+function timerResume(session) {
+  if (session.timer.running) return;
+  if (session.timer.pausedRemainingSec === null) return;
+  const serverNowMs = Date.now();
+  session.timer.running = true;
+  session.timer.endsAtMs = serverNowMs + session.timer.pausedRemainingSec * 1000;
+  session.timer.pausedRemainingSec = null;
+  session.timer.updatedAtMs = serverNowMs;
+}
+
+function timerReset(session) {
+  const serverNowMs = Date.now();
+  session.timer.running = false;
+  session.timer.endsAtMs = null;
+  session.timer.pausedRemainingSec = null;
+  // Keep durationSec as is (from active agenda item)
+  session.timer.updatedAtMs = serverNowMs;
 }
 
 function timerResetToActiveItem(session) {
   const item = getActiveItem(session);
-  const sec = item ? Math.max(0, Math.round(item.minutes * 60)) : 0;
+  const sec = item ? (item.durationSec || 0) : 0;
+  const serverNowMs = Date.now();
   session.timer.running = false;
   session.timer.endsAtMs = null;
-  session.timer.remainingSec = sec;
-}
-
-function tickTimer(session) {
-  if (!session.timer.running) return;
-  const remainingMs = Math.max(0, session.timer.endsAtMs - Date.now());
-  const remainingSec = Math.ceil(remainingMs / 1000);
-  session.timer.remainingSec = remainingSec;
-
-  if (remainingSec <= 0) {
-    session.timer.running = false;
-    session.timer.endsAtMs = null;
-    session.log.push({ ts: Date.now(), type: "TIMER_DONE", agendaId: session.activeAgendaId });
-  }
+  session.timer.pausedRemainingSec = null;
+  session.timer.durationSec = sec;
+  session.timer.updatedAtMs = serverNowMs;
 }
 
 function openVote(session, { question, options }) {
@@ -323,9 +341,8 @@ export class MeetingRoom {
     this.state = state;
     this.env = env;
     this.sockets = new Set();
-    this.metadata = new Map(); // ws -> { sessionId, userId, hostKey, clientTimeOffset }
+    this.metadata = new Map(); // ws -> { sessionId, clientId, userId, hostKey, clientTimeOffset }
     this.session = null;
-    this.timer = null;
     this.hostConfig = parseHostConfig(env.HOST_USER_IDS);
   }
 
@@ -361,25 +378,8 @@ export class MeetingRoom {
     return this.session.hostUserId === clientId;
   }
 
-  startTimerLoop() {
-    if (this.timer) return;
-    // Tick every second for smooth timer updates
-    this.timer = setInterval(() => {
-      if (!this.session) return;
-      const before = this.session.timer.remainingSec;
-      tickTimer(this.session);
-      if (this.session.timer.remainingSec !== before) {
-        this.broadcastState();
-      }
-    }, 1000);
-  }
-
-  stopTimerLoopIfIdle() {
-    if (this.sockets.size === 0 && this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
+  // Timer loop removed - no server-side ticking needed
+  // Clients render countdown locally using endsAtMs and serverOffset
 
   broadcastState() {
     if (!this.session) return;
@@ -507,7 +507,6 @@ export class MeetingRoom {
           serverNow: Date.now(),
         }));
         this.broadcastState();
-        this.startTimerLoop();
         return;
       }
 
@@ -535,16 +534,18 @@ export class MeetingRoom {
         case "AGENDA_ADD":
           if (typeof msg.title === "string") {
             const id = `a${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const durationSec = Number(msg.durationSec) || 0;
             session.agenda.push({
               id,
               title: msg.title,
-              durationSec: Number(msg.durationSec) || 0,
+              durationSec: durationSec,
               notes: msg.notes || "",
             });
-            // If first item, make it active
+            // If first item, make it active and set timer duration
             if (session.agenda.length === 1) {
               session.activeAgendaId = id;
-              session.timer.remainingSec = Number(msg.durationSec) || 0;
+              session.timer.durationSec = durationSec;
+              session.timer.updatedAtMs = Date.now();
             }
             this.broadcastState();
           }
@@ -567,9 +568,12 @@ export class MeetingRoom {
               session.agenda.splice(idx, 1);
               if (session.activeAgendaId === msg.agendaId) {
                 session.activeAgendaId = session.agenda.length ? session.agenda[0].id : null;
+                const serverNowMs = Date.now();
                 session.timer.running = false;
                 session.timer.endsAtMs = null;
-                session.timer.remainingSec = 0;
+                session.timer.pausedRemainingSec = null;
+                session.timer.durationSec = 0;
+                session.timer.updatedAtMs = serverNowMs;
               }
               this.broadcastState();
             }
@@ -586,16 +590,29 @@ export class MeetingRoom {
           timerPause(session);
           this.broadcastState();
           break;
+        case "TIMER_RESUME":
+          timerResume(session);
+          this.broadcastState();
+          break;
         case "TIMER_RESET":
           timerResetToActiveItem(session);
           this.broadcastState();
           break;
         case "TIMER_EXTEND":
           if (typeof msg.seconds === "number") {
+            const serverNowMs = Date.now();
             if (session.timer.running && session.timer.endsAtMs != null) {
+              // Extend running timer
               session.timer.endsAtMs += msg.seconds * 1000;
+              session.timer.updatedAtMs = serverNowMs;
+            } else if (session.timer.pausedRemainingSec !== null) {
+              // Extend paused timer
+              session.timer.pausedRemainingSec = Math.max(0, session.timer.pausedRemainingSec + msg.seconds);
+              session.timer.updatedAtMs = serverNowMs;
             } else {
-              session.timer.remainingSec = Math.max(0, session.timer.remainingSec + msg.seconds);
+              // Extend duration for stopped timer
+              session.timer.durationSec = Math.max(0, session.timer.durationSec + msg.seconds);
+              session.timer.updatedAtMs = serverNowMs;
             }
             this.broadcastState();
           }
@@ -627,7 +644,6 @@ export class MeetingRoom {
       });
       this.sockets.delete(ws);
       this.metadata.delete(ws);
-      this.stopTimerLoopIfIdle();
     });
 
     ws.addEventListener("error", (event) => {

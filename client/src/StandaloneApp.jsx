@@ -192,7 +192,13 @@ export default function StandaloneApp() {
         displayName: username,
       }));
       
-      // Start TIME_PING for clock synchronization
+      // Send initial TIME_PING for clock synchronization
+      ws.send(JSON.stringify({
+        type: "TIME_PING",
+        clientSentAt: Date.now(),
+      }));
+      
+      // Start TIME_PING interval for clock synchronization (every 30 seconds)
       if (timePingIntervalRef.current) {
         clearInterval(timePingIntervalRef.current);
       }
@@ -203,7 +209,7 @@ export default function StandaloneApp() {
             clientSentAt: Date.now(),
           }));
         }
-      }, 10000); // Every 10 seconds
+      }, 30000); // Every 30 seconds
     });
     
     ws.addEventListener("message", (event) => {
@@ -281,19 +287,24 @@ export default function StandaloneApp() {
     }
     
     if (state.timer.running && state.timer.endsAtMs) {
-      // Calculate initial local timer value with server offset
-      const serverNow = Date.now() + serverTimeOffset;
-      const remaining = Math.max(0, Math.ceil((state.timer.endsAtMs - serverNow) / 1000));
-      setLocalTimer(remaining);
-      
-      // Update every second
-      localTimerIntervalRef.current = setInterval(() => {
+      // Timer is running - calculate remaining time using endsAtMs and server offset
+      const updateTimer = () => {
         const serverNow = Date.now() + serverTimeOffset;
         const remaining = Math.max(0, Math.ceil((state.timer.endsAtMs - serverNow) / 1000));
         setLocalTimer(remaining);
-      }, 1000);
+      };
+      
+      // Set initial value
+      updateTimer();
+      
+      // Update every second
+      localTimerIntervalRef.current = setInterval(updateTimer, 1000);
+    } else if (state.timer.pausedRemainingSec !== null) {
+      // Timer is paused - show paused remaining seconds
+      setLocalTimer(state.timer.pausedRemainingSec);
     } else {
-      setLocalTimer(state.timer.remainingSec || 0);
+      // Timer is stopped - show duration
+      setLocalTimer(state.timer.durationSec || 0);
     }
     
     return () => {
@@ -301,7 +312,7 @@ export default function StandaloneApp() {
         clearInterval(localTimerIntervalRef.current);
       }
     };
-  }, [state?.timer?.running, state?.timer?.endsAtMs, state?.timer?.remainingSec, serverTimeOffset]);
+  }, [state?.timer?.running, state?.timer?.endsAtMs, state?.timer?.pausedRemainingSec, state?.timer?.durationSec, serverTimeOffset]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -347,6 +358,14 @@ export default function StandaloneApp() {
 
   const pauseTimer = () => {
     sendMessage({ type: "TIMER_PAUSE" });
+  };
+
+  const resumeTimer = () => {
+    sendMessage({ type: "TIMER_RESUME" });
+  };
+
+  const resetTimer = () => {
+    sendMessage({ type: "TIMER_RESET" });
   };
 
   const extendTimer = (seconds) => {
@@ -715,37 +734,71 @@ export default function StandaloneApp() {
               {formatTime(localTimer)}
             </div>
             <div style={{ marginTop: "0.5rem", fontSize: "1rem", color: "#666" }}>
-              {state.timer.running ? '⏸ Running' : '⏹ Paused'}
+              {state.timer.running ? '▶️ Running' : state.timer.pausedRemainingSec !== null ? '⏸ Paused' : '⏹ Stopped'}
             </div>
           </div>
           
           {isHost && (
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {!state.timer.running && state.timer.pausedRemainingSec === null && (
+                <button
+                  onClick={startTimer}
+                  disabled={state.timer.durationSec <= 0}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#28a745",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: state.timer.durationSec > 0 ? "pointer" : "not-allowed",
+                    opacity: state.timer.durationSec > 0 ? 1 : 0.5
+                  }}
+                >
+                  ▶️ Start
+                </button>
+              )}
+              {state.timer.running && (
+                <button
+                  onClick={pauseTimer}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#ffc107",
+                    color: "black",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                >
+                  ⏸ Pause
+                </button>
+              )}
+              {!state.timer.running && state.timer.pausedRemainingSec !== null && (
+                <button
+                  onClick={resumeTimer}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#28a745",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                >
+                  ▶️ Resume
+                </button>
+              )}
               <button
-                onClick={startTimer}
+                onClick={resetTimer}
                 style={{
                   padding: "0.5rem 1rem",
-                  backgroundColor: "#28a745",
+                  backgroundColor: "#dc3545",
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
                   cursor: "pointer"
                 }}
               >
-                ▶️ Start
-              </button>
-              <button
-                onClick={pauseTimer}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#ffc107",
-                  color: "black",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                ⏸ Pause
+                🔄 Reset
               </button>
               <button
                 onClick={() => extendTimer(60)}
