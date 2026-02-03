@@ -43,19 +43,10 @@ console.log("[ENV CHECK]", {
 });
 
 import express from "express";
-import { WebSocketServer } from "ws";
-import {
-  createMeetingSession,
-  snapshot,
-  tickTimer,
-  setActiveItem,
-  timerStart,
-  timerPause,
-  timerResetToActiveItem,
-  openVote,
-  castVote,
-  closeVote,
-} from "./meeting.js";
+// Import our persistent meeting store.  This replaces the old websocket
+// meeting implementation with a simple in‑memory + file backed store and
+// HTTP endpoints.  See store.js for details.
+import * as store from "./store.js";
 
 const app = express();
 app.use(express.json());
@@ -134,115 +125,184 @@ app.post("/api/token", tokenHandler);
 app.post("/token", tokenHandler);
 
 // ---- server + ws ----
+// Start the HTTP server.  Note: we no longer attach a WebSocket server because
+// this implementation uses polling via HTTP endpoints instead.
 const server = app.listen(PORT, () => {
   console.log(`[server] listening on :${PORT}`);
 });
 
-const wss = new WebSocketServer({ server, path: "/ws" });
+// ---------------------------------------------------------------------------
+// RESTful API for meetings
+//
+// The client polls these endpoints approximately once per second using
+// sinceRevision and serverNow parameters to stay in sync.  Host‑only actions
+// are protected by comparing the supplied userId against the stored
+// hostUserId for the session.  The same routes are mounted under both
+// `/api` and `/proxy/api` so that running inside Discord (proxied) and
+// outside Discord use the same code paths.  See client/src/api.js for
+// helpers that construct the correct base URL.
 
-const sessions = new Map(); // sessionId -> session
-const wsClients = new Map(); // ws -> { sessionId, userId }
+const apiRouter = express.Router();
 
-function getOrCreateSession(sessionId) {
-  if (!sessions.has(sessionId)) sessions.set(sessionId, createMeetingSession({ sessionId }));
-  return sessions.get(sessionId);
-}
-
-function broadcast(sessionId) {
-  const session = sessions.get(sessionId);
-  if (!session) return;
-
-  const payload = JSON.stringify({ type: "STATE", state: snapshot(session) });
-
-  for (const [ws, meta] of wsClients.entries()) {
-    if (meta.sessionId === sessionId && ws.readyState === ws.OPEN) ws.send(payload);
-  }
-}
-
-wss.on("connection", (ws) => {
-  ws.on("message", (raw) => {
-    let msg;
-    try {
-      msg = JSON.parse(String(raw));
-    } catch {
-      return;
-    }
-
-    if (msg.type === "HELLO") {
-      const { sessionId, userId } = msg;
-      if (!sessionId || !userId) return;
-
-      wsClients.set(ws, { sessionId, userId: String(userId) });
-
-      const session = getOrCreateSession(sessionId);
-      const allowed = isAllowedHost(userId);
-
-      console.log("[HELLO]", { sessionId, userId: String(userId), allowed, hostAllowAll: HOST_ALLOW_ALL });
-
-      if (!session.hostUserId && allowed) {
-        session.hostUserId = String(userId);
-        session.log.push({ ts: Date.now(), type: "HOST_SET", userId: String(userId) });
-        console.log("[HOST_SET]", { sessionId, hostUserId: session.hostUserId });
-      }
-
-      ws.send(JSON.stringify({ type: "STATE", state: snapshot(session) }));
-      return;
-    }
-
-    const meta = wsClients.get(ws);
-    if (!meta) return;
-
-    const session = getOrCreateSession(meta.sessionId);
-    const isHost = session.hostUserId === meta.userId;
-
-    if (!isHost) {
-      if (msg.type === "VOTE_CAST") {
-        const ok = castVote(session, { userId: meta.userId, optionIndex: msg.optionIndex });
-        if (ok) broadcast(meta.sessionId);
-      }
-      return;
-    }
-
-    switch (msg.type) {
-      case "AGENDA_SET_ACTIVE":
-        if (setActiveItem(session, msg.agendaId)) broadcast(meta.sessionId);
-        break;
-      case "TIMER_START":
-        timerStart(session);
-        broadcast(meta.sessionId);
-        break;
-      case "TIMER_PAUSE":
-        timerPause(session);
-        broadcast(meta.sessionId);
-        break;
-      case "TIMER_RESET":
-        timerResetToActiveItem(session);
-        broadcast(meta.sessionId);
-        break;
-      case "VOTE_OPEN":
-        if (typeof msg.question === "string" && Array.isArray(msg.options) && msg.options.length >= 2) {
-          openVote(session, { question: msg.question, options: msg.options });
-          broadcast(meta.sessionId);
-        }
-        break;
-      case "VOTE_CLOSE":
-        closeVote(session);
-        broadcast(meta.sessionId);
-        break;
-      default:
-        break;
-    }
-  });
-
-  ws.on("close", () => {
-    wsClients.delete(ws);
-  });
+// Start a new session.  Body must include userId; username is optional.
+apiRouter.post('/session/start', (req, res) => {
+  const { userId, username, sessionId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.createSession({ userId, username, sessionId });
+  const raw = store.getSession(state.id);
+  return res.json({ sessionId: raw.id, state, revision: raw.revision, serverNow: Date.now() });
 });
 
-setInterval(() => {
-  for (const [sessionId, session] of sessions.entries()) {
-    const before = session.timer.remainingSec;
-    tickTimer(session);
-    if (session.timer.remainingSec !== before) broadcast(sessionId);
+// Join an existing session.  Adds user to attendance.  Body must include userId.
+apiRouter.post('/session/:id/join', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId, username } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.joinSession({ sessionId, userId, username });
+  if (!state) return res.status(404).json({ error: 'not_found' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+// Poll session state.  Accepts optional sinceRevision to avoid sending full
+// state when nothing has changed.  Accepts optional userId to mark
+// lastSeenAt.  Returns either `{ unchanged: true }` or full state.
+apiRouter.get('/session/:id/state', (req, res) => {
+  const sessionId = req.params.id;
+  const sinceRevision = req.query.sinceRevision != null ? Number(req.query.sinceRevision) : null;
+  const userId = req.query.userId || req.query.userid;
+  if (userId) store.markSeen({ sessionId, userId });
+  const session = store.getSession(sessionId);
+  if (!session) return res.status(404).json({ error: 'not_found' });
+  if (sinceRevision != null && sinceRevision >= session.revision) {
+    return res.json({ unchanged: true, revision: session.revision, serverNow: Date.now() });
   }
-}, 500);
+  const snapshot = store.getSnapshot(sessionId);
+  return res.json({ state: snapshot, revision: session.revision, serverNow: Date.now() });
+});
+
+// Add a new agenda item.  Host‑only.  Body must include userId, title, durationSec.
+apiRouter.post('/session/:id/agenda', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId, title, durationSec } = req.body || {};
+  if (!userId || !title) return res.status(400).json({ error: 'missing_fields' });
+  const state = store.addAgenda({ sessionId, userId, title, durationSec });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+// Update an agenda item.  Host‑only.  Body may include title, durationSec, notes.
+apiRouter.put('/session/:id/agenda/:agendaId', (req, res) => {
+  const sessionId = req.params.id;
+  const { agendaId } = req.params;
+  const { userId, title, durationSec, notes } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+// Delete an agenda item.  Host‑only.
+apiRouter.delete('/session/:id/agenda/:agendaId', (req, res) => {
+  const sessionId = req.params.id;
+  const { agendaId } = req.params;
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.deleteAgenda({ sessionId, userId, agendaId });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+// Set active agenda item.  Host‑only.
+apiRouter.post('/session/:id/agenda/:agendaId/active', (req, res) => {
+  const sessionId = req.params.id;
+  const { agendaId } = req.params;
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.setActiveAgenda({ sessionId, userId, agendaId });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+// Timer controls.  Host‑only.
+apiRouter.post('/session/:id/timer/start', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.startTimer({ sessionId, userId });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+apiRouter.post('/session/:id/timer/pause', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.pauseTimer({ sessionId, userId });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+apiRouter.post('/session/:id/timer/extend', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId, seconds } = req.body || {};
+  if (!userId || seconds == null) return res.status(400).json({ error: 'missing_fields' });
+  const state = store.extendTimer({ sessionId, userId, seconds });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+// Voting
+apiRouter.post('/session/:id/vote/open', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId, question, options } = req.body || {};
+  if (!userId || !question || !Array.isArray(options)) return res.status(400).json({ error: 'missing_fields' });
+  const state = store.openVote({ sessionId, userId, question, options });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+apiRouter.post('/session/:id/vote/cast', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId, optionIndex } = req.body || {};
+  if (!userId || optionIndex == null) return res.status(400).json({ error: 'missing_fields' });
+  const state = store.castVote({ sessionId, userId, optionIndex });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+apiRouter.post('/session/:id/vote/close', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const state = store.closeVote({ sessionId, userId });
+  if (!state) return res.status(403).json({ error: 'forbidden' });
+  const raw = store.getSession(sessionId);
+  return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+});
+
+// End meeting and generate minutes.  Host‑only.  Returns minutes string.
+apiRouter.post('/session/:id/end', (req, res) => {
+  const sessionId = req.params.id;
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  const minutes = store.endMeeting({ sessionId, userId });
+  if (!minutes) return res.status(403).json({ error: 'forbidden' });
+  return res.json({ minutes, serverNow: Date.now() });
+});
+
+// Mount the API router under both /api and /proxy/api.  This dual mount
+// allows the client to seamlessly work inside Discord (proxied) and
+// outside Discord without changing code.  Additional prefixes could be
+// added here as needed.
+app.use('/api', apiRouter);
+app.use('/proxy/api', apiRouter);
