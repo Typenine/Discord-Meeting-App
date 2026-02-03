@@ -12,6 +12,7 @@ export function createApp(config = {}) {
     REDIRECT_URI = process.env.DISCORD_REDIRECT_URI,
     HOST_ALLOW_ALL = false,
     HOST_IDS = new Set(),
+    mountAtRoot = false, // If true, mount API routes at root for Vercel compatibility
   } = config;
 
   const app = express();
@@ -368,7 +369,11 @@ export function createApp(config = {}) {
     return res.json({ minutes, serverNow: Date.now() });
   });
 
-  // Mount the API router under both /api and /proxy/api
+  // Mount the API router
+  // For Vercel serverless functions, also mount at root since /api prefix is stripped
+  if (mountAtRoot) {
+    app.use('/', apiRouter);
+  }
   app.use('/api', apiRouter);
   app.use('/proxy/api', apiRouter);
 

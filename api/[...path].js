@@ -38,14 +38,15 @@ store.setHostAuthConfig({
   hostIds: HOST_IDS,
 });
 
-// Create the Express app
+// Create the Express app with root mounting for Vercel
 const app = createApp({
   CLIENT_ID: process.env.DISCORD_CLIENT_ID,
   CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
   REDIRECT_URI: process.env.DISCORD_REDIRECT_URI,
   HOST_ALLOW_ALL,
   HOST_IDS,
+  mountAtRoot: true, // Mount API routes at root for Vercel compatibility
 });
 
-// Export the serverless function handler
+// Export the Express app directly - Vercel handles the wrapping
 export default app;
