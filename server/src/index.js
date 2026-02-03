@@ -432,8 +432,6 @@ apiRouter.post('/session/:id/end', (req, res) => {
   }
   return res.json({ minutes, serverNow: Date.now() });
 });
-  return res.json({ minutes, serverNow: Date.now() });
-});
 
 // Mount the API router under both /api and /proxy/api.  This dual mount
 // allows the client to seamlessly work inside Discord (proxied) and

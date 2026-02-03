@@ -275,7 +275,15 @@ export function addAgenda({ sessionId, userId, title, durationSec }) {
     completedAt: null,
     timeSpent: 0,
   });
-  if (!session.currentAgendaItemId) session.currentAgendaItemId = id;
+  // If this is the first agenda item, make it active
+  if (!session.currentAgendaItemId) {
+    session.currentAgendaItemId = id;
+    const item = session.agenda.find((a) => a.id === id);
+    if (item) {
+      item.status = 'active';
+      item.startedAt = Date.now();
+    }
+  }
   bumpRevision(session);
   saveSessions();
   return snapshotSession(session);
