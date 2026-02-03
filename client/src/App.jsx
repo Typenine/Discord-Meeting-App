@@ -31,6 +31,23 @@ export default function App() {
     }
     return id || String(Math.random()).slice(2);
   });
+  
+  // Track last active session for auto-rejoin
+  const [lastSession, setLastSession] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("lastActiveSession");
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+    return null;
+  });
+  
+  const [showRejoinPrompt, setShowRejoinPrompt] = useState(false);
   const [username, setUsername] = useState("");
   const [sessionInput, setSessionInput] = useState("");
   const [sessionId, setSessionId] = useState("");
@@ -40,6 +57,35 @@ export default function App() {
   const [healthStatus, setHealthStatus] = useState(null);
   const [error, setError] = useState(null);
   const isHost = state && state.hostUserId === String(userId);
+
+  // Check for rejoin opportunity on mount
+  useEffect(() => {
+    if (lastSession && status === "init" && !sessionId) {
+      // Check if the session is still active
+      const checkSession = async () => {
+        try {
+          const res = await fetch(`${API_BASE}/session/${lastSession.sessionId}/state?userId=${userId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.state && data.state.status === 'active') {
+              setShowRejoinPrompt(true);
+            } else {
+              // Session ended, clear localStorage
+              localStorage.removeItem("lastActiveSession");
+              setLastSession(null);
+            }
+          } else {
+            // Session not found, clear localStorage
+            localStorage.removeItem("lastActiveSession");
+            setLastSession(null);
+          }
+        } catch (err) {
+          console.error('Failed to check last session:', err);
+        }
+      };
+      checkSession();
+    }
+  }, [lastSession, status, sessionId, userId]);
 
   // Poll health status on mount and periodically during meetings
   useEffect(() => {
@@ -130,6 +176,16 @@ export default function App() {
         setState(data.state);
         setRevision(data.revision);
         setStatus("joined");
+        
+        // Save to localStorage for auto-rejoin
+        const sessionInfo = {
+          sessionId: data.sessionId,
+          joinedAt: Date.now(),
+          isHost: true,
+        };
+        localStorage.setItem("lastActiveSession", JSON.stringify(sessionInfo));
+        setLastSession(sessionInfo);
+        setShowRejoinPrompt(false);
       }
     } catch (err) {
       console.error(err);
@@ -137,12 +193,12 @@ export default function App() {
     }
   };
 
-  const joinMeeting = async () => {
-    const id = sessionInput.trim();
-    if (!id) return;
+  const joinMeeting = async (id) => {
+    const targetId = id || sessionInput.trim();
+    if (!targetId) return;
     try {
       setError(null);
-      const res = await fetch(`${API_BASE}/session/${id}/join`, {
+      const res = await fetch(`${API_BASE}/session/${targetId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, username }),
@@ -155,15 +211,37 @@ export default function App() {
       }
       
       if (data.state) {
-        setSessionId(id);
+        setSessionId(targetId);
         setState(data.state);
         setRevision(data.revision);
         setStatus("joined");
+        
+        // Save to localStorage for auto-rejoin
+        const sessionInfo = {
+          sessionId: targetId,
+          joinedAt: Date.now(),
+          isHost: data.state.hostUserId === String(userId),
+        };
+        localStorage.setItem("lastActiveSession", JSON.stringify(sessionInfo));
+        setLastSession(sessionInfo);
+        setShowRejoinPrompt(false);
       }
     } catch (err) {
       console.error(err);
       setError({ type: 'error', message: 'Network error. Please try again.' });
     }
+  };
+  
+  const handleRejoin = () => {
+    if (lastSession) {
+      joinMeeting(lastSession.sessionId);
+    }
+  };
+  
+  const dismissRejoin = () => {
+    setShowRejoinPrompt(false);
+    localStorage.removeItem("lastActiveSession");
+    setLastSession(null);
   };
 
   // Helper functions for HTTP actions with error handling
@@ -330,6 +408,9 @@ export default function App() {
     const data = await post(`/session/${sessionId}/end`, { userId });
     if (data && data.minutes) {
       setStatus("ended");
+      // Clear last session from localStorage
+      localStorage.removeItem("lastActiveSession");
+      setLastSession(null);
     }
   };
 
@@ -355,6 +436,45 @@ export default function App() {
           <ul style={{ margin: "0.5rem 0 0 0", paddingLeft: "1.5rem" }}>
             {healthStatus.warnings.map((w, i) => <li key={i}>{w}</li>)}
           </ul>
+        </div>
+      )}
+      
+      {/* Auto-rejoin Prompt */}
+      {showRejoinPrompt && lastSession && status === "init" && (
+        <div style={{ 
+          padding: "1rem", 
+          marginBottom: "1rem", 
+          backgroundColor: "#d1ecf1", 
+          border: "1px solid #0c5460", 
+          borderRadius: "4px",
+          color: "#0c5460"
+        }}>
+          <strong>🔄 Resume Meeting?</strong>
+          <p style={{ margin: "0.5rem 0" }}>
+            You were in a meeting. Would you like to rejoin?
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button onClick={handleRejoin} style={{ 
+              padding: "0.5rem 1rem", 
+              backgroundColor: "#0c5460", 
+              color: "white", 
+              border: "none", 
+              borderRadius: "4px",
+              cursor: "pointer"
+            }}>
+              Rejoin Meeting
+            </button>
+            <button onClick={dismissRejoin} style={{ 
+              padding: "0.5rem 1rem", 
+              backgroundColor: "transparent", 
+              color: "#0c5460", 
+              border: "1px solid #0c5460", 
+              borderRadius: "4px",
+              cursor: "pointer"
+            }}>
+              Start Fresh
+            </button>
+          </div>
         </div>
       )}
       
@@ -395,6 +515,26 @@ export default function App() {
       )}
       {status === "joined" && state && (
         <div>
+          {/* Channel Context Header */}
+          {(state.channelId || state.guildId) && (
+            <div style={{ 
+              padding: "0.75rem", 
+              marginBottom: "1rem", 
+              backgroundColor: "#5865F2", 
+              color: "white", 
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem"
+            }}>
+              <span style={{ fontSize: "1.2rem" }}>💬</span>
+              <div>
+                {state.channelId && <div style={{ fontWeight: "bold" }}>Channel: #{state.channelId}</div>}
+                {state.guildId && <div style={{ fontSize: "0.9rem", opacity: 0.9 }}>Server: {state.guildId}</div>}
+              </div>
+            </div>
+          )}
+          
           {/* Connection & Host Status Bar */}
           <div style={{ 
             padding: "0.5rem 0.75rem", 
