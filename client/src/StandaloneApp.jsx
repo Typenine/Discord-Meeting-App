@@ -8,11 +8,15 @@ export default function StandaloneApp() {
   const [roomId, setRoomId] = useState("");
   const [hostKey, setHostKey] = useState("");
   const [username, setUsername] = useState("");
+  const [userId, setUserId] = useState(null); // Track resolved userId from server
   const [isHost, setIsHost] = useState(false);
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   const [localTimer, setLocalTimer] = useState(0);
+  const [showLinks, setShowLinks] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState("");
+  const [hostUrl, setHostUrl] = useState("");
   
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
@@ -26,8 +30,12 @@ export default function StandaloneApp() {
     // For production, connect to Cloudflare Worker directly
     // WebSocket cannot be proxied through Vercel
     if (import.meta.env.PROD) {
-      // In production, use environment variable or default to worker domain
-      const workerDomain = import.meta.env.VITE_WORKER_DOMAIN || "discord-agenda-activity-worker.yourusername.workers.dev";
+      // In production, use environment variable or fail with clear error
+      const workerDomain = import.meta.env.VITE_WORKER_DOMAIN;
+      if (!workerDomain) {
+        console.error("VITE_WORKER_DOMAIN not configured. Set this in Vercel environment variables.");
+        return null;
+      }
       return `wss://${workerDomain}/api/ws`;
     }
     
@@ -65,7 +73,13 @@ export default function StandaloneApp() {
     try {
       // API endpoint for room creation
       const apiBase = import.meta.env.PROD 
-        ? `https://${import.meta.env.VITE_WORKER_DOMAIN || "discord-agenda-activity-worker.yourusername.workers.dev"}`
+        ? (() => {
+            const workerDomain = import.meta.env.VITE_WORKER_DOMAIN;
+            if (!workerDomain) {
+              throw new Error("VITE_WORKER_DOMAIN not configured");
+            }
+            return `https://${workerDomain}`;
+          })()
         : "http://localhost:8787";
       
       const res = await fetch(`${apiBase}/api/room/create`, { method: "POST" });
@@ -82,19 +96,23 @@ export default function StandaloneApp() {
       
       // Update URLs to use current frontend domain
       const frontendUrl = window.location.origin;
-      const viewerUrl = `${frontendUrl}/?room=${data.roomId}`;
-      const hostUrl = `${frontendUrl}/?room=${data.roomId}&hostKey=${data.hostKey}`;
+      const viewer = `${frontendUrl}/?room=${data.roomId}`;
+      const host = `${frontendUrl}/?room=${data.roomId}&hostKey=${data.hostKey}`;
       
-      // Show the links to user before connecting
-      alert(`Room created!\n\nViewer link: ${viewerUrl}\n\nHost link: ${hostUrl}\n\nSave the host link to control the meeting!`);
-      
-      // Connect as host
-      connectToRoom(data.roomId, data.hostKey);
+      setViewerUrl(viewer);
+      setHostUrl(host);
+      setShowLinks(true);
     } catch (err) {
       console.error("Failed to create room:", err);
-      setError("Network error. Please try again.");
+      setError(err.message || "Network error. Please try again.");
       setMode("init");
     }
+  };
+
+  // Start meeting after showing links
+  const startMeeting = () => {
+    setShowLinks(false);
+    connectToRoom(roomId, hostKey);
   };
 
   // Join existing room
@@ -114,6 +132,12 @@ export default function StandaloneApp() {
 
   // Connect to WebSocket
   const connectToRoom = (room, key) => {
+    if (!WS_URL) {
+      setError("WebSocket URL not configured. Check VITE_WORKER_DOMAIN environment variable.");
+      setMode("init");
+      return;
+    }
+    
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -164,6 +188,10 @@ export default function StandaloneApp() {
             const offset = msg.serverNow - Date.now();
             setServerTimeOffset(offset);
           }
+          
+          // Extract userId from attendance or generate one
+          // The server should send back the resolved userId in a future enhancement
+          // For now, we'll track it when we receive the first STATE update
         } else if (msg.type === "TIME_PONG") {
           // Calculate round-trip time and server offset
           const now = Date.now();
@@ -173,6 +201,17 @@ export default function StandaloneApp() {
           setServerTimeOffset(offset);
         } else if (msg.type === "STATE") {
           setState(msg.state);
+          
+          // Extract our userId from attendance on first STATE
+          if (!userId && msg.state.attendance) {
+            // Find our user by matching displayName
+            const ourUser = Object.values(msg.state.attendance).find(
+              att => att.displayName === username
+            );
+            if (ourUser) {
+              setUserId(ourUser.userId);
+            }
+          }
           
           // Update server time offset if provided
           if (msg.serverNow) {
@@ -338,6 +377,110 @@ export default function StandaloneApp() {
             onClick={() => setError(null)}
             style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
           >×</button>
+        </div>
+      )}
+      
+      {showLinks && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: "white",
+            padding: "2rem",
+            borderRadius: "8px",
+            maxWidth: "600px",
+            width: "90%"
+          }}>
+            <h2 style={{ marginTop: 0 }}>🎉 Room Created!</h2>
+            <p>Room ID: <strong>{roomId}</strong></p>
+            
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>👥 Viewer Link (share with attendees):</h3>
+              <div style={{
+                padding: "0.75rem",
+                backgroundColor: "#f8f9fa",
+                border: "1px solid #dee2e6",
+                borderRadius: "4px",
+                wordBreak: "break-all",
+                fontSize: "0.9rem"
+              }}>
+                {viewerUrl}
+              </div>
+              <button
+                onClick={() => navigator.clipboard.writeText(viewerUrl)}
+                style={{
+                  marginTop: "0.5rem",
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
+                📋 Copy Viewer Link
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>🔑 Host Link (keep this secret!):</h3>
+              <div style={{
+                padding: "0.75rem",
+                backgroundColor: "#fff3cd",
+                border: "1px solid #ffc107",
+                borderRadius: "4px",
+                wordBreak: "break-all",
+                fontSize: "0.9rem"
+              }}>
+                {hostUrl}
+              </div>
+              <button
+                onClick={() => navigator.clipboard.writeText(hostUrl)}
+                style={{
+                  marginTop: "0.5rem",
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#ffc107",
+                  color: "black",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
+                📋 Copy Host Link
+              </button>
+            </div>
+            
+            <p style={{ fontSize: "0.9rem", color: "#666" }}>
+              <strong>Important:</strong> Save the host link to control the meeting. 
+              The viewer link is safe to share publicly.
+            </p>
+            
+            <button
+              onClick={startMeeting}
+              style={{
+                padding: "0.75rem 1.5rem",
+                backgroundColor: "#28a745",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "1rem",
+                fontWeight: "bold",
+                width: "100%"
+              }}
+            >
+              Start Meeting
+            </button>
+          </div>
         </div>
       )}
       
@@ -630,7 +773,7 @@ export default function StandaloneApp() {
                     {!isHost && (
                       <button
                         onClick={() => castVote(idx)}
-                        disabled={state.vote.votesByUserId && state.vote.votesByUserId[username] !== undefined}
+                        disabled={state.vote.votesByUserId && userId && state.vote.votesByUserId[userId] !== undefined}
                         style={{
                           marginLeft: "1rem",
                           padding: "0.25rem 0.75rem",

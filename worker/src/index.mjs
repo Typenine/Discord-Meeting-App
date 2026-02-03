@@ -448,7 +448,7 @@ export class MeetingRoom {
           userIdSource = "msg.user.user.id";
         } else {
           // Standalone mode: generate anonymous userId
-          rawUserId = `anon_${Math.random().toString(36).substr(2, 9)}`;
+          rawUserId = `anon_${Math.random().toString(36).substring(2, 11)}`;
           userIdSource = "generated";
         }
 
@@ -537,7 +537,7 @@ export class MeetingRoom {
       switch (msg.type) {
         case "AGENDA_ADD":
           if (typeof msg.title === "string") {
-            const id = `a${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const id = `a${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
             session.agenda.push({
               id,
               title: msg.title,
