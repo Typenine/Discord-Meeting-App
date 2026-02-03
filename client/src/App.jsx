@@ -11,7 +11,8 @@ const API_BASE = (() => {
   if (IN_DISCORD) return "/proxy/api";
   const envBase = RAW_ENV_API_BASE && String(RAW_ENV_API_BASE).trim();
   if (envBase) return normalizeApiBase(envBase);
-  return "http://127.0.0.1:8787/api";
+  // Default to same-origin /api for deployed builds (no fallback to 127.0.0.1)
+  return "/api";
 })();
 
 export default function App() {
@@ -91,7 +92,9 @@ export default function App() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch(`${API_BASE.replace('/api', '')}/health`);
+        // Health endpoint is at root level, not under /api
+        const healthUrl = IN_DISCORD ? '/proxy/health' : '/health';
+        const res = await fetch(healthUrl);
         const data = await res.json();
         setHealthStatus(data);
         
