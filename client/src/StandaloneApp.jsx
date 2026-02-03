@@ -8,7 +8,18 @@ export default function StandaloneApp() {
   const [roomId, setRoomId] = useState("");
   const [hostKey, setHostKey] = useState("");
   const [username, setUsername] = useState("");
-  const [userId, setUserId] = useState(null); // Track resolved userId from server
+  const [clientId, setClientId] = useState(() => {
+    // Generate and persist clientId in localStorage
+    if (typeof window !== "undefined") {
+      let id = localStorage.getItem("evw_client_id");
+      if (!id) {
+        id = `client_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        localStorage.setItem("evw_client_id", id);
+      }
+      return id;
+    }
+    return `client_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  });
   const [isHost, setIsHost] = useState(false);
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
@@ -43,10 +54,29 @@ export default function StandaloneApp() {
     return "ws://localhost:8787/api/ws";
   })();
 
-  // Parse URL parameters on mount
+  // Parse URL on mount - support both /:roomId and /room/:roomId patterns
   useEffect(() => {
+    const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
-    const urlRoomId = params.get("room");
+    
+    // Extract roomId from path: /:roomId or /room/:roomId
+    let urlRoomId = null;
+    if (path && path !== '/') {
+      const pathParts = path.split('/').filter(Boolean);
+      if (pathParts.length === 1) {
+        // Pattern: /:roomId
+        urlRoomId = pathParts[0];
+      } else if (pathParts.length === 2 && pathParts[0] === 'room') {
+        // Pattern: /room/:roomId
+        urlRoomId = pathParts[1];
+      }
+    }
+    
+    // Also check query param for backward compatibility
+    if (!urlRoomId) {
+      urlRoomId = params.get("room");
+    }
+    
     const urlHostKey = params.get("hostKey");
     
     if (urlRoomId) {
@@ -94,10 +124,10 @@ export default function StandaloneApp() {
       setRoomId(data.roomId);
       setHostKey(data.hostKey);
       
-      // Update URLs to use current frontend domain
+      // Update URLs to use path-based routing
       const frontendUrl = window.location.origin;
-      const viewer = `${frontendUrl}/?room=${data.roomId}`;
-      const host = `${frontendUrl}/?room=${data.roomId}&hostKey=${data.hostKey}`;
+      const viewer = `${frontendUrl}/${data.roomId}`;
+      const host = `${frontendUrl}/${data.roomId}?hostKey=${data.hostKey}`;
       
       setViewerUrl(viewer);
       setHostUrl(host);
@@ -153,11 +183,12 @@ export default function StandaloneApp() {
     ws.addEventListener("open", () => {
       console.log("[WS] Connected");
       
-      // Send HELLO message
+      // Send HELLO message with new structure
       ws.send(JSON.stringify({
         type: "HELLO",
-        sessionId: room,
-        hostKey: key,
+        roomId: room,
+        clientId: clientId,
+        hostKey: key || undefined,  // Only include if provided
         displayName: username,
       }));
       
@@ -201,17 +232,6 @@ export default function StandaloneApp() {
           setServerTimeOffset(offset);
         } else if (msg.type === "STATE") {
           setState(msg.state);
-          
-          // Extract our userId from attendance on first STATE
-          if (!userId && msg.state.attendance) {
-            // Find our user by matching displayName
-            const ourUser = Object.values(msg.state.attendance).find(
-              att => att.displayName === username
-            );
-            if (ourUser) {
-              setUserId(ourUser.userId);
-            }
-          }
           
           // Update server time offset if provided
           if (msg.serverNow) {
@@ -773,7 +793,7 @@ export default function StandaloneApp() {
                     {!isHost && (
                       <button
                         onClick={() => castVote(idx)}
-                        disabled={state.vote.votesByUserId && userId && state.vote.votesByUserId[userId] !== undefined}
+                        disabled={state.vote.votesByUserId && clientId && state.vote.votesByUserId[clientId] !== undefined}
                         style={{
                           marginLeft: "1rem",
                           padding: "0.25rem 0.75rem",

@@ -349,7 +349,7 @@ export class MeetingRoom {
   }
 
   // Validate host access: either Discord Activity mode (userId check) or standalone mode (hostKey check)
-  validateHostAccess(userId, providedHostKey) {
+  validateHostAccess(clientId, providedHostKey) {
     if (!this.session) return false;
     
     // Standalone room mode: check hostKey
@@ -357,8 +357,8 @@ export class MeetingRoom {
       return providedHostKey === this.session.hostKey;
     }
     
-    // Discord Activity mode: check userId
-    return this.session.hostUserId === userId;
+    // Discord Activity mode: check userId/clientId
+    return this.session.hostUserId === clientId;
   }
 
   startTimerLoop() {
@@ -431,60 +431,57 @@ export class MeetingRoom {
       if (msg && msg.type === "HELLO") {
         console.log("[WS HELLO payload]", JSON.stringify(msg, null, 2));
 
-        let rawUserId = null;
-        let userIdSource = null;
+        // New structure: { type:"HELLO", roomId, clientId, hostKey?, displayName }
+        // Also support old structure for Discord Activity mode
+        let clientId = msg.clientId;
         let hostKey = msg.hostKey || null;
         let displayName = msg.displayName || msg.username || "Guest";
+        let roomId = msg.roomId || msg.sessionId || room;
 
-        // Discord Activity mode: extract userId from SDK payload
+        // Discord Activity mode: extract userId from SDK payload (for backward compatibility)
+        let discordUserId = null;
         if (msg.userId != null) {
-          rawUserId = msg.userId;
-          userIdSource = "msg.userId";
+          discordUserId = msg.userId;
         } else if (msg.user && msg.user.id != null) {
-          rawUserId = msg.user.id;
-          userIdSource = "msg.user.id";
+          discordUserId = msg.user.id;
         } else if (msg.user && msg.user.user && msg.user.user.id != null) {
-          rawUserId = msg.user.user.id;
-          userIdSource = "msg.user.user.id";
-        } else {
-          // Standalone mode: generate anonymous userId
-          rawUserId = `anon_${Math.random().toString(36).substring(2, 11)}`;
-          userIdSource = "generated";
+          discordUserId = msg.user.user.id;
         }
 
-        const resolvedUserId = rawUserId != null ? String(rawUserId).trim() : null;
-        const sessionId = msg.sessionId || room;
-
-        if (!resolvedUserId || !sessionId) {
-          console.warn("[WS HELLO] missing userId or sessionId", { resolvedUserId, userIdSource, sessionId });
+        // Determine the identifier to use (prefer clientId, fall back to discordUserId)
+        const identifier = clientId || discordUserId;
+        
+        if (!identifier || !roomId) {
+          console.warn("[WS HELLO] missing clientId/userId or roomId", { clientId, discordUserId, roomId });
           return;
         }
 
         // For Discord Activity mode, check if user is allowed to be host
-        const allowed = isAllowedHost(resolvedUserId, this.hostConfig);
-        const session = this.getOrCreateSession(sessionId, hostKey);
+        const allowed = discordUserId ? isAllowedHost(discordUserId, this.hostConfig) : false;
+        const session = this.getOrCreateSession(roomId, hostKey);
 
         // Set host based on mode
         if (!session.hostUserId) {
           if (session.hostKey) {
             // Standalone mode: host is whoever has the hostKey
             if (hostKey === session.hostKey) {
-              session.hostUserId = resolvedUserId;
-              session.log.push({ ts: Date.now(), type: "HOST_SET", userId: resolvedUserId, mode: "standalone" });
-              console.log("[HOST_SET] standalone mode", { sessionId, hostUserId: session.hostUserId });
+              session.hostUserId = identifier;
+              session.log.push({ ts: Date.now(), type: "HOST_SET", clientId: identifier, mode: "standalone" });
+              console.log("[HOST_SET] standalone mode", { sessionId: roomId, hostUserId: session.hostUserId });
             }
-          } else if (allowed) {
+          } else if (allowed && discordUserId) {
             // Discord Activity mode: host is first allowed user
-            session.hostUserId = resolvedUserId;
-            session.log.push({ ts: Date.now(), type: "HOST_SET", userId: resolvedUserId, mode: "discord" });
-            console.log("[HOST_SET] discord mode", { sessionId, hostUserId: session.hostUserId });
+            session.hostUserId = discordUserId;
+            session.log.push({ ts: Date.now(), type: "HOST_SET", userId: discordUserId, mode: "discord" });
+            console.log("[HOST_SET] discord mode", { sessionId: roomId, hostUserId: session.hostUserId });
           }
         }
 
-        // Add to attendance
-        if (!session.attendance[resolvedUserId]) {
-          session.attendance[resolvedUserId] = {
-            userId: resolvedUserId,
+        // Add to attendance using clientId
+        if (!session.attendance[identifier]) {
+          session.attendance[identifier] = {
+            clientId: identifier,
+            userId: discordUserId, // Keep discordUserId for backward compatibility
             displayName,
             joinedAt: Date.now(),
           };
@@ -492,14 +489,14 @@ export class MeetingRoom {
 
         const isHost = session.hostKey 
           ? (hostKey === session.hostKey)
-          : (session.hostUserId === resolvedUserId);
+          : (session.hostUserId === identifier);
 
-        this.metadata.set(ws, { sessionId, userId: resolvedUserId, hostKey, clientTimeOffset: 0 });
+        this.metadata.set(ws, { sessionId: roomId, clientId: identifier, userId: discordUserId, hostKey, clientTimeOffset: 0 });
 
         console.log("[WS HELLO resolved]", {
-          sessionId,
-          userId: resolvedUserId,
-          userIdSource,
+          sessionId: roomId,
+          clientId: identifier,
+          discordUserId,
           isHost,
           mode: session.hostKey ? "standalone" : "discord",
         });
@@ -518,12 +515,12 @@ export class MeetingRoom {
       if (!meta) return;
 
       const session = this.getOrCreateSession(meta.sessionId);
-      const isHost = this.validateHostAccess(meta.userId, meta.hostKey);
+      const isHost = this.validateHostAccess(meta.clientId, meta.hostKey);
 
       // Non-host actions
       if (!isHost) {
         if (msg.type === "VOTE_CAST") {
-          const ok = castVote(session, { userId: meta.userId, optionIndex: msg.optionIndex });
+          const ok = castVote(session, { userId: meta.clientId, optionIndex: msg.optionIndex });
           if (ok) this.broadcastState();
         } else {
           ws.send(
