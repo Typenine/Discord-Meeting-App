@@ -22,13 +22,17 @@ export default function StandaloneApp() {
   // Determine WebSocket URL
   const WS_URL = (() => {
     if (typeof window === "undefined") return null;
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // For local dev, connect to Cloudflare Worker
-    if (window.location.hostname === "localhost") {
-      return "ws://localhost:8787/api/ws";
+    
+    // For production, connect to Cloudflare Worker directly
+    // WebSocket cannot be proxied through Vercel
+    if (import.meta.env.PROD) {
+      // In production, use environment variable or default to worker domain
+      const workerDomain = import.meta.env.VITE_WORKER_DOMAIN || "discord-agenda-activity-worker.yourusername.workers.dev";
+      return `wss://${workerDomain}/api/ws`;
     }
-    // For production, use same origin
-    return `${proto}//${window.location.host}/api/ws`;
+    
+    // For local dev, connect to local Cloudflare Worker
+    return "ws://localhost:8787/api/ws";
   })();
 
   // Parse URL parameters on mount
@@ -59,7 +63,12 @@ export default function StandaloneApp() {
     setError(null);
     
     try {
-      const res = await fetch("/api/room/create", { method: "POST" });
+      // API endpoint for room creation
+      const apiBase = import.meta.env.PROD 
+        ? `https://${import.meta.env.VITE_WORKER_DOMAIN || "discord-agenda-activity-worker.yourusername.workers.dev"}`
+        : "http://localhost:8787";
+      
+      const res = await fetch(`${apiBase}/api/room/create`, { method: "POST" });
       const data = await res.json();
       
       if (!res.ok) {
@@ -71,8 +80,13 @@ export default function StandaloneApp() {
       setRoomId(data.roomId);
       setHostKey(data.hostKey);
       
+      // Update URLs to use current frontend domain
+      const frontendUrl = window.location.origin;
+      const viewerUrl = `${frontendUrl}/?room=${data.roomId}`;
+      const hostUrl = `${frontendUrl}/?room=${data.roomId}&hostKey=${data.hostKey}`;
+      
       // Show the links to user before connecting
-      alert(`Room created!\n\nViewer link: ${data.viewerUrl}\n\nHost link: ${data.hostUrl}\n\nSave the host link to control the meeting!`);
+      alert(`Room created!\n\nViewer link: ${viewerUrl}\n\nHost link: ${hostUrl}\n\nSave the host link to control the meeting!`);
       
       // Connect as host
       connectToRoom(data.roomId, data.hostKey);
