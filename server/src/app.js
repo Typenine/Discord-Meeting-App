@@ -12,7 +12,9 @@ export function createApp(config = {}) {
     REDIRECT_URI = process.env.DISCORD_REDIRECT_URI,
     HOST_ALLOW_ALL = false,
     HOST_IDS = new Set(),
-    mountAtRoot = false, // If true, mount API routes at root for Vercel compatibility
+    // When true, API routes are mounted at both root (/) and /api for Vercel serverless compatibility
+    // Vercel strips the /api prefix before routing to serverless functions
+    mountAtRoot = false,
   } = config;
 
   const app = express();

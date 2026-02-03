@@ -11,8 +11,8 @@ const API_BASE = (() => {
   if (IN_DISCORD) return "/proxy/api";
   const envBase = RAW_ENV_API_BASE && String(RAW_ENV_API_BASE).trim();
   if (envBase) return normalizeApiBase(envBase);
-  // Default to same-origin /api for deployed builds (no fallback to 127.0.0.1)
-  return "/api";
+  // In development, fall back to localhost; in production, use same-origin
+  return import.meta.env.DEV ? "http://localhost:8787/api" : "/api";
 })();
 
 export default function App() {

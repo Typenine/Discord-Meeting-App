@@ -9,15 +9,19 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables (Vercel sets these, but also check for .env files)
-const envLocalPath = path.resolve(__dirname, "../server/.env.local");
-const envPath = path.resolve(__dirname, "../server/.env");
-
-if (fs.existsSync(envLocalPath)) dotenv.config({ path: envLocalPath, override: true });
-if (fs.existsSync(envPath)) dotenv.config({ path: envPath, override: true });
-
-// Also load from Vercel environment
-dotenv.config({ override: false });
+// Load environment variables
+// In Vercel, prefer environment variables over .env files for better cold start performance
+if (process.env.VERCEL) {
+  // Running on Vercel - use environment variables directly
+  dotenv.config({ override: false });
+} else {
+  // Local development - check for .env files
+  const envLocalPath = path.resolve(__dirname, "../server/.env.local");
+  const envPath = path.resolve(__dirname, "../server/.env");
+  
+  if (fs.existsSync(envLocalPath)) dotenv.config({ path: envLocalPath, override: true });
+  if (fs.existsSync(envPath)) dotenv.config({ path: envPath, override: true });
+}
 
 // Import the app factory and store
 import * as store from "../server/src/store.js";
