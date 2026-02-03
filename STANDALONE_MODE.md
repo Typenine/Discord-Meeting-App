@@ -9,6 +9,65 @@ The Discord Meeting App now supports **two modes**:
 
 The app automatically detects which mode to use based on the hostname.
 
+## Identity System
+
+### ClientId
+- **Generated once** on first app load and stored in localStorage as `evw_client_id`
+- **Format**: `client_${timestamp}_${random}` (e.g., `client_1234567890_abc123def`)
+- **Purpose**: Identifies the user across page reloads without requiring authentication
+- **Persistence**: Stored in browser localStorage, survives page refreshes
+
+### RoomId
+- **Format**: 6-character alphanumeric code (e.g., `ABC123`)
+- **Purpose**: Identifies the meeting room
+- **Generation**: Server-side when room is created
+- **URL**: Used in path-based routing (e.g., `/ABC123`)
+
+### HostKey
+- **Format**: 16-character secure token (e.g., `xY7kL9mNpQ2rS5tU`)
+- **Purpose**: Grants host privileges to control the meeting
+- **Generation**: Server-side when room is created
+- **Security**: Must be kept secret, only validated server-side
+- **URL**: Passed as query parameter (e.g., `?hostKey=xY7kL9mNpQ2rS5tU`)
+
+### URL Patterns
+
+**Viewer Link** (safe to share):
+```
+https://app.com/ABC123
+or
+https://app.com/room/ABC123
+```
+
+**Host Link** (keep secret):
+```
+https://app.com/ABC123?hostKey=xY7kL9mNpQ2rS5tU
+or
+https://app.com/room/ABC123?hostKey=xY7kL9mNpQ2rS5tU
+```
+
+### WebSocket Protocol
+
+**HELLO Message** (client → server):
+```json
+{
+  "type": "HELLO",
+  "roomId": "ABC123",
+  "clientId": "client_1234567890_abc123def",
+  "hostKey": "xY7kL9mNpQ2rS5tU",  // Only if host
+  "displayName": "John Doe"
+}
+```
+
+**HELLO_ACK Message** (server → client):
+```json
+{
+  "type": "HELLO_ACK",
+  "isHost": true,
+  "serverNow": 1234567890123
+}
+```
+
 ## Architecture
 
 ### Standalone Mode

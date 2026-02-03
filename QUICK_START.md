@@ -28,13 +28,15 @@ This guide helps you get started with the newly implemented standalone synced me
 
 - **Viewer Link**: Share with attendees (safe to post publicly)
   ```
-  https://your-app.com/?room=ABC123
+  https://your-app.com/ABC123
   ```
 
 - **Host Link**: Keep this secret! (gives you control)
   ```
-  https://your-app.com/?room=ABC123&hostKey=xY7kL9mNpQ2rS5tU
+  https://your-app.com/ABC123?hostKey=xY7kL9mNpQ2rS5tU
   ```
+
+**Note**: The new URL format uses path-based routing (e.g., `/ABC123`) instead of query parameters for cleaner, more shareable links.
 
 ### 3. Start Meeting
 
@@ -80,14 +82,14 @@ As **Attendee**, you can:
 ├─────────────────────────────────────┤
 │ 👥 Viewer Link (share with team):  │
 │ ┌─────────────────────────────────┐ │
-│ │ https://app.com/?room=ABC123    │ │
+│ │ https://app.com/ABC123          │ │
 │ └─────────────────────────────────┘ │
 │ [📋 Copy Viewer Link]              │
 │                                     │
 │ 🔑 Host Link (keep secret!):       │
 │ ┌─────────────────────────────────┐ │
-│ │ https://app.com/?room=ABC123    │ │
-│ │ &hostKey=xY7kL9mNpQ2rS5tU        │ │
+│ │ https://app.com/ABC123          │ │
+│ │ ?hostKey=xY7kL9mNpQ2rS5tU        │ │
 │ └─────────────────────────────────┘ │
 │ [📋 Copy Host Link]                │
 │                                     │
