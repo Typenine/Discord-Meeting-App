@@ -4,7 +4,11 @@ import App from "./App.jsx";
 import StandaloneApp from "./StandaloneApp.jsx";
 
 // Detect mode: if in Discord (discordsays.com) use old App, otherwise use StandaloneApp
-const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
+// Use exact match or subdomain check to prevent spoofing
+const IN_DISCORD = typeof window !== "undefined" && (
+  window.location.hostname === "discordsays.com" ||
+  window.location.hostname.endsWith(".discordsays.com")
+);
 
 // For standalone mode, use StandaloneApp (WebSocket-based)
 // For Discord Activity mode, use App (HTTP polling-based)
