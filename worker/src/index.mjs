@@ -1,4 +1,25 @@
 // Cloudflare Worker + Durable Object backend for Discord Agenda Activity
+// Supports both Discord Activity mode and standalone room + hostKey mode
+
+// Generate a random room ID (6 characters, alphanumeric)
+function generateRoomId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Generate a secure hostKey (16 characters, base64-like)
+function generateHostKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 16; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 function parseHostConfig(raw) {
   const parts = String(raw || "")
@@ -32,22 +53,18 @@ function jsonResponse(body, status = 200, extraHeaders = {}) {
 
 // ---- Meeting state helpers (ported from server/src/meeting.js) ----
 
-function createMeetingSession({ sessionId }) {
+function createMeetingSession({ sessionId, hostKey = null }) {
   return {
     sessionId,
     hostUserId: null,
-    agenda: [
-      { id: "a1", title: "Opening / Roll Call", minutes: 3 },
-      { id: "a2", title: "Rulebook Changes", minutes: 20 },
-      { id: "a3", title: "Draft Logistics", minutes: 15 },
-      { id: "a4", title: "Votes", minutes: 10 },
-    ],
-    activeAgendaId: "a1",
+    hostKey, // For standalone room mode (null for Discord Activity mode)
+    agenda: [],
+    activeAgendaId: null,
     timer: {
       running: false,
       // When running: endsAtMs is authoritative
       endsAtMs: null,
-      remainingSec: 3 * 60,
+      remainingSec: 0,
     },
     vote: {
       open: false,
@@ -56,6 +73,7 @@ function createMeetingSession({ sessionId }) {
       votesByUserId: {}, // { [userId]: optionIndex }
       closedResults: [], // history
     },
+    attendance: {}, // { [userId]: { displayName, joinedAt } }
     log: [],
   };
 }
@@ -268,6 +286,19 @@ export default {
       return handleToken(request, env);
     }
 
+    // Create new standalone room
+    if (pathname === "/api/room/create" && request.method === "POST") {
+      const roomId = generateRoomId();
+      const hostKey = generateHostKey();
+      
+      return jsonResponse({
+        roomId,
+        hostKey,
+        viewerUrl: `${url.origin}/?room=${roomId}`,
+        hostUrl: `${url.origin}/?room=${roomId}&hostKey=${hostKey}`,
+      });
+    }
+
     if (pathname === "/api/ws" && request.headers.get("Upgrade") === "websocket") {
       const room = url.searchParams.get("room") || "default";
       const id = env.MEETING_ROOM.idFromName(room);
@@ -292,7 +323,7 @@ export class MeetingRoom {
     this.state = state;
     this.env = env;
     this.sockets = new Set();
-    this.metadata = new Map(); // ws -> { sessionId, userId }
+    this.metadata = new Map(); // ws -> { sessionId, userId, hostKey, clientTimeOffset }
     this.session = null;
     this.timer = null;
     this.hostConfig = parseHostConfig(env.HOST_USER_IDS);
@@ -309,16 +340,30 @@ export class MeetingRoom {
     return jsonResponse({ error: "not_found_in_durable_object" }, 404);
   }
 
-  getOrCreateSession(sessionId) {
+  getOrCreateSession(sessionId, hostKey = null) {
     if (!this.session) {
       const id = sessionId || "default";
-      this.session = createMeetingSession({ sessionId: id });
+      this.session = createMeetingSession({ sessionId: id, hostKey });
     }
     return this.session;
   }
 
+  // Validate host access: either Discord Activity mode (userId check) or standalone mode (hostKey check)
+  validateHostAccess(userId, providedHostKey) {
+    if (!this.session) return false;
+    
+    // Standalone room mode: check hostKey
+    if (this.session.hostKey) {
+      return providedHostKey === this.session.hostKey;
+    }
+    
+    // Discord Activity mode: check userId
+    return this.session.hostUserId === userId;
+  }
+
   startTimerLoop() {
     if (this.timer) return;
+    // Tick every second for smooth timer updates
     this.timer = setInterval(() => {
       if (!this.session) return;
       const before = this.session.timer.remainingSec;
@@ -326,7 +371,7 @@ export class MeetingRoom {
       if (this.session.timer.remainingSec !== before) {
         this.broadcastState();
       }
-    }, 500);
+    }, 1000);
   }
 
   stopTimerLoopIfIdle() {
@@ -338,7 +383,15 @@ export class MeetingRoom {
 
   broadcastState() {
     if (!this.session) return;
-    const payload = JSON.stringify({ type: "STATE", state: snapshot(this.session) });
+    const state = snapshot(this.session);
+    // Remove hostKey from broadcast for security
+    const safeState = { ...state };
+    delete safeState.hostKey;
+    const payload = JSON.stringify({ 
+      type: "STATE", 
+      state: safeState,
+      serverNow: Date.now(),
+    });
     for (const ws of this.sockets) {
       try {
         ws.send(payload);
@@ -364,12 +417,26 @@ export class MeetingRoom {
         return;
       }
 
+      // Handle TIME_PING for clock offset calibration
+      if (msg && msg.type === "TIME_PING") {
+        const serverNow = Date.now();
+        ws.send(JSON.stringify({ 
+          type: "TIME_PONG", 
+          clientSentAt: msg.clientSentAt,
+          serverNow,
+        }));
+        return;
+      }
+
       if (msg && msg.type === "HELLO") {
         console.log("[WS HELLO payload]", JSON.stringify(msg, null, 2));
 
         let rawUserId = null;
         let userIdSource = null;
+        let hostKey = msg.hostKey || null;
+        let displayName = msg.displayName || msg.username || "Guest";
 
+        // Discord Activity mode: extract userId from SDK payload
         if (msg.userId != null) {
           rawUserId = msg.userId;
           userIdSource = "msg.userId";
@@ -379,6 +446,10 @@ export class MeetingRoom {
         } else if (msg.user && msg.user.user && msg.user.user.id != null) {
           rawUserId = msg.user.user.id;
           userIdSource = "msg.user.user.id";
+        } else {
+          // Standalone mode: generate anonymous userId
+          rawUserId = `anon_${Math.random().toString(36).substr(2, 9)}`;
+          userIdSource = "generated";
         }
 
         const resolvedUserId = rawUserId != null ? String(rawUserId).trim() : null;
@@ -389,28 +460,55 @@ export class MeetingRoom {
           return;
         }
 
+        // For Discord Activity mode, check if user is allowed to be host
         const allowed = isAllowedHost(resolvedUserId, this.hostConfig);
-        const session = this.getOrCreateSession(sessionId);
+        const session = this.getOrCreateSession(sessionId, hostKey);
 
-        if (!session.hostUserId && allowed) {
-          session.hostUserId = resolvedUserId;
-          session.log.push({ ts: Date.now(), type: "HOST_SET", userId: resolvedUserId });
-          console.log("[HOST_SET]", { sessionId, hostUserId: session.hostUserId });
+        // Set host based on mode
+        if (!session.hostUserId) {
+          if (session.hostKey) {
+            // Standalone mode: host is whoever has the hostKey
+            if (hostKey === session.hostKey) {
+              session.hostUserId = resolvedUserId;
+              session.log.push({ ts: Date.now(), type: "HOST_SET", userId: resolvedUserId, mode: "standalone" });
+              console.log("[HOST_SET] standalone mode", { sessionId, hostUserId: session.hostUserId });
+            }
+          } else if (allowed) {
+            // Discord Activity mode: host is first allowed user
+            session.hostUserId = resolvedUserId;
+            session.log.push({ ts: Date.now(), type: "HOST_SET", userId: resolvedUserId, mode: "discord" });
+            console.log("[HOST_SET] discord mode", { sessionId, hostUserId: session.hostUserId });
+          }
         }
 
-        const isHost = session.hostUserId === resolvedUserId;
+        // Add to attendance
+        if (!session.attendance[resolvedUserId]) {
+          session.attendance[resolvedUserId] = {
+            userId: resolvedUserId,
+            displayName,
+            joinedAt: Date.now(),
+          };
+        }
 
-        this.metadata.set(ws, { sessionId, userId: resolvedUserId });
+        const isHost = session.hostKey 
+          ? (hostKey === session.hostKey)
+          : (session.hostUserId === resolvedUserId);
+
+        this.metadata.set(ws, { sessionId, userId: resolvedUserId, hostKey, clientTimeOffset: 0 });
 
         console.log("[WS HELLO resolved]", {
           sessionId,
           userId: resolvedUserId,
           userIdSource,
           isHost,
-          hostAllowAll: this.hostConfig.allowAll,
+          mode: session.hostKey ? "standalone" : "discord",
         });
 
-        ws.send(JSON.stringify({ type: "HELLO_ACK", isHost }));
+        ws.send(JSON.stringify({ 
+          type: "HELLO_ACK", 
+          isHost,
+          serverNow: Date.now(),
+        }));
         this.broadcastState();
         this.startTimerLoop();
         return;
@@ -420,8 +518,9 @@ export class MeetingRoom {
       if (!meta) return;
 
       const session = this.getOrCreateSession(meta.sessionId);
-      const isHost = session.hostUserId === meta.userId;
+      const isHost = this.validateHostAccess(meta.userId, meta.hostKey);
 
+      // Non-host actions
       if (!isHost) {
         if (msg.type === "VOTE_CAST") {
           const ok = castVote(session, { userId: meta.userId, optionIndex: msg.optionIndex });
@@ -434,7 +533,51 @@ export class MeetingRoom {
         return;
       }
 
+      // Host-only actions
       switch (msg.type) {
+        case "AGENDA_ADD":
+          if (typeof msg.title === "string") {
+            const id = `a${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            session.agenda.push({
+              id,
+              title: msg.title,
+              durationSec: Number(msg.durationSec) || 0,
+              notes: msg.notes || "",
+            });
+            // If first item, make it active
+            if (session.agenda.length === 1) {
+              session.activeAgendaId = id;
+              session.timer.remainingSec = Number(msg.durationSec) || 0;
+            }
+            this.broadcastState();
+          }
+          break;
+        case "AGENDA_UPDATE":
+          {
+            const item = session.agenda.find((a) => a.id === msg.agendaId);
+            if (item) {
+              if (msg.title !== undefined) item.title = msg.title;
+              if (msg.durationSec !== undefined) item.durationSec = Number(msg.durationSec) || 0;
+              if (msg.notes !== undefined) item.notes = msg.notes;
+              this.broadcastState();
+            }
+          }
+          break;
+        case "AGENDA_DELETE":
+          {
+            const idx = session.agenda.findIndex((a) => a.id === msg.agendaId);
+            if (idx >= 0) {
+              session.agenda.splice(idx, 1);
+              if (session.activeAgendaId === msg.agendaId) {
+                session.activeAgendaId = session.agenda.length ? session.agenda[0].id : null;
+                session.timer.running = false;
+                session.timer.endsAtMs = null;
+                session.timer.remainingSec = 0;
+              }
+              this.broadcastState();
+            }
+          }
+          break;
         case "AGENDA_SET_ACTIVE":
           if (setActiveItem(session, msg.agendaId)) this.broadcastState();
           break;
@@ -449,6 +592,16 @@ export class MeetingRoom {
         case "TIMER_RESET":
           timerResetToActiveItem(session);
           this.broadcastState();
+          break;
+        case "TIMER_EXTEND":
+          if (typeof msg.seconds === "number") {
+            if (session.timer.running && session.timer.endsAtMs != null) {
+              session.timer.endsAtMs += msg.seconds * 1000;
+            } else {
+              session.timer.remainingSec = Math.max(0, session.timer.remainingSec + msg.seconds);
+            }
+            this.broadcastState();
+          }
           break;
         case "VOTE_OPEN":
           if (
