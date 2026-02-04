@@ -359,7 +359,7 @@ export default function RoomLayout({
                         {voteCount} vote{voteCount !== 1 ? 's' : ''}
                       </div>
                     </div>
-                    {!isHost && (
+                    {!(isHost && !viewAsAttendee) && (
                       <button
                         onClick={() => onCastVote(optionId)}
                         disabled={hasVoted}
