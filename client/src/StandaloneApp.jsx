@@ -543,8 +543,8 @@ export default function StandaloneApp() {
 
   return (
     <div style={{ fontFamily: "sans-serif", height: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Connection Status Banners */}
-      {connectionStatus === "disconnected" && (
+      {/* Connection Status Banners - only show when connected mode */}
+      {mode === "connected" && connectionStatus === "disconnected" && (
         <div style={{
           position: "fixed",
           top: 0,
@@ -561,7 +561,7 @@ export default function StandaloneApp() {
         </div>
       )}
 
-      {connectionStatus === "reconnecting" && (
+      {mode === "connected" && connectionStatus === "reconnecting" && (
         <div style={{
           position: "fixed",
           top: 0,
@@ -578,7 +578,7 @@ export default function StandaloneApp() {
         </div>
       )}
 
-      {connectionStatus === "connected" && showConnectedBanner && (
+      {mode === "connected" && connectionStatus === "connected" && showConnectedBanner && (
         <div style={{
           position: "fixed",
           top: 0,
