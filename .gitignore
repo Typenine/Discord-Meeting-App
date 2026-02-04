@@ -6,6 +6,7 @@ dist/
 build/
 .out/
 .vercel/
+.wrangler/
 
 # env files
 .env

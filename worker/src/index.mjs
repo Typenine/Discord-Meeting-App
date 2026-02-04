@@ -1,6 +1,75 @@
 // Cloudflare Worker + Durable Object backend for Discord Agenda Activity
 // Supports both Discord Activity mode and standalone room + hostKey mode
 
+// ---- CORS helpers ----
+
+// Check if origin is allowed
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  
+  // Allow Vercel deployments (must match https://*.vercel.app pattern)
+  // This regex allows any reasonable subdomain including complex preview deployment names
+  // Examples: app.vercel.app, my-app-git-main-user.vercel.app, project-hash-team.vercel.app
+  if (origin.match(/^https:\/\/[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.vercel\.app$/)) return true;
+  
+  // Allow localhost for development (common Vite/React/Node ports)
+  const allowedLocalOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8787',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8787'
+  ];
+  if (allowedLocalOrigins.includes(origin)) return true;
+  
+  return false;
+}
+
+// Get CORS headers for a given request
+function getCorsHeaders(request) {
+  const origin = request.headers.get('Origin');
+  
+  // If no origin header, don't set CORS headers
+  if (!origin) {
+    console.log('[CORS] No Origin header in request');
+    return {};
+  }
+  
+  // Check if origin is allowed
+  const allowed = isAllowedOrigin(origin);
+  console.log('[CORS] Origin:', origin, '| Allowed:', allowed);
+  
+  if (!allowed) return {};
+  
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
+// Wrap a response with CORS headers
+function withCors(response, request) {
+  const corsHeaders = getCorsHeaders(request);
+  
+  // If no CORS headers needed, return response as-is
+  if (Object.keys(corsHeaders).length === 0) return response;
+  
+  // Clone the response and add CORS headers
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    newHeaders.set(key, value);
+  }
+  
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
+
 // Generate a random room ID (6 characters, alphanumeric)
 function generateRoomId() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -335,19 +404,36 @@ export default {
     const url = new URL(request.url);
     const { pathname } = url;
 
+    // Handle OPTIONS preflight requests for all /api/* endpoints
+    if (request.method === "OPTIONS" && pathname.startsWith("/api/")) {
+      return withCors(
+        new Response(null, { 
+          status: 204,
+          headers: {
+            'Content-Length': '0',
+          },
+        }),
+        request
+      );
+    }
+
     if (pathname === "/health" || pathname === "/api/health") {
       const hostConfig = parseHostConfig(env.HOST_USER_IDS);
-      return jsonResponse({
-        ok: true,
-        clientId: env.DISCORD_CLIENT_ID || null,
-        redirectUri: env.DISCORD_REDIRECT_URI || null,
-        hostAllowAll: hostConfig.allowAll,
-        hostIdsCount: hostConfig.ids.size,
-      });
+      return withCors(
+        jsonResponse({
+          ok: true,
+          clientId: env.DISCORD_CLIENT_ID || null,
+          redirectUri: env.DISCORD_REDIRECT_URI || null,
+          hostAllowAll: hostConfig.allowAll,
+          hostIdsCount: hostConfig.ids.size,
+        }),
+        request
+      );
     }
 
     if (pathname === "/api/token" && request.method === "POST") {
-      return handleToken(request, env);
+      const response = await handleToken(request, env);
+      return withCors(response, request);
     }
 
     // Create new standalone room
@@ -355,12 +441,15 @@ export default {
       const roomId = generateRoomId();
       const hostKey = generateHostKey();
       
-      return jsonResponse({
-        roomId,
-        hostKey,
-        viewerUrl: `${url.origin}/?room=${roomId}`,
-        hostUrl: `${url.origin}/?room=${roomId}&hostKey=${hostKey}`,
-      });
+      return withCors(
+        jsonResponse({
+          roomId,
+          hostKey,
+          viewerUrl: `${url.origin}/?room=${roomId}`,
+          hostUrl: `${url.origin}/?room=${roomId}&hostKey=${hostKey}`,
+        }),
+        request
+      );
     }
 
     if (pathname === "/api/ws" && request.headers.get("Upgrade") === "websocket") {
@@ -378,7 +467,10 @@ export default {
       return stub.fetch(wsRequest);
     }
 
-    return jsonResponse({ error: "not_found", path: pathname }, 404);
+    return withCors(
+      jsonResponse({ error: "not_found", path: pathname }, 404),
+      request
+    );
   },
 };
 
