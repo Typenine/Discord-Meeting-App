@@ -445,7 +445,31 @@ export default function StandaloneApp() {
 
   return (
     <div style={{ padding: "1rem", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
-      <h1>🎯 Synced Meeting App</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <h1 style={{ margin: 0 }}>🎯 Synced Meeting App</h1>
+        
+        {/* Mode and Identity Indicator */}
+        {mode === "connected" && (
+          <div style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#e7f3ff",
+            border: "1px solid #0066cc",
+            borderRadius: "4px",
+            fontSize: "0.85rem",
+            textAlign: "right"
+          }}>
+            <div style={{ fontWeight: "bold", color: "#0066cc" }}>
+              Mode: Standalone
+            </div>
+            <div style={{ color: "#555" }}>
+              Role: {isHost ? "🔑 Host" : "👥 Viewer"}
+            </div>
+            <div style={{ color: "#666", fontSize: "0.75rem", marginTop: "0.25rem" }}>
+              ID: {clientId.substring(0, 20)}...
+            </div>
+          </div>
+        )}
+      </div>
       
       {error && (
         <div style={{

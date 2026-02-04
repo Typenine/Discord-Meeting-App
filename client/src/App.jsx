@@ -499,6 +499,32 @@ export default function App() {
         </div>
       )}
       
+      {/* Mode and Identity Indicator (shown when in meeting) */}
+      {status === "joined" && state && (
+        <div style={{
+          padding: "0.5rem 1rem",
+          marginBottom: "1rem",
+          backgroundColor: "#f0e6ff",
+          border: "1px solid #7c3aed",
+          borderRadius: "4px",
+          fontSize: "0.85rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
+          <div>
+            <span style={{ fontWeight: "bold", color: "#7c3aed" }}>Mode: Discord Activity</span>
+            {" | "}
+            <span style={{ color: "#555" }}>
+              Role: {state.hostUserId === userId ? "🔑 Host" : "👥 Viewer"}
+            </span>
+          </div>
+          <div style={{ color: "#666", fontSize: "0.75rem" }}>
+            ID: {userId ? (userId.length > 20 ? userId.substring(0, 20) + "..." : userId) : "unknown"}
+          </div>
+        </div>
+      )}
+      
       {status === "init" && (
         <div>
           <h2>Join or Start Meeting</h2>

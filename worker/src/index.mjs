@@ -53,11 +53,12 @@ function jsonResponse(body, status = 200, extraHeaders = {}) {
 
 // ---- Meeting state helpers (ported from server/src/meeting.js) ----
 
-function createMeetingSession({ sessionId, hostKey = null }) {
+function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = null }) {
   return {
     sessionId,
     hostUserId: null,
     hostKey, // For standalone room mode (null for Discord Activity mode)
+    hostKeyFallback, // For Discord Activity mode: optional hostKey for testing without Discord OAuth
     agenda: [],
     activeAgendaId: null,
     timer: {
@@ -402,15 +403,16 @@ export class MeetingRoom {
     return jsonResponse({ error: "not_found_in_durable_object" }, 404);
   }
 
-  getOrCreateSession(sessionId, hostKey = null) {
+  getOrCreateSession(sessionId, hostKey = null, hostKeyFallback = null) {
     if (!this.session) {
       const id = sessionId || "default";
-      this.session = createMeetingSession({ sessionId: id, hostKey });
+      this.session = createMeetingSession({ sessionId: id, hostKey, hostKeyFallback });
     }
     return this.session;
   }
 
-  // Validate host access: either Discord Activity mode (userId check) or standalone mode (hostKey check)
+  // Validate host access: supports both standalone (hostKey) and Discord Activity mode (userId/allowlist)
+  // For Discord Activity mode, also accepts hostKey as fallback (for testing without Discord OAuth)
   validateHostAccess(clientId, providedHostKey) {
     if (!this.session) return false;
     
@@ -419,8 +421,18 @@ export class MeetingRoom {
       return providedHostKey === this.session.hostKey;
     }
     
-    // Discord Activity mode: check userId/clientId
-    return this.session.hostUserId === clientId;
+    // Discord Activity mode: check userId/clientId match
+    if (this.session.hostUserId === clientId) {
+      return true;
+    }
+    
+    // Discord Activity mode fallback: if hostKey was provided, check against stored hostKey
+    // This allows testing Discord Activity UI without Discord OAuth by using hostKey
+    if (providedHostKey && this.session.hostKeyFallback) {
+      return providedHostKey === this.session.hostKeyFallback;
+    }
+    
+    return false;
   }
 
   // Timer loop removed - no server-side ticking needed
@@ -503,7 +515,12 @@ export class MeetingRoom {
 
         // For Discord Activity mode, check if user is allowed to be host
         const allowed = discordUserId ? isAllowedHost(discordUserId, this.hostConfig) : false;
-        const session = this.getOrCreateSession(roomId, hostKey);
+        
+        // If not standalone mode (no hostKey in URL) but hostKey provided, use it as fallback
+        // This allows testing Discord Activity mode without Discord OAuth
+        const hostKeyFallback = (!hostKey && msg.hostKey) ? msg.hostKey : null;
+        
+        const session = this.getOrCreateSession(roomId, hostKey, hostKeyFallback);
 
         // Set host based on mode
         if (!session.hostUserId) {
@@ -515,10 +532,19 @@ export class MeetingRoom {
               console.log("[HOST_SET] standalone mode", { sessionId: roomId, hostUserId: session.hostUserId });
             }
           } else if (allowed && discordUserId) {
-            // Discord Activity mode: host is first allowed user
+            // Discord Activity mode: host is first allowed user (via allowlist)
             session.hostUserId = discordUserId;
-            session.log.push({ ts: Date.now(), type: "HOST_SET", userId: discordUserId, mode: "discord" });
-            console.log("[HOST_SET] discord mode", { sessionId: roomId, hostUserId: session.hostUserId });
+            session.log.push({ ts: Date.now(), type: "HOST_SET", userId: discordUserId, mode: "discord_allowlist" });
+            console.log("[HOST_SET] discord mode via allowlist", { sessionId: roomId, hostUserId: session.hostUserId });
+          } else if (!allowed && hostKeyFallback) {
+            // Discord Activity mode fallback: if allowlist doesn't match but hostKey provided, set hostKeyFallback
+            // This enables testing Discord Activity UI without Discord OAuth
+            if (!session.hostKeyFallback) {
+              session.hostKeyFallback = hostKeyFallback;
+              session.hostUserId = identifier;
+              session.log.push({ ts: Date.now(), type: "HOST_SET", clientId: identifier, mode: "discord_hostkey_fallback" });
+              console.log("[HOST_SET] discord mode via hostKey fallback", { sessionId: roomId, hostUserId: session.hostUserId });
+            }
           }
         }
 
@@ -532,11 +558,19 @@ export class MeetingRoom {
           };
         }
 
+        // Determine isHost: check standalone hostKey, Discord Activity userId, or hostKeyFallback
         const isHost = session.hostKey 
           ? (hostKey === session.hostKey)
-          : (session.hostUserId === identifier);
+          : (session.hostUserId === identifier || 
+             (hostKeyFallback && session.hostKeyFallback === hostKeyFallback));
 
-        this.metadata.set(ws, { sessionId: roomId, clientId: identifier, userId: discordUserId, hostKey, clientTimeOffset: 0 });
+        this.metadata.set(ws, { 
+          sessionId: roomId, 
+          clientId: identifier, 
+          userId: discordUserId, 
+          hostKey: hostKey || hostKeyFallback, 
+          clientTimeOffset: 0 
+        });
 
         console.log("[WS HELLO resolved]", {
           sessionId: roomId,
@@ -544,6 +578,7 @@ export class MeetingRoom {
           discordUserId,
           isHost,
           mode: session.hostKey ? "standalone" : "discord",
+          hostKeyFallback: !!session.hostKeyFallback,
         });
 
         ws.send(JSON.stringify({ 
