@@ -78,7 +78,7 @@ const WS_URL = (() => {
   if (typeof window === "undefined") return null;
   
   if (API_BASE) {
-    // Derive wsUrl from apiBase by replacing https:// with wss:// and appending /ws
+    // Derive wsUrl from apiBase by replacing http(s):// with ws(s):// and appending /ws
     const wsUrl = API_BASE.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://") + "/ws";
     console.log("CONFIG Final wsUrl=" + wsUrl);
     return wsUrl;
