@@ -3,16 +3,37 @@ import React, { useState, useEffect } from "react";
 // Determine API base for HTTP polling.
 const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
 const RAW_ENV_API_BASE = import.meta.env.VITE_API_BASE;
+const RAW_ENV_WORKER_DOMAIN = import.meta.env.VITE_WORKER_DOMAIN;
 function normalizeApiBase(base) {
   if (!base) return base;
   return String(base).replace(/\/+$/, "");
 }
 const API_BASE = (() => {
+  // Discord Activity mode: use proxy path
   if (IN_DISCORD) return "/proxy/api";
+  
+  // Check for explicit VITE_API_BASE configuration
   const envBase = RAW_ENV_API_BASE && String(RAW_ENV_API_BASE).trim();
   if (envBase) return normalizeApiBase(envBase);
-  // In development, fall back to localhost; in production, use same-origin
-  return import.meta.env.DEV ? "http://localhost:8787/api" : "/api";
+  
+  // Check for VITE_WORKER_DOMAIN (can construct API URL from it)
+  const workerDomain = RAW_ENV_WORKER_DOMAIN && String(RAW_ENV_WORKER_DOMAIN).trim();
+  if (workerDomain) {
+    return `https://${workerDomain}/api`;
+  }
+  
+  // In development, fall back to localhost
+  if (import.meta.env.DEV) {
+    return "http://localhost:8787/api";
+  }
+  
+  // Production without configuration: fail with clear error
+  console.error(
+    "Production deployment requires VITE_API_BASE or VITE_WORKER_DOMAIN environment variable. " +
+    "Set VITE_WORKER_DOMAIN to your Cloudflare Worker domain (e.g., your-worker.workers.dev) " +
+    "or VITE_API_BASE to the full API URL (e.g., https://your-worker.workers.dev/api)"
+  );
+  return null; // Will cause fetch to fail with clear error
 })();
 
 export default function App() {
@@ -496,6 +517,32 @@ export default function App() {
             onClick={() => setError(null)} 
             style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
           >×</button>
+        </div>
+      )}
+      
+      {/* Mode and Identity Indicator (shown when in meeting) */}
+      {status === "joined" && state && (
+        <div style={{
+          padding: "0.5rem 1rem",
+          marginBottom: "1rem",
+          backgroundColor: "#f0e6ff",
+          border: "1px solid #7c3aed",
+          borderRadius: "4px",
+          fontSize: "0.85rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
+          <div>
+            <span style={{ fontWeight: "bold", color: "#7c3aed" }}>Mode: Discord Activity</span>
+            {" | "}
+            <span style={{ color: "#555" }}>
+              Role: {state.hostUserId === userId ? "🔑 Host" : "👥 Viewer"}
+            </span>
+          </div>
+          <div style={{ color: "#666", fontSize: "0.75rem" }}>
+            ID: {userId ? (userId.length > 20 ? userId.substring(0, 20) + "..." : userId) : "unknown"}
+          </div>
         </div>
       )}
       

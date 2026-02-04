@@ -1,4 +1,25 @@
 // Cloudflare Worker + Durable Object backend for Discord Agenda Activity
+// Supports both Discord Activity mode and standalone room + hostKey mode
+
+// Generate a random room ID (6 characters, alphanumeric)
+function generateRoomId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Generate a secure hostKey (16 characters, base64-like)
+function generateHostKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 16; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 function parseHostConfig(raw) {
   const parts = String(raw || "")
@@ -32,30 +53,29 @@ function jsonResponse(body, status = 200, extraHeaders = {}) {
 
 // ---- Meeting state helpers (ported from server/src/meeting.js) ----
 
-function createMeetingSession({ sessionId }) {
+function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = null }) {
   return {
     sessionId,
     hostUserId: null,
-    agenda: [
-      { id: "a1", title: "Opening / Roll Call", minutes: 3 },
-      { id: "a2", title: "Rulebook Changes", minutes: 20 },
-      { id: "a3", title: "Draft Logistics", minutes: 15 },
-      { id: "a4", title: "Votes", minutes: 10 },
-    ],
-    activeAgendaId: "a1",
+    hostKey, // For standalone room mode (null for Discord Activity mode)
+    hostKeyFallback, // For Discord Activity mode: optional hostKey for testing without Discord OAuth
+    agenda: [],
+    activeAgendaId: null,
     timer: {
       running: false,
-      // When running: endsAtMs is authoritative
-      endsAtMs: null,
-      remainingSec: 3 * 60,
+      endsAtMs: null, // Authoritative absolute end time (when running)
+      durationSec: 0, // Duration for current agenda item
+      pausedRemainingSec: null, // Remaining seconds when paused
+      updatedAtMs: Date.now(), // Server timestamp of last timer state change
     },
     vote: {
       open: false,
       question: "",
-      options: [],
-      votesByUserId: {}, // { [userId]: optionIndex }
+      options: [], // Array<{ id, label }>
+      votesByClientId: {}, // { [clientId]: optionId }
       closedResults: [], // history
     },
+    attendance: {}, // { [userId]: { displayName, joinedAt } }
     log: [],
   };
 }
@@ -73,86 +93,148 @@ function setActiveItem(session, agendaId) {
   if (!exists) return false;
   session.activeAgendaId = agendaId;
 
+  // ALWAYS reset timer when changing active item (per requirements)
   const item = getActiveItem(session);
-  if (!session.timer.running && item) {
-    session.timer.remainingSec = Math.max(0, Math.round(item.minutes * 60));
+  if (item) {
+    session.timer.running = false;
     session.timer.endsAtMs = null;
+    session.timer.pausedRemainingSec = null;
+    session.timer.durationSec = item.durationSec || 0;
+    session.timer.updatedAtMs = Date.now();
   }
 
   return true;
 }
 
+function nextAgendaItem(session) {
+  if (session.agenda.length === 0) return false;
+  
+  const currentIndex = session.agenda.findIndex((a) => a.id === session.activeAgendaId);
+  const nextIndex = (currentIndex + 1) % session.agenda.length;
+  const nextItem = session.agenda[nextIndex];
+  
+  if (nextItem) {
+    return setActiveItem(session, nextItem.id);
+  }
+  return false;
+}
+
+function prevAgendaItem(session) {
+  if (session.agenda.length === 0) return false;
+  
+  const currentIndex = session.agenda.findIndex((a) => a.id === session.activeAgendaId);
+  const prevIndex = currentIndex <= 0 ? session.agenda.length - 1 : currentIndex - 1;
+  const prevItem = session.agenda[prevIndex];
+  
+  if (prevItem) {
+    return setActiveItem(session, prevItem.id);
+  }
+  return false;
+}
+
 function timerStart(session) {
   if (session.timer.running) return;
+  const serverNowMs = Date.now();
   session.timer.running = true;
-  session.timer.endsAtMs = Date.now() + session.timer.remainingSec * 1000;
+  session.timer.endsAtMs = serverNowMs + session.timer.durationSec * 1000;
+  session.timer.pausedRemainingSec = null;
+  session.timer.updatedAtMs = serverNowMs;
 }
 
 function timerPause(session) {
   if (!session.timer.running) return;
-  const remainingMs = Math.max(0, session.timer.endsAtMs - Date.now());
-  session.timer.remainingSec = Math.ceil(remainingMs / 1000);
+  const serverNowMs = Date.now();
+  const remainingMs = Math.max(0, session.timer.endsAtMs - serverNowMs);
+  session.timer.pausedRemainingSec = Math.ceil(remainingMs / 1000);
   session.timer.running = false;
   session.timer.endsAtMs = null;
+  session.timer.updatedAtMs = serverNowMs;
+}
+
+function timerResume(session) {
+  if (session.timer.running) return;
+  if (session.timer.pausedRemainingSec === null) return;
+  const serverNowMs = Date.now();
+  session.timer.running = true;
+  session.timer.endsAtMs = serverNowMs + session.timer.pausedRemainingSec * 1000;
+  session.timer.pausedRemainingSec = null;
+  session.timer.updatedAtMs = serverNowMs;
+}
+
+function timerReset(session) {
+  const serverNowMs = Date.now();
+  session.timer.running = false;
+  session.timer.endsAtMs = null;
+  session.timer.pausedRemainingSec = null;
+  // Keep durationSec as is (from active agenda item)
+  session.timer.updatedAtMs = serverNowMs;
 }
 
 function timerResetToActiveItem(session) {
   const item = getActiveItem(session);
-  const sec = item ? Math.max(0, Math.round(item.minutes * 60)) : 0;
+  const sec = item ? (item.durationSec || 0) : 0;
+  const serverNowMs = Date.now();
   session.timer.running = false;
   session.timer.endsAtMs = null;
-  session.timer.remainingSec = sec;
-}
-
-function tickTimer(session) {
-  if (!session.timer.running) return;
-  const remainingMs = Math.max(0, session.timer.endsAtMs - Date.now());
-  const remainingSec = Math.ceil(remainingMs / 1000);
-  session.timer.remainingSec = remainingSec;
-
-  if (remainingSec <= 0) {
-    session.timer.running = false;
-    session.timer.endsAtMs = null;
-    session.log.push({ ts: Date.now(), type: "TIMER_DONE", agendaId: session.activeAgendaId });
-  }
+  session.timer.pausedRemainingSec = null;
+  session.timer.durationSec = sec;
+  session.timer.updatedAtMs = serverNowMs;
 }
 
 function openVote(session, { question, options }) {
   session.vote.open = true;
   session.vote.question = question;
-  session.vote.options = options;
-  session.vote.votesByUserId = {};
+  // Convert options to structured format: [{ id, label }]
+  // If options are already objects with id, keep them; otherwise generate ids
+  session.vote.options = options.map((opt, idx) => {
+    if (typeof opt === 'object' && opt.id && opt.label) {
+      return opt;
+    }
+    // Convert string to object with generated id
+    const label = typeof opt === 'string' ? opt : String(opt);
+    return { id: `opt${idx + 1}`, label };
+  });
+  session.vote.votesByClientId = {};
 }
 
-function castVote(session, { userId, optionIndex }) {
+function castVote(session, { userId, optionId }) {
   if (!session.vote.open) return false;
-  if (optionIndex < 0 || optionIndex >= session.vote.options.length) return false;
-  session.vote.votesByUserId[userId] = optionIndex;
+  // Find option by id
+  const optionExists = session.vote.options.some(opt => opt.id === optionId);
+  if (!optionExists) return false;
+  session.vote.votesByClientId[userId] = optionId;
   return true;
 }
 
 function closeVote(session) {
   if (!session.vote.open) return null;
 
-  const tally = new Array(session.vote.options.length).fill(0);
-  for (const idx of Object.values(session.vote.votesByUserId)) {
-    tally[idx] += 1;
+  // Count votes by option id
+  const tally = {};
+  session.vote.options.forEach(opt => {
+    tally[opt.id] = 0;
+  });
+  
+  for (const optionId of Object.values(session.vote.votesByClientId)) {
+    if (tally[optionId] !== undefined) {
+      tally[optionId] += 1;
+    }
   }
 
   const result = {
     ts: Date.now(),
     agendaId: session.activeAgendaId,
     question: session.vote.question,
-    options: session.vote.options,
-    tally,
-    totalVotes: Object.keys(session.vote.votesByUserId).length,
+    options: session.vote.options, // Keep structured options
+    tally, // { [optionId]: count }
+    totalVotes: Object.keys(session.vote.votesByClientId).length,
   };
 
   session.vote.closedResults.push(result);
   session.vote.open = false;
   session.vote.question = "";
   session.vote.options = [];
-  session.vote.votesByUserId = {};
+  session.vote.votesByClientId = {};
 
   session.log.push({ ts: Date.now(), type: "VOTE_CLOSED", result });
   return result;
@@ -268,6 +350,19 @@ export default {
       return handleToken(request, env);
     }
 
+    // Create new standalone room
+    if (pathname === "/api/room/create" && request.method === "POST") {
+      const roomId = generateRoomId();
+      const hostKey = generateHostKey();
+      
+      return jsonResponse({
+        roomId,
+        hostKey,
+        viewerUrl: `${url.origin}/?room=${roomId}`,
+        hostUrl: `${url.origin}/?room=${roomId}&hostKey=${hostKey}`,
+      });
+    }
+
     if (pathname === "/api/ws" && request.headers.get("Upgrade") === "websocket") {
       const room = url.searchParams.get("room") || "default";
       const id = env.MEETING_ROOM.idFromName(room);
@@ -292,10 +387,12 @@ export class MeetingRoom {
     this.state = state;
     this.env = env;
     this.sockets = new Set();
-    this.metadata = new Map(); // ws -> { sessionId, userId }
+    this.metadata = new Map(); // ws -> { sessionId, clientId, userId, hostKey, clientTimeOffset }
     this.session = null;
-    this.timer = null;
     this.hostConfig = parseHostConfig(env.HOST_USER_IDS);
+    // Vote batching to prevent broadcast storms with 10-15 users
+    this.voteBatchTimer = null;
+    this.voteBatchPending = false;
   }
 
   async fetch(request) {
@@ -309,36 +406,52 @@ export class MeetingRoom {
     return jsonResponse({ error: "not_found_in_durable_object" }, 404);
   }
 
-  getOrCreateSession(sessionId) {
+  getOrCreateSession(sessionId, hostKey = null, hostKeyFallback = null) {
     if (!this.session) {
       const id = sessionId || "default";
-      this.session = createMeetingSession({ sessionId: id });
+      this.session = createMeetingSession({ sessionId: id, hostKey, hostKeyFallback });
     }
     return this.session;
   }
 
-  startTimerLoop() {
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      if (!this.session) return;
-      const before = this.session.timer.remainingSec;
-      tickTimer(this.session);
-      if (this.session.timer.remainingSec !== before) {
-        this.broadcastState();
-      }
-    }, 500);
+  // Validate host access: supports both standalone (hostKey) and Discord Activity mode (userId/allowlist)
+  // For Discord Activity mode, also accepts hostKey as fallback (for testing without Discord OAuth)
+  validateHostAccess(clientId, providedHostKey) {
+    if (!this.session) return false;
+    
+    // Standalone room mode: check hostKey
+    if (this.session.hostKey) {
+      return providedHostKey === this.session.hostKey;
+    }
+    
+    // Discord Activity mode: check userId/clientId match
+    if (this.session.hostUserId === clientId) {
+      return true;
+    }
+    
+    // Discord Activity mode fallback: if hostKey was provided, check against stored hostKey
+    // This allows testing Discord Activity UI without Discord OAuth by using hostKey
+    if (providedHostKey && this.session.hostKeyFallback) {
+      return providedHostKey === this.session.hostKeyFallback;
+    }
+    
+    return false;
   }
 
-  stopTimerLoopIfIdle() {
-    if (this.sockets.size === 0 && this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
+  // Timer loop removed - no server-side ticking needed
+  // Clients render countdown locally using endsAtMs and serverOffset
 
   broadcastState() {
     if (!this.session) return;
-    const payload = JSON.stringify({ type: "STATE", state: snapshot(this.session) });
+    const state = snapshot(this.session);
+    // Remove hostKey from broadcast for security
+    const safeState = { ...state };
+    delete safeState.hostKey;
+    const payload = JSON.stringify({ 
+      type: "STATE", 
+      state: safeState,
+      serverNow: Date.now(),
+    });
     for (const ws of this.sockets) {
       try {
         ws.send(payload);
@@ -346,6 +459,24 @@ export class MeetingRoom {
         console.warn("[WS] broadcast send failed", String(e));
       }
     }
+  }
+
+  // Batched broadcast for vote casts to prevent storms with 10-15 users
+  // Aggregates multiple vote casts over 500ms window into single broadcast
+  batchedBroadcastState() {
+    // Clear any existing timer
+    if (this.voteBatchTimer) {
+      clearTimeout(this.voteBatchTimer);
+    }
+    
+    this.voteBatchPending = true;
+    
+    // Batch for 500ms - aggregates multiple votes into one broadcast
+    this.voteBatchTimer = setTimeout(() => {
+      this.voteBatchPending = false;
+      this.voteBatchTimer = null;
+      this.broadcastState();
+    }, 500);
   }
 
   handleWebSocket(ws, request) {
@@ -364,55 +495,119 @@ export class MeetingRoom {
         return;
       }
 
+      // Handle TIME_PING for clock offset calibration
+      if (msg && msg.type === "TIME_PING") {
+        const serverNow = Date.now();
+        ws.send(JSON.stringify({ 
+          type: "TIME_PONG", 
+          clientSentAt: msg.clientSentAt,
+          serverNow,
+        }));
+        return;
+      }
+
       if (msg && msg.type === "HELLO") {
         console.log("[WS HELLO payload]", JSON.stringify(msg, null, 2));
 
-        let rawUserId = null;
-        let userIdSource = null;
+        // New structure: { type:"HELLO", roomId, clientId, hostKey?, displayName }
+        // Also support old structure for Discord Activity mode
+        let clientId = msg.clientId;
+        let hostKey = msg.hostKey || null;
+        let displayName = msg.displayName || msg.username || "Guest";
+        let roomId = msg.roomId || msg.sessionId || room;
 
+        // Discord Activity mode: extract userId from SDK payload (for backward compatibility)
+        let discordUserId = null;
         if (msg.userId != null) {
-          rawUserId = msg.userId;
-          userIdSource = "msg.userId";
+          discordUserId = msg.userId;
         } else if (msg.user && msg.user.id != null) {
-          rawUserId = msg.user.id;
-          userIdSource = "msg.user.id";
+          discordUserId = msg.user.id;
         } else if (msg.user && msg.user.user && msg.user.user.id != null) {
-          rawUserId = msg.user.user.id;
-          userIdSource = "msg.user.user.id";
+          discordUserId = msg.user.user.id;
         }
 
-        const resolvedUserId = rawUserId != null ? String(rawUserId).trim() : null;
-        const sessionId = msg.sessionId || room;
-
-        if (!resolvedUserId || !sessionId) {
-          console.warn("[WS HELLO] missing userId or sessionId", { resolvedUserId, userIdSource, sessionId });
+        // Determine the identifier to use (prefer clientId, fall back to discordUserId)
+        const identifier = clientId || discordUserId;
+        
+        if (!identifier || !roomId) {
+          console.warn("[WS HELLO] missing clientId/userId or roomId", { clientId, discordUserId, roomId });
           return;
         }
 
-        const allowed = isAllowedHost(resolvedUserId, this.hostConfig);
-        const session = this.getOrCreateSession(sessionId);
+        // For Discord Activity mode, check if user is allowed to be host
+        const allowed = discordUserId ? isAllowedHost(discordUserId, this.hostConfig) : false;
+        
+        // If not standalone mode (no hostKey in URL) but hostKey provided, use it as fallback
+        // This allows testing Discord Activity mode without Discord OAuth
+        const hostKeyFallback = (!hostKey && msg.hostKey) ? msg.hostKey : null;
+        
+        const session = this.getOrCreateSession(roomId, hostKey, hostKeyFallback);
 
-        if (!session.hostUserId && allowed) {
-          session.hostUserId = resolvedUserId;
-          session.log.push({ ts: Date.now(), type: "HOST_SET", userId: resolvedUserId });
-          console.log("[HOST_SET]", { sessionId, hostUserId: session.hostUserId });
+        // Set host based on mode
+        if (!session.hostUserId) {
+          if (session.hostKey) {
+            // Standalone mode: host is whoever has the hostKey
+            if (hostKey === session.hostKey) {
+              session.hostUserId = identifier;
+              session.log.push({ ts: Date.now(), type: "HOST_SET", clientId: identifier, mode: "standalone" });
+              console.log("[HOST_SET] standalone mode", { sessionId: roomId, hostUserId: session.hostUserId });
+            }
+          } else if (allowed && discordUserId) {
+            // Discord Activity mode: host is first allowed user (via allowlist)
+            session.hostUserId = discordUserId;
+            session.log.push({ ts: Date.now(), type: "HOST_SET", userId: discordUserId, mode: "discord_allowlist" });
+            console.log("[HOST_SET] discord mode via allowlist", { sessionId: roomId, hostUserId: session.hostUserId });
+          } else if (!allowed && hostKeyFallback) {
+            // Discord Activity mode fallback: if allowlist doesn't match but hostKey provided, set hostKeyFallback
+            // This enables testing Discord Activity UI without Discord OAuth
+            if (!session.hostKeyFallback) {
+              session.hostKeyFallback = hostKeyFallback;
+              session.hostUserId = identifier;
+              session.log.push({ ts: Date.now(), type: "HOST_SET", clientId: identifier, mode: "discord_hostkey_fallback" });
+              console.log("[HOST_SET] discord mode via hostKey fallback", { sessionId: roomId, hostUserId: session.hostUserId });
+            }
+          }
         }
 
-        const isHost = session.hostUserId === resolvedUserId;
+        // Add to attendance using clientId
+        if (!session.attendance[identifier]) {
+          session.attendance[identifier] = {
+            clientId: identifier,
+            userId: discordUserId, // Keep discordUserId for backward compatibility
+            displayName,
+            joinedAt: Date.now(),
+          };
+        }
 
-        this.metadata.set(ws, { sessionId, userId: resolvedUserId });
+        // Determine isHost: check standalone hostKey, Discord Activity userId, or hostKeyFallback
+        const isHost = session.hostKey 
+          ? (hostKey === session.hostKey)
+          : (session.hostUserId === identifier || 
+             (hostKeyFallback && session.hostKeyFallback === hostKeyFallback));
 
-        console.log("[WS HELLO resolved]", {
-          sessionId,
-          userId: resolvedUserId,
-          userIdSource,
-          isHost,
-          hostAllowAll: this.hostConfig.allowAll,
+        this.metadata.set(ws, { 
+          sessionId: roomId, 
+          clientId: identifier, 
+          userId: discordUserId, 
+          hostKey: hostKey || hostKeyFallback, 
+          clientTimeOffset: 0 
         });
 
-        ws.send(JSON.stringify({ type: "HELLO_ACK", isHost }));
+        console.log("[WS HELLO resolved]", {
+          sessionId: roomId,
+          clientId: identifier,
+          discordUserId,
+          isHost,
+          mode: session.hostKey ? "standalone" : "discord",
+          hostKeyFallback: !!session.hostKeyFallback,
+        });
+
+        ws.send(JSON.stringify({ 
+          type: "HELLO_ACK", 
+          isHost,
+          serverNow: Date.now(),
+        }));
         this.broadcastState();
-        this.startTimerLoop();
         return;
       }
 
@@ -420,12 +615,14 @@ export class MeetingRoom {
       if (!meta) return;
 
       const session = this.getOrCreateSession(meta.sessionId);
-      const isHost = session.hostUserId === meta.userId;
+      const isHost = this.validateHostAccess(meta.clientId, meta.hostKey);
 
+      // Non-host actions
       if (!isHost) {
         if (msg.type === "VOTE_CAST") {
-          const ok = castVote(session, { userId: meta.userId, optionIndex: msg.optionIndex });
-          if (ok) this.broadcastState();
+          const ok = castVote(session, { userId: meta.clientId, optionId: msg.optionId });
+          // Use batched broadcast to prevent storms with 10-15 users voting simultaneously
+          if (ok) this.batchedBroadcastState();
         } else {
           ws.send(
             JSON.stringify({ type: "ERROR", error: "not_host", attempted: msg.type ?? null }),
@@ -434,9 +631,64 @@ export class MeetingRoom {
         return;
       }
 
+      // Host-only actions
       switch (msg.type) {
+        case "AGENDA_ADD":
+          if (typeof msg.title === "string") {
+            const id = `a${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const durationSec = Number(msg.durationSec) || 0;
+            session.agenda.push({
+              id,
+              title: msg.title,
+              durationSec: durationSec,
+              notes: msg.notes || "",
+            });
+            // If first item, make it active and set timer duration
+            if (session.agenda.length === 1) {
+              session.activeAgendaId = id;
+              session.timer.durationSec = durationSec;
+              session.timer.updatedAtMs = Date.now();
+            }
+            this.broadcastState();
+          }
+          break;
+        case "AGENDA_UPDATE":
+          {
+            const item = session.agenda.find((a) => a.id === msg.agendaId);
+            if (item) {
+              if (msg.title !== undefined) item.title = msg.title;
+              if (msg.durationSec !== undefined) item.durationSec = Number(msg.durationSec) || 0;
+              if (msg.notes !== undefined) item.notes = msg.notes;
+              this.broadcastState();
+            }
+          }
+          break;
+        case "AGENDA_DELETE":
+          {
+            const idx = session.agenda.findIndex((a) => a.id === msg.agendaId);
+            if (idx >= 0) {
+              session.agenda.splice(idx, 1);
+              if (session.activeAgendaId === msg.agendaId) {
+                session.activeAgendaId = session.agenda.length ? session.agenda[0].id : null;
+                const serverNowMs = Date.now();
+                session.timer.running = false;
+                session.timer.endsAtMs = null;
+                session.timer.pausedRemainingSec = null;
+                session.timer.durationSec = 0;
+                session.timer.updatedAtMs = serverNowMs;
+              }
+              this.broadcastState();
+            }
+          }
+          break;
         case "AGENDA_SET_ACTIVE":
           if (setActiveItem(session, msg.agendaId)) this.broadcastState();
+          break;
+        case "AGENDA_NEXT":
+          if (nextAgendaItem(session)) this.broadcastState();
+          break;
+        case "AGENDA_PREV":
+          if (prevAgendaItem(session)) this.broadcastState();
           break;
         case "TIMER_START":
           timerStart(session);
@@ -446,9 +698,32 @@ export class MeetingRoom {
           timerPause(session);
           this.broadcastState();
           break;
+        case "TIMER_RESUME":
+          timerResume(session);
+          this.broadcastState();
+          break;
         case "TIMER_RESET":
           timerResetToActiveItem(session);
           this.broadcastState();
+          break;
+        case "TIMER_EXTEND":
+          if (typeof msg.seconds === "number") {
+            const serverNowMs = Date.now();
+            if (session.timer.running && session.timer.endsAtMs != null) {
+              // Extend running timer
+              session.timer.endsAtMs += msg.seconds * 1000;
+              session.timer.updatedAtMs = serverNowMs;
+            } else if (session.timer.pausedRemainingSec !== null) {
+              // Extend paused timer
+              session.timer.pausedRemainingSec = Math.max(0, session.timer.pausedRemainingSec + msg.seconds);
+              session.timer.updatedAtMs = serverNowMs;
+            } else {
+              // Extend duration for stopped timer
+              session.timer.durationSec = Math.max(0, session.timer.durationSec + msg.seconds);
+              session.timer.updatedAtMs = serverNowMs;
+            }
+            this.broadcastState();
+          }
           break;
         case "VOTE_OPEN":
           if (
@@ -477,7 +752,6 @@ export class MeetingRoom {
       });
       this.sockets.delete(ws);
       this.metadata.delete(ws);
-      this.stopTimerLoopIfIdle();
     });
 
     ws.addEventListener("error", (event) => {

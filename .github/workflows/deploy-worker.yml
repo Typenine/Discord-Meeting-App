@@ -1,0 +1,86 @@
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches:
+      - main
+      - deploy
+    paths:
+      - 'worker/**'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Worker to Cloudflare
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./worker
+        run: npm ci
+
+      - name: Verify Durable Object configuration
+        working-directory: ./worker
+        run: |
+          echo "Checking wrangler.toml for Durable Object bindings..."
+          if grep -q "durable_objects" wrangler.toml; then
+            echo "✓ Durable Objects configuration found:"
+            grep -A 5 "durable_objects" wrangler.toml
+          else
+            echo "⚠️  Warning: No Durable Objects configuration found"
+          fi
+          
+          if grep -q "MEETING_ROOM" wrangler.toml; then
+            echo "✓ MEETING_ROOM Durable Object binding found"
+          else
+            echo "❌ ERROR: MEETING_ROOM binding not found"
+            exit 1
+          fi
+
+      - name: Deploy to Cloudflare Workers
+        working-directory: ./worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "Deploying worker to Cloudflare..."
+          npx wrangler deploy --config wrangler.toml
+          
+      - name: Get deployment info
+        working-directory: ./worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "====================================="
+          echo "Deployment Complete!"
+          echo "====================================="
+          
+          # Extract worker name from wrangler.toml
+          WORKER_NAME=$(grep "^name" wrangler.toml | cut -d'"' -f2 | head -1)
+          echo "Worker name: $WORKER_NAME"
+          
+          # Construct the deployed URL
+          DEPLOYED_URL="https://${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
+          
+          echo ""
+          echo "🚀 Deployed URL: $DEPLOYED_URL"
+          echo ""
+          echo "📋 Next steps:"
+          echo "  1. Set VITE_WORKER_DOMAIN in Vercel to: ${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
+          echo "     OR"
+          echo "  2. Set VITE_API_BASE in Vercel to: ${DEPLOYED_URL}/api"
+          echo ""
+          echo "✓ Durable Object 'MEETING_ROOM' is bound and deployed"
+          echo "====================================="
