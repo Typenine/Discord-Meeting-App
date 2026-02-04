@@ -4,27 +4,54 @@ import React, { useState, useEffect } from "react";
 const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
 const RAW_ENV_API_BASE = import.meta.env.VITE_API_BASE;
 const RAW_ENV_WORKER_DOMAIN = import.meta.env.VITE_WORKER_DOMAIN;
+
+// Startup configuration logging
+console.log("=== App.jsx Configuration ===");
+console.log("CONFIG VITE_API_BASE=" + (RAW_ENV_API_BASE || "(not set)"));
+console.log("CONFIG VITE_WORKER_DOMAIN=" + (RAW_ENV_WORKER_DOMAIN || "(not set)"));
+
 function normalizeApiBase(base) {
   if (!base) return base;
   return String(base).replace(/\/+$/, "");
 }
+
+function validateUrl(url, source) {
+  if (!url) return url;
+  const urlStr = String(url);
+  // Check for asterisks (both raw and URL-encoded)
+  if (urlStr.includes("*") || urlStr.includes("%2A")) {
+    throw new Error(`Invalid Worker domain; remove placeholder. Source: ${source}, Value: ${urlStr}`);
+  }
+  return urlStr;
+}
+
 const API_BASE = (() => {
   // Discord Activity mode: use proxy path
   if (IN_DISCORD) return "/proxy/api";
   
   // Check for explicit VITE_API_BASE configuration
   const envBase = RAW_ENV_API_BASE && String(RAW_ENV_API_BASE).trim();
-  if (envBase) return normalizeApiBase(envBase);
+  if (envBase) {
+    const validated = validateUrl(envBase, "VITE_API_BASE");
+    const normalized = normalizeApiBase(validated);
+    console.log("CONFIG computedApiBase=" + normalized);
+    return normalized;
+  }
   
   // Check for VITE_WORKER_DOMAIN (can construct API URL from it)
   const workerDomain = RAW_ENV_WORKER_DOMAIN && String(RAW_ENV_WORKER_DOMAIN).trim();
   if (workerDomain) {
-    return `https://${workerDomain}/api`;
+    const validated = validateUrl(workerDomain, "VITE_WORKER_DOMAIN");
+    const computed = `https://${validated}/api`;
+    console.log("CONFIG computedApiBase=" + computed);
+    return computed;
   }
   
   // In development, fall back to localhost
   if (import.meta.env.DEV) {
-    return "http://localhost:8787/api";
+    const devBase = "http://localhost:8787/api";
+    console.log("CONFIG computedApiBase=" + devBase);
+    return devBase;
   }
   
   // Production without configuration: fail with clear error

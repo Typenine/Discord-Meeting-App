@@ -3,6 +3,24 @@ import React, { useState, useEffect, useRef } from "react";
 // Standalone Meeting App - connects to Cloudflare Worker via WebSocket
 // Supports room + hostKey authentication model
 
+// Validation helper
+function validateUrl(url, source) {
+  if (!url) return url;
+  const urlStr = String(url);
+  // Check for asterisks (both raw and URL-encoded)
+  if (urlStr.includes("*") || urlStr.includes("%2A")) {
+    throw new Error(`Invalid Worker domain; remove placeholder. Source: ${source}, Value: ${urlStr}`);
+  }
+  return urlStr;
+}
+
+// Log configuration at module load time
+const RAW_VITE_WORKER_DOMAIN = import.meta.env.VITE_WORKER_DOMAIN;
+const RAW_VITE_API_BASE = import.meta.env.VITE_API_BASE;
+console.log("=== StandaloneApp.jsx Configuration ===");
+console.log("CONFIG VITE_API_BASE=" + (RAW_VITE_API_BASE || "(not set)"));
+console.log("CONFIG VITE_WORKER_DOMAIN=" + (RAW_VITE_WORKER_DOMAIN || "(not set)"));
+
 export default function StandaloneApp() {
   const [mode, setMode] = useState("init"); // 'init', 'creating', 'joining', 'connected'
   const [roomId, setRoomId] = useState("");
@@ -57,11 +75,17 @@ export default function StandaloneApp() {
         console.error("VITE_WORKER_DOMAIN not configured. Set this in Vercel environment variables.");
         return null;
       }
-      return `wss://${workerDomain}/api/ws`;
+      // Validate domain doesn't contain placeholders
+      const validated = validateUrl(workerDomain, "VITE_WORKER_DOMAIN (WebSocket)");
+      const wsUrl = `wss://${validated}/api/ws`;
+      console.log("CONFIG computedWsUrl=" + wsUrl);
+      return wsUrl;
     }
     
     // For local dev, connect to local Cloudflare Worker
-    return "ws://localhost:8787/api/ws";
+    const devWsUrl = "ws://localhost:8787/api/ws";
+    console.log("CONFIG computedWsUrl=" + devWsUrl);
+    return devWsUrl;
   })();
 
   // Parse URL on mount - support both /:roomId and /room/:roomId patterns
@@ -139,7 +163,11 @@ export default function StandaloneApp() {
             if (!workerDomain) {
               throw new Error("VITE_WORKER_DOMAIN not configured");
             }
-            return `https://${workerDomain}`;
+            // Validate domain doesn't contain placeholders
+            const validated = validateUrl(workerDomain, "VITE_WORKER_DOMAIN (API)");
+            const computedBase = `https://${validated}`;
+            console.log("CONFIG computedApiBase=" + computedBase);
+            return computedBase;
           })()
         : "http://localhost:8787";
       
