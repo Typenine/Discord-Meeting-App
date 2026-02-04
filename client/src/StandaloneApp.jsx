@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import TopBar from "./components/TopBar.jsx";
+import RoomLayout from "./components/RoomLayout.jsx";
+import HostPanel from "./components/HostPanel.jsx";
 
 // Standalone Meeting App - connects to Cloudflare Worker via WebSocket
 // Supports room + hostKey authentication model
@@ -123,6 +126,9 @@ export default function StandaloneApp() {
   const [wasHost, setWasHost] = useState(false);
   const [showHostLostWarning, setShowHostLostWarning] = useState(false);
   
+  // View as attendee toggle
+  const [viewAsAttendee, setViewAsAttendee] = useState(false);
+  
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const timePingIntervalRef = useRef(null);
@@ -228,9 +234,13 @@ export default function StandaloneApp() {
     }
   };
 
-  // Start meeting after showing links
+  // Start meeting after showing links - navigate to room URL
   const startMeeting = () => {
     setShowLinks(false);
+    // Update URL to room path with hostKey
+    const newUrl = `${window.location.origin}/${roomId}?hostKey=${hostKey}`;
+    window.history.pushState({}, '', newUrl);
+    // Connect to room
     connectToRoom(roomId, hostKey);
   };
 
@@ -491,34 +501,6 @@ export default function StandaloneApp() {
     sendMessage({ type: "AGENDA_PREV" });
   };
 
-  const startEditingAgenda = (item) => {
-    setEditingItemId(item.id);
-    setEditTitle(item.title);
-    setEditDuration(String(item.durationSec));
-    setEditNotes(item.notes || "");
-  };
-
-  const saveEditingAgenda = () => {
-    if (editingItemId && editTitle) {
-      updateAgenda(editingItemId, {
-        title: editTitle,
-        durationSec: Number(editDuration) || 0,
-        notes: editNotes
-      });
-      setEditingItemId(null);
-      setEditTitle("");
-      setEditDuration("");
-      setEditNotes("");
-    }
-  };
-
-  const cancelEditingAgenda = () => {
-    setEditingItemId(null);
-    setEditTitle("");
-    setEditDuration("");
-    setEditNotes("");
-  };
-
   const startTimer = () => {
     sendMessage({ type: "TIMER_START" });
   };
@@ -552,17 +534,6 @@ export default function StandaloneApp() {
     sendMessage({ type: "VOTE_CAST", optionId });
   };
 
-  // Local form states
-  const [newAgendaTitle, setNewAgendaTitle] = useState("");
-  const [newAgendaDuration, setNewAgendaDuration] = useState("");
-  const [newAgendaNotes, setNewAgendaNotes] = useState("");
-  const [editingItemId, setEditingItemId] = useState(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDuration, setEditDuration] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-  const [voteQuestion, setVoteQuestion] = useState("");
-  const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
-
   // Format seconds to MM:SS
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -571,7 +542,7 @@ export default function StandaloneApp() {
   };
 
   return (
-    <div style={{ padding: "1rem", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
+    <div style={{ fontFamily: "sans-serif", height: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Connection Status Banners */}
       {connectionStatus === "disconnected" && (
         <div style={{
@@ -681,36 +652,10 @@ export default function StandaloneApp() {
         </div>
       )}
       
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ margin: 0 }}>🎯 Synced Meeting App</h1>
-        
-        {/* Mode and Identity Indicator */}
-        {mode === "connected" && (
-          <div style={{
-            padding: "0.5rem 1rem",
-            backgroundColor: "#e7f3ff",
-            border: "1px solid #0066cc",
-            borderRadius: "4px",
-            fontSize: "0.85rem",
-            textAlign: "right"
-          }}>
-            <div style={{ fontWeight: "bold", color: "#0066cc" }}>
-              Mode: Standalone
-            </div>
-            <div style={{ color: "#555" }}>
-              Role: {isHost ? "🔑 Host" : "👥 Viewer"}
-            </div>
-            <div style={{ color: "#666", fontSize: "0.75rem", marginTop: "0.25rem" }}>
-              ID: {clientId.substring(0, 20)}...
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {error && (
+      {error && mode !== "connected" && (
         <div style={{
           padding: "0.75rem",
-          marginBottom: "1rem",
+          margin: "1rem",
           backgroundColor: "#f8d7da",
           border: "1px solid #dc3545",
           borderRadius: "4px",
@@ -829,638 +774,221 @@ export default function StandaloneApp() {
       )}
       
       {mode === "init" && (
-        <div>
-          <h2>Join or Create Meeting</h2>
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem" }}>Your Name:</label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your name"
-              style={{ padding: "0.5rem", width: "100%", maxWidth: "400px" }}
-            />
-          </div>
+        <div style={{ 
+          padding: "2rem", 
+          maxWidth: "800px", 
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh"
+        }}>
+          {/* Logo */}
+          <img 
+            src="/src/League Meeting App Logo.png" 
+            alt="League Meeting App" 
+            style={{ 
+              maxWidth: "200px", 
+              marginBottom: "2rem",
+              width: "100%",
+              height: "auto" 
+            }}
+            onError={(e) => {
+              // Hide if logo doesn't load
+              e.target.style.display = "none";
+            }}
+          />
           
-          <div style={{ marginBottom: "2rem" }}>
+          <h1 style={{ 
+            margin: "0 0 1rem 0",
+            textAlign: "center",
+            color: "#333"
+          }}>
+            East v. West — League Meeting
+          </h1>
+          
+          <h2 style={{ 
+            margin: "0 0 2rem 0",
+            color: "#666",
+            fontWeight: "normal",
+            textAlign: "center"
+          }}>
+            Join or Create Meeting
+          </h2>
+          
+          <div style={{ width: "100%", maxWidth: "400px" }}>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Your Name:</label>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your name"
+                style={{ 
+                  padding: "0.75rem", 
+                  width: "100%",
+                  fontSize: "1rem",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "4px"
+                }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: "2rem" }}>
+              <button
+                onClick={createRoom}
+                disabled={!username}
+                style={{
+                  padding: "1rem 1.5rem",
+                  backgroundColor: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: username ? "pointer" : "not-allowed",
+                  fontSize: "1.1rem",
+                  fontWeight: "bold",
+                  width: "100%",
+                  opacity: username ? 1 : 0.5
+                }}
+              >
+                Create New Meeting Room
+              </button>
+            </div>
+            
+            <div style={{ 
+              textAlign: "center",
+              margin: "2rem 0",
+              color: "#666",
+              fontWeight: "bold"
+            }}>
+              — OR —
+            </div>
+            
+            <h3 style={{ fontSize: "1.2rem", marginBottom: "1rem" }}>Join Existing Room</h3>
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Room ID:</label>
+              <input
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                placeholder="Enter room ID"
+                style={{ 
+                  padding: "0.75rem", 
+                  width: "100%",
+                  fontSize: "1rem",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "4px"
+                }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Host Key (optional):</label>
+              <input
+                value={hostKey}
+                onChange={(e) => setHostKey(e.target.value)}
+                placeholder="Enter host key to control meeting"
+                style={{ 
+                  padding: "0.75rem", 
+                  width: "100%",
+                  fontSize: "1rem",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "4px"
+                }}
+              />
+            </div>
+            
             <button
-              onClick={createRoom}
-              disabled={!username}
+              onClick={joinRoom}
+              disabled={!username || !roomId}
               style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "#28a745",
+                padding: "1rem 1.5rem",
+                backgroundColor: "#007bff",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
-                cursor: username ? "pointer" : "not-allowed",
-                fontSize: "1rem",
-                fontWeight: "bold"
+                cursor: (username && roomId) ? "pointer" : "not-allowed",
+                fontSize: "1.1rem",
+                fontWeight: "bold",
+                width: "100%",
+                opacity: (username && roomId) ? 1 : 0.5
               }}
             >
-              Create New Meeting Room
+              Join Room
             </button>
           </div>
-          
-          <hr />
-          
-          <h3>Join Existing Room</h3>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem" }}>Room ID:</label>
-            <input
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              placeholder="Enter room ID"
-              style={{ padding: "0.5rem", width: "100%", maxWidth: "400px" }}
-            />
-          </div>
-          
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem" }}>Host Key (optional):</label>
-            <input
-              value={hostKey}
-              onChange={(e) => setHostKey(e.target.value)}
-              placeholder="Enter host key to control meeting"
-              style={{ padding: "0.5rem", width: "100%", maxWidth: "400px" }}
-            />
-          </div>
-          
-          <button
-            onClick={joinRoom}
-            disabled={!username || !roomId}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#007bff",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: (username && roomId) ? "pointer" : "not-allowed",
-              fontSize: "1rem"
-            }}
-          >
-            Join Room
-          </button>
         </div>
       )}
       
       {(mode === "creating" || mode === "joining") && (
-        <div>
-          <p>Connecting to room...</p>
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          gap: "1rem"
+        }}>
+          <div style={{
+            width: "50px",
+            height: "50px",
+            border: "4px solid #f3f3f3",
+            borderTop: "4px solid #007bff",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite"
+          }} />
+          <p style={{ fontSize: "1.2rem", color: "#666" }}>Connecting to room...</p>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
         </div>
       )}
       
       {mode === "connected" && state && (
-        <div>
-          <div style={{
-            padding: "0.5rem 0.75rem",
-            marginBottom: "1rem",
-            backgroundColor: "#e7f3ff",
-            border: "1px solid #0066cc",
-            borderRadius: "4px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
-            <div>
-              <strong>Room:</strong> {roomId}
-            </div>
-            <div>
-              {isHost ? (
-                <span style={{
-                  padding: "0.25rem 0.5rem",
-                  backgroundColor: "#28a745",
-                  color: "white",
-                  borderRadius: "4px",
-                  fontSize: "0.85rem",
-                  fontWeight: "bold"
-                }}>
-                  ✓ HOST
-                </span>
-              ) : (
-                <span style={{
-                  padding: "0.25rem 0.5rem",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  borderRadius: "4px",
-                  fontSize: "0.85rem"
-                }}>
-                  ATTENDEE
-                </span>
-              )}
-            </div>
+        <>
+          <TopBar 
+            roomId={roomId}
+            isHost={isHost}
+            connectionStatus={connectionStatus}
+            viewAsAttendee={viewAsAttendee}
+            onToggleViewAsAttendee={() => setViewAsAttendee(!viewAsAttendee)}
+            showViewToggle={isHost}
+          />
+          
+          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+            <RoomLayout 
+              state={state}
+              username={username}
+              clientId={clientId}
+              localTimer={localTimer}
+              formatTime={formatTime}
+              isHost={isHost}
+              viewAsAttendee={viewAsAttendee}
+              onCastVote={castVote}
+            />
+            
+            {isHost && !viewAsAttendee && (
+              <HostPanel 
+                state={state}
+                onAddAgenda={addAgenda}
+                onUpdateAgenda={updateAgenda}
+                onDeleteAgenda={deleteAgenda}
+                onSetActiveAgenda={setActiveAgenda}
+                onNextAgendaItem={nextAgendaItem}
+                onPrevAgendaItem={prevAgendaItem}
+                onStartTimer={startTimer}
+                onPauseTimer={pauseTimer}
+                onResumeTimer={resumeTimer}
+                onResetTimer={resetTimer}
+                onExtendTimer={extendTimer}
+                onOpenVote={openVote}
+                onCloseVote={closeVote}
+              />
+            )}
           </div>
-          
-          <h2>Meeting Controls</h2>
-          <p>You are <strong>{username}</strong> {isHost && "(Host)"}</p>
-          
-          <h3>Attendance ({Object.keys(state.attendance || {}).length})</h3>
-          <ul>
-            {Object.values(state.attendance || {}).map((att) => (
-              <li key={att.userId}>{att.displayName || att.userId}</li>
-            ))}
-          </ul>
-          
-          <h3>Agenda ({state.agenda.length} items)</h3>
-          {state.agenda.length === 0 && <p style={{ color: "#666" }}>No agenda items yet. {isHost && "Add one below!"}</p>}
-          
-          {/* Next/Prev navigation buttons */}
-          {isHost && state.agenda.length > 1 && (
-            <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
-              <button
-                onClick={prevAgendaItem}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                ◀ Previous Item
-              </button>
-              <button
-                onClick={nextAgendaItem}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                Next Item ▶
-              </button>
-            </div>
-          )}
-          
-          <ul style={{ listStyle: "none", padding: 0 }}>
-            {state.agenda.map((item) => (
-              <li key={item.id} style={{ 
-                marginBottom: '1rem',
-                padding: '1rem',
-                backgroundColor: state.activeAgendaId === item.id ? '#fff3cd' : '#f8f9fa',
-                border: `2px solid ${state.activeAgendaId === item.id ? '#ffc107' : '#dee2e6'}`,
-                borderRadius: '4px'
-              }}>
-                {editingItemId === item.id ? (
-                  // Edit mode
-                  <div>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <input
-                        placeholder="Title"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        style={{ 
-                          padding: "0.5rem", 
-                          width: "100%", 
-                          marginBottom: "0.5rem",
-                          fontSize: "1rem"
-                        }}
-                      />
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <input
-                          placeholder="Duration (sec)"
-                          type="number"
-                          value={editDuration}
-                          onChange={(e) => setEditDuration(e.target.value)}
-                          style={{ padding: "0.5rem", width: "150px" }}
-                        />
-                      </div>
-                      <textarea
-                        placeholder="Notes (optional)"
-                        value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                        style={{ 
-                          padding: "0.5rem", 
-                          width: "100%", 
-                          marginTop: "0.5rem",
-                          minHeight: "60px",
-                          fontFamily: "inherit"
-                        }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={saveEditingAgenda}
-                        style={{
-                          padding: "0.5rem 1rem",
-                          backgroundColor: "#28a745",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer"
-                        }}
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={cancelEditingAgenda}
-                        style={{
-                          padding: "0.5rem 1rem",
-                          backgroundColor: "#6c757d",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer"
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  // View mode
-                  <div>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <strong style={{ fontSize: '1.1rem' }}>{item.title}</strong>
-                      <span style={{ 
-                        marginLeft: '0.5rem', 
-                        color: '#666',
-                        fontSize: '0.9rem'
-                      }}>
-                        ({item.durationSec}s)
-                      </span>
-                      {state.activeAgendaId === item.id && (
-                        <span style={{
-                          marginLeft: "0.5rem",
-                          padding: "0.2rem 0.5rem",
-                          backgroundColor: "#ffc107",
-                          borderRadius: "3px",
-                          fontSize: "0.8rem",
-                          fontWeight: "bold"
-                        }}>
-                          ACTIVE
-                        </span>
-                      )}
-                    </div>
-                    {item.notes && (
-                      <div style={{ 
-                        fontSize: '0.9rem', 
-                        color: '#666',
-                        marginBottom: '0.5rem',
-                        fontStyle: 'italic'
-                      }}>
-                        {item.notes}
-                      </div>
-                    )}
-                    {isHost && (
-                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        {state.activeAgendaId !== item.id && (
-                          <button
-                            onClick={() => setActiveAgenda(item.id)}
-                            style={{ 
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.9rem"
-                            }}
-                          >
-                            Set Active
-                          </button>
-                        )}
-                        <button
-                          onClick={() => startEditingAgenda(item)}
-                          style={{ 
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.9rem"
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => deleteAgenda(item.id)}
-                          style={{ 
-                            padding: "0.25rem 0.5rem",
-                            backgroundColor: "#dc3545",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "3px",
-                            cursor: "pointer",
-                            fontSize: "0.9rem"
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-          
-          {isHost && (
-            <div style={{ marginBottom: '1rem', padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "4px" }}>
-              <strong>Add Agenda Item:</strong>
-              <div style={{ marginTop: "0.5rem" }}>
-                <input
-                  placeholder="Agenda title"
-                  value={newAgendaTitle}
-                  onChange={(e) => setNewAgendaTitle(e.target.value)}
-                  style={{ padding: "0.5rem", width: "100%", marginBottom: "0.5rem" }}
-                />
-                <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                  <input
-                    placeholder="Duration (sec)"
-                    type="number"
-                    value={newAgendaDuration}
-                    onChange={(e) => setNewAgendaDuration(e.target.value)}
-                    style={{ padding: "0.5rem", width: "150px" }}
-                  />
-                </div>
-                <textarea
-                  placeholder="Notes (optional)"
-                  value={newAgendaNotes}
-                  onChange={(e) => setNewAgendaNotes(e.target.value)}
-                  style={{ 
-                    padding: "0.5rem", 
-                    width: "100%", 
-                    marginBottom: "0.5rem",
-                    minHeight: "60px",
-                    fontFamily: "inherit"
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    if (newAgendaTitle) {
-                      addAgenda(newAgendaTitle, Number(newAgendaDuration) || 0, newAgendaNotes);
-                      setNewAgendaTitle('');
-                      setNewAgendaDuration('');
-                      setNewAgendaNotes('');
-                    }
-                  }}
-                  style={{ padding: "0.5rem 1rem" }}
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-          )}
-          
-          <h3>Timer</h3>
-          <div style={{
-            padding: "1.5rem",
-            backgroundColor: state.timer.running ? "#d1ecf1" : "#f8f9fa",
-            border: `2px solid ${state.timer.running ? "#0c5460" : "#dee2e6"}`,
-            borderRadius: "8px",
-            marginBottom: "1rem",
-            textAlign: "center"
-          }}>
-            <div style={{ fontSize: "3rem", fontWeight: "bold", fontFamily: "monospace" }}>
-              {formatTime(localTimer)}
-            </div>
-            <div style={{ marginTop: "0.5rem", fontSize: "1rem", color: "#666" }}>
-              {state.timer.running ? '▶️ Running' : state.timer.pausedRemainingSec !== null ? '⏸ Paused' : '⏹ Stopped'}
-            </div>
-          </div>
-          
-          {isHost && (
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {!state.timer.running && state.timer.pausedRemainingSec === null && (
-                <button
-                  onClick={startTimer}
-                  disabled={state.timer.durationSec <= 0}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    backgroundColor: "#28a745",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: state.timer.durationSec > 0 ? "pointer" : "not-allowed",
-                    opacity: state.timer.durationSec > 0 ? 1 : 0.5
-                  }}
-                >
-                  ▶️ Start
-                </button>
-              )}
-              {state.timer.running && (
-                <button
-                  onClick={pauseTimer}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    backgroundColor: "#ffc107",
-                    color: "black",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer"
-                  }}
-                >
-                  ⏸ Pause
-                </button>
-              )}
-              {!state.timer.running && state.timer.pausedRemainingSec !== null && (
-                <button
-                  onClick={resumeTimer}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    backgroundColor: "#28a745",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer"
-                  }}
-                >
-                  ▶️ Resume
-                </button>
-              )}
-              <button
-                onClick={resetTimer}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#dc3545",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                🔄 Reset
-              </button>
-              <button
-                onClick={() => extendTimer(60)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#17a2b8",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                +60s
-              </button>
-              <button
-                onClick={() => extendTimer(-30)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                -30s
-              </button>
-            </div>
-          )}
-          
-          <h3>Voting</h3>
-          {state.vote.open ? (
-            <div style={{
-              padding: "1rem",
-              backgroundColor: "#fff3cd",
-              border: "1px solid #ffc107",
-              borderRadius: "4px",
-              marginBottom: "1rem"
-            }}>
-              <strong style={{ fontSize: "1.1rem" }}>{state.vote.question}</strong>
-              <ul style={{ marginTop: "1rem" }}>
-                {state.vote.options.map((opt) => {
-                  // Support both old format (string) and new format (object)
-                  const optionId = opt.id || opt;
-                  const optionLabel = opt.label || opt;
-                  const voteCount = state.vote.votesByClientId 
-                    ? Object.values(state.vote.votesByClientId).filter(v => v === optionId).length 
-                    : 0;
-                  
-                  return (
-                    <li key={optionId} style={{ marginBottom: "0.5rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span>
-                          {optionLabel}
-                          <span style={{ marginLeft: "0.5rem", fontSize: "0.9rem", color: "#666" }}>
-                            ({voteCount} vote{voteCount !== 1 ? 's' : ''})
-                          </span>
-                        </span>
-                        {!isHost && (
-                          <button
-                            onClick={() => castVote(optionId)}
-                            disabled={state.vote.votesByClientId && clientId && state.vote.votesByClientId[clientId] !== undefined}
-                            style={{
-                              marginLeft: "1rem",
-                              padding: "0.25rem 0.75rem",
-                              backgroundColor: state.vote.votesByClientId?.[clientId] === optionId ? "#28a745" : "#007bff",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: state.vote.votesByClientId?.[clientId] !== undefined ? "not-allowed" : "pointer",
-                              opacity: state.vote.votesByClientId?.[clientId] !== undefined ? 0.6 : 1
-                            }}
-                          >
-                            {state.vote.votesByClientId?.[clientId] === optionId ? "✓ Voted" : "Vote"}
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-              <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#666" }}>
-                Votes cast: {Object.keys(state.vote.votesByClientId || {}).length}
-              </div>
-              {isHost && (
-                <button
-                  onClick={closeVote}
-                  style={{
-                    marginTop: "1rem",
-                    padding: "0.5rem 1rem",
-                    backgroundColor: "#dc3545",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer"
-                  }}
-                >
-                  Close Vote
-                </button>
-              )}
-            </div>
-          ) : (
-            <>
-              {state.vote.closedResults && state.vote.closedResults.length > 0 && (
-                <details style={{ marginBottom: "1rem" }}>
-                  <summary style={{ cursor: "pointer", fontWeight: "bold" }}>
-                    Past Votes ({state.vote.closedResults.length})
-                  </summary>
-                  <ul style={{ marginTop: "0.5rem" }}>
-                    {state.vote.closedResults.map((result, idx) => (
-                      <li key={idx} style={{ marginBottom: "1rem" }}>
-                        <strong>{result.question}</strong>
-                        <ul style={{ marginTop: "0.25rem" }}>
-                          {result.options.map((opt) => {
-                            // Support both old format (string with array tally) and new format (object with tally map)
-                            const optionId = opt.id || opt;
-                            const optionLabel = opt.label || opt;
-                            const voteCount = typeof result.tally === 'object' 
-                              ? (result.tally[optionId] || 0) 
-                              : (result.tally[result.options.indexOf(opt)] || 0);
-                            const percentage = result.totalVotes > 0 
-                              ? Math.round((voteCount / result.totalVotes) * 100) 
-                              : 0;
-                            
-                            return (
-                              <li key={optionId}>
-                                {optionLabel}: {voteCount} vote{voteCount !== 1 ? 's' : ''} ({percentage}%)
-                              </li>
-                            );
-                          })}
-                        </ul>
-                        <div style={{ fontSize: "0.9rem", color: "#666" }}>
-                          Total votes: {result.totalVotes}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-              
-              {isHost && (
-                <div style={{
-                  padding: "1rem",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: "4px"
-                }}>
-                  <strong>Open New Vote:</strong>
-                  <div style={{ marginTop: "0.5rem" }}>
-                    <input
-                      placeholder="Vote question"
-                      value={voteQuestion}
-                      onChange={(e) => setVoteQuestion(e.target.value)}
-                      style={{ padding: "0.5rem", width: "100%", marginBottom: "0.5rem" }}
-                    />
-                    <input
-                      placeholder="Options (comma separated)"
-                      value={voteOptions}
-                      onChange={(e) => setVoteOptions(e.target.value)}
-                      style={{ padding: "0.5rem", width: "100%", marginBottom: "0.5rem" }}
-                    />
-                    <button
-                      onClick={() => {
-                        if (voteQuestion && voteOptions) {
-                          const opts = voteOptions.split(',').map(s => s.trim()).filter(Boolean);
-                          if (opts.length >= 2) {
-                            openVote(voteQuestion, opts);
-                            setVoteQuestion('');
-                            setVoteOptions('Yes,No,Abstain');
-                          }
-                        }
-                      }}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        backgroundColor: "#007bff",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer"
-                      }}
-                    >
-                      Open Vote
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        </>
       )}
     </div>
   );
