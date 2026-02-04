@@ -421,8 +421,8 @@ export default function StandaloneApp() {
   };
 
   // Attendee actions
-  const castVote = (optionIndex) => {
-    sendMessage({ type: "VOTE_CAST", optionIndex });
+  const castVote = (optionId) => {
+    sendMessage({ type: "VOTE_CAST", optionId });
   };
 
   // Local form states
@@ -1054,31 +1054,48 @@ export default function StandaloneApp() {
             }}>
               <strong style={{ fontSize: "1.1rem" }}>{state.vote.question}</strong>
               <ul style={{ marginTop: "1rem" }}>
-                {state.vote.options.map((opt, idx) => (
-                  <li key={idx} style={{ marginBottom: "0.5rem" }}>
-                    {opt}
-                    {!isHost && (
-                      <button
-                        onClick={() => castVote(idx)}
-                        disabled={state.vote.votesByUserId && clientId && state.vote.votesByUserId[clientId] !== undefined}
-                        style={{
-                          marginLeft: "1rem",
-                          padding: "0.25rem 0.75rem",
-                          backgroundColor: "#007bff",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer"
-                        }}
-                      >
-                        Vote
-                      </button>
-                    )}
-                  </li>
-                ))}
+                {state.vote.options.map((opt) => {
+                  // Support both old format (string) and new format (object)
+                  const optionId = opt.id || opt;
+                  const optionLabel = opt.label || opt;
+                  const voteCount = state.vote.votesByClientId 
+                    ? Object.values(state.vote.votesByClientId).filter(v => v === optionId).length 
+                    : 0;
+                  
+                  return (
+                    <li key={optionId} style={{ marginBottom: "0.5rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span>
+                          {optionLabel}
+                          <span style={{ marginLeft: "0.5rem", fontSize: "0.9rem", color: "#666" }}>
+                            ({voteCount} vote{voteCount !== 1 ? 's' : ''})
+                          </span>
+                        </span>
+                        {!isHost && (
+                          <button
+                            onClick={() => castVote(optionId)}
+                            disabled={state.vote.votesByClientId && clientId && state.vote.votesByClientId[clientId] !== undefined}
+                            style={{
+                              marginLeft: "1rem",
+                              padding: "0.25rem 0.75rem",
+                              backgroundColor: state.vote.votesByClientId?.[clientId] === optionId ? "#28a745" : "#007bff",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: state.vote.votesByClientId?.[clientId] !== undefined ? "not-allowed" : "pointer",
+                              opacity: state.vote.votesByClientId?.[clientId] !== undefined ? 0.6 : 1
+                            }}
+                          >
+                            {state.vote.votesByClientId?.[clientId] === optionId ? "✓ Voted" : "Vote"}
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
               <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#666" }}>
-                Votes cast: {Object.keys(state.vote.votesByUserId || {}).length}
+                Votes cast: {Object.keys(state.vote.votesByClientId || {}).length}
               </div>
               {isHost && (
                 <button
@@ -1109,12 +1126,23 @@ export default function StandaloneApp() {
                       <li key={idx} style={{ marginBottom: "1rem" }}>
                         <strong>{result.question}</strong>
                         <ul style={{ marginTop: "0.25rem" }}>
-                          {result.options.map((opt, optIdx) => (
-                            <li key={optIdx}>
-                              {opt}: {result.tally[optIdx]} votes
-                              ({result.totalVotes > 0 ? Math.round((result.tally[optIdx] / result.totalVotes) * 100) : 0}%)
-                            </li>
-                          ))}
+                          {result.options.map((opt) => {
+                            // Support both old format (string with array tally) and new format (object with tally map)
+                            const optionId = opt.id || opt;
+                            const optionLabel = opt.label || opt;
+                            const voteCount = typeof result.tally === 'object' 
+                              ? (result.tally[optionId] || 0) 
+                              : (result.tally[result.options.indexOf(opt)] || 0);
+                            const percentage = result.totalVotes > 0 
+                              ? Math.round((voteCount / result.totalVotes) * 100) 
+                              : 0;
+                            
+                            return (
+                              <li key={optionId}>
+                                {optionLabel}: {voteCount} vote{voteCount !== 1 ? 's' : ''} ({percentage}%)
+                              </li>
+                            );
+                          })}
                         </ul>
                         <div style={{ fontSize: "0.9rem", color: "#666" }}>
                           Total votes: {result.totalVotes}

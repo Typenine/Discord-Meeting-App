@@ -70,8 +70,8 @@ function createMeetingSession({ sessionId, hostKey = null }) {
     vote: {
       open: false,
       question: "",
-      options: [],
-      votesByUserId: {}, // { [userId]: optionIndex }
+      options: [], // Array<{ id, label }>
+      votesByClientId: {}, // { [clientId]: optionId }
       closedResults: [], // history
     },
     attendance: {}, // { [userId]: { displayName, joinedAt } }
@@ -183,39 +183,57 @@ function timerResetToActiveItem(session) {
 function openVote(session, { question, options }) {
   session.vote.open = true;
   session.vote.question = question;
-  session.vote.options = options;
-  session.vote.votesByUserId = {};
+  // Convert options to structured format: [{ id, label }]
+  // If options are already objects with id, keep them; otherwise generate ids
+  session.vote.options = options.map((opt, idx) => {
+    if (typeof opt === 'object' && opt.id && opt.label) {
+      return opt;
+    }
+    // Convert string to object with generated id
+    const label = typeof opt === 'string' ? opt : String(opt);
+    return { id: `opt${idx + 1}`, label };
+  });
+  session.vote.votesByClientId = {};
 }
 
-function castVote(session, { userId, optionIndex }) {
+function castVote(session, { userId, optionId }) {
   if (!session.vote.open) return false;
-  if (optionIndex < 0 || optionIndex >= session.vote.options.length) return false;
-  session.vote.votesByUserId[userId] = optionIndex;
+  // Find option by id
+  const optionExists = session.vote.options.some(opt => opt.id === optionId);
+  if (!optionExists) return false;
+  session.vote.votesByClientId[userId] = optionId;
   return true;
 }
 
 function closeVote(session) {
   if (!session.vote.open) return null;
 
-  const tally = new Array(session.vote.options.length).fill(0);
-  for (const idx of Object.values(session.vote.votesByUserId)) {
-    tally[idx] += 1;
+  // Count votes by option id
+  const tally = {};
+  session.vote.options.forEach(opt => {
+    tally[opt.id] = 0;
+  });
+  
+  for (const optionId of Object.values(session.vote.votesByClientId)) {
+    if (tally[optionId] !== undefined) {
+      tally[optionId] += 1;
+    }
   }
 
   const result = {
     ts: Date.now(),
     agendaId: session.activeAgendaId,
     question: session.vote.question,
-    options: session.vote.options,
-    tally,
-    totalVotes: Object.keys(session.vote.votesByUserId).length,
+    options: session.vote.options, // Keep structured options
+    tally, // { [optionId]: count }
+    totalVotes: Object.keys(session.vote.votesByClientId).length,
   };
 
   session.vote.closedResults.push(result);
   session.vote.open = false;
   session.vote.question = "";
   session.vote.options = [];
-  session.vote.votesByUserId = {};
+  session.vote.votesByClientId = {};
 
   session.log.push({ ts: Date.now(), type: "VOTE_CLOSED", result });
   return result;
@@ -546,7 +564,7 @@ export class MeetingRoom {
       // Non-host actions
       if (!isHost) {
         if (msg.type === "VOTE_CAST") {
-          const ok = castVote(session, { userId: meta.clientId, optionIndex: msg.optionIndex });
+          const ok = castVote(session, { userId: meta.clientId, optionId: msg.optionId });
           if (ok) this.broadcastState();
         } else {
           ws.send(
