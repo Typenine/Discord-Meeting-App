@@ -7,13 +7,16 @@
 function isAllowedOrigin(origin) {
   if (!origin) return false;
   
-  // Allow Vercel deployments
-  if (origin.endsWith('.vercel.app')) return true;
+  // Allow Vercel deployments (must match https://*.vercel.app pattern)
+  if (origin.match(/^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/)) return true;
   
   // Allow localhost for development
-  if (origin === 'http://localhost:5173') return true;
-  if (origin === 'http://localhost:3000') return true;
-  if (origin === 'http://localhost:8787') return true;
+  const allowedLocalOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8787'
+  ];
+  if (allowedLocalOrigins.includes(origin)) return true;
   
   return false;
 }
