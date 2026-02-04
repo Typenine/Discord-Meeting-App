@@ -53,36 +53,34 @@ jobs:
           echo "Deploying worker to Cloudflare..."
           npx wrangler deploy --config wrangler.toml 2>&1 | tee deploy-output.txt
           
-      - name: Print Backend URL
+      - name: Extract and Print Backend URL
         working-directory: ./worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "====================================="
-          echo "Deployment Complete!"
+          echo "Extracting deployed URL from wrangler output..."
           echo "====================================="
           
-          # Extract worker name from wrangler.toml
-          WORKER_NAME=$(grep "^name" wrangler.toml | cut -d'"' -f2 | head -1)
-          echo "Worker name: $WORKER_NAME"
+          # Extract the first URL matching the pattern https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev
+          DEPLOYED_URL=$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' deploy-output.txt | head -1)
           
-          # Try to extract URL from wrangler output
-          if grep -q "https://" deploy-output.txt; then
-            DEPLOYED_URL=$(grep -o 'https://[^ ]*\.workers\.dev' deploy-output.txt | head -1)
-          fi
-          
-          # Fallback to constructed URL if extraction fails
+          # Fail if no URL was extracted
           if [ -z "$DEPLOYED_URL" ]; then
-            DEPLOYED_URL="https://${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
+            echo "❌ ERROR: Could not extract workers.dev URL from wrangler deploy output"
+            echo "Please inspect the deploy output artifact to diagnose the issue"
+            echo ""
+            echo "Deploy output content:"
+            cat deploy-output.txt
+            exit 1
           fi
           
           echo ""
           echo "BACKEND_URL=${DEPLOYED_URL}"
           echo ""
-          echo "📋 Next steps:"
-          echo "  Set VITE_API_BASE in Vercel to: ${DEPLOYED_URL}/api"
-          echo "  (The worker exposes API endpoints under the /api path)"
-          echo ""
-          echo "✓ Durable Object 'MEETING_ROOM' is bound and deployed"
-          echo "====================================="
+          
+      - name: Upload Deploy Output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrangler-deploy-output.txt
+          path: worker/deploy-output.txt
+          retention-days: 30
