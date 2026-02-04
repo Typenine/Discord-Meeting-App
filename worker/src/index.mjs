@@ -92,16 +92,43 @@ function setActiveItem(session, agendaId) {
   if (!exists) return false;
   session.activeAgendaId = agendaId;
 
+  // ALWAYS reset timer when changing active item (per requirements)
   const item = getActiveItem(session);
-  if (!session.timer.running && item) {
-    // When switching items, set the duration for the new item
-    session.timer.durationSec = item.durationSec || 0;
-    session.timer.pausedRemainingSec = null;
+  if (item) {
+    session.timer.running = false;
     session.timer.endsAtMs = null;
+    session.timer.pausedRemainingSec = null;
+    session.timer.durationSec = item.durationSec || 0;
     session.timer.updatedAtMs = Date.now();
   }
 
   return true;
+}
+
+function nextAgendaItem(session) {
+  if (session.agenda.length === 0) return false;
+  
+  const currentIndex = session.agenda.findIndex((a) => a.id === session.activeAgendaId);
+  const nextIndex = (currentIndex + 1) % session.agenda.length;
+  const nextItem = session.agenda[nextIndex];
+  
+  if (nextItem) {
+    return setActiveItem(session, nextItem.id);
+  }
+  return false;
+}
+
+function prevAgendaItem(session) {
+  if (session.agenda.length === 0) return false;
+  
+  const currentIndex = session.agenda.findIndex((a) => a.id === session.activeAgendaId);
+  const prevIndex = currentIndex <= 0 ? session.agenda.length - 1 : currentIndex - 1;
+  const prevItem = session.agenda[prevIndex];
+  
+  if (prevItem) {
+    return setActiveItem(session, prevItem.id);
+  }
+  return false;
 }
 
 function timerStart(session) {
@@ -581,6 +608,12 @@ export class MeetingRoom {
           break;
         case "AGENDA_SET_ACTIVE":
           if (setActiveItem(session, msg.agendaId)) this.broadcastState();
+          break;
+        case "AGENDA_NEXT":
+          if (nextAgendaItem(session)) this.broadcastState();
+          break;
+        case "AGENDA_PREV":
+          if (prevAgendaItem(session)) this.broadcastState();
           break;
         case "TIMER_START":
           timerStart(session);

@@ -340,8 +340,12 @@ export default function StandaloneApp() {
   };
 
   // Host actions
-  const addAgenda = (title, durationSec) => {
-    sendMessage({ type: "AGENDA_ADD", title, durationSec });
+  const addAgenda = (title, durationSec, notes) => {
+    sendMessage({ type: "AGENDA_ADD", title, durationSec, notes });
+  };
+
+  const updateAgenda = (agendaId, updates) => {
+    sendMessage({ type: "AGENDA_UPDATE", agendaId, ...updates });
   };
 
   const deleteAgenda = (agendaId) => {
@@ -350,6 +354,42 @@ export default function StandaloneApp() {
 
   const setActiveAgenda = (agendaId) => {
     sendMessage({ type: "AGENDA_SET_ACTIVE", agendaId });
+  };
+
+  const nextAgendaItem = () => {
+    sendMessage({ type: "AGENDA_NEXT" });
+  };
+
+  const prevAgendaItem = () => {
+    sendMessage({ type: "AGENDA_PREV" });
+  };
+
+  const startEditingAgenda = (item) => {
+    setEditingItemId(item.id);
+    setEditTitle(item.title);
+    setEditDuration(String(item.durationSec));
+    setEditNotes(item.notes || "");
+  };
+
+  const saveEditingAgenda = () => {
+    if (editingItemId && editTitle) {
+      updateAgenda(editingItemId, {
+        title: editTitle,
+        durationSec: Number(editDuration) || 0,
+        notes: editNotes
+      });
+      setEditingItemId(null);
+      setEditTitle("");
+      setEditDuration("");
+      setEditNotes("");
+    }
+  };
+
+  const cancelEditingAgenda = () => {
+    setEditingItemId(null);
+    setEditTitle("");
+    setEditDuration("");
+    setEditNotes("");
   };
 
   const startTimer = () => {
@@ -388,6 +428,11 @@ export default function StandaloneApp() {
   // Local form states
   const [newAgendaTitle, setNewAgendaTitle] = useState("");
   const [newAgendaDuration, setNewAgendaDuration] = useState("");
+  const [newAgendaNotes, setNewAgendaNotes] = useState("");
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDuration, setEditDuration] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const [voteQuestion, setVoteQuestion] = useState("");
   const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
 
@@ -655,34 +700,188 @@ export default function StandaloneApp() {
           
           <h3>Agenda ({state.agenda.length} items)</h3>
           {state.agenda.length === 0 && <p style={{ color: "#666" }}>No agenda items yet. {isHost && "Add one below!"}</p>}
-          <ul>
+          
+          {/* Next/Prev navigation buttons */}
+          {isHost && state.agenda.length > 1 && (
+            <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={prevAgendaItem}
+                style={{
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
+                ◀ Previous Item
+              </button>
+              <button
+                onClick={nextAgendaItem}
+                style={{
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
+                Next Item ▶
+              </button>
+            </div>
+          )}
+          
+          <ul style={{ listStyle: "none", padding: 0 }}>
             {state.agenda.map((item) => (
-              <li key={item.id} style={{ marginBottom: '0.5rem' }}>
-                <strong>{item.title}</strong> ({item.durationSec}s)
-                {state.activeAgendaId === item.id && (
-                  <span style={{
-                    marginLeft: "0.5rem",
-                    padding: "0.1rem 0.3rem",
-                    backgroundColor: "#ffc107",
-                    borderRadius: "3px",
-                    fontSize: "0.8rem"
-                  }}>ACTIVE</span>
-                )}
-                {isHost && (
-                  <>
-                    <button
-                      onClick={() => setActiveAgenda(item.id)}
-                      style={{ marginLeft: '0.5rem', padding: "0.25rem 0.5rem" }}
-                    >
-                      Set Active
-                    </button>
-                    <button
-                      onClick={() => deleteAgenda(item.id)}
-                      style={{ marginLeft: '0.25rem', padding: "0.25rem 0.5rem" }}
-                    >
-                      Delete
-                    </button>
-                  </>
+              <li key={item.id} style={{ 
+                marginBottom: '1rem',
+                padding: '1rem',
+                backgroundColor: state.activeAgendaId === item.id ? '#fff3cd' : '#f8f9fa',
+                border: `2px solid ${state.activeAgendaId === item.id ? '#ffc107' : '#dee2e6'}`,
+                borderRadius: '4px'
+              }}>
+                {editingItemId === item.id ? (
+                  // Edit mode
+                  <div>
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <input
+                        placeholder="Title"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        style={{ 
+                          padding: "0.5rem", 
+                          width: "100%", 
+                          marginBottom: "0.5rem",
+                          fontSize: "1rem"
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                          placeholder="Duration (sec)"
+                          type="number"
+                          value={editDuration}
+                          onChange={(e) => setEditDuration(e.target.value)}
+                          style={{ padding: "0.5rem", width: "150px" }}
+                        />
+                      </div>
+                      <textarea
+                        placeholder="Notes (optional)"
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        style={{ 
+                          padding: "0.5rem", 
+                          width: "100%", 
+                          marginTop: "0.5rem",
+                          minHeight: "60px",
+                          fontFamily: "inherit"
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={saveEditingAgenda}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          backgroundColor: "#28a745",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditingAgenda}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          backgroundColor: "#6c757d",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // View mode
+                  <div>
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <strong style={{ fontSize: '1.1rem' }}>{item.title}</strong>
+                      <span style={{ 
+                        marginLeft: '0.5rem', 
+                        color: '#666',
+                        fontSize: '0.9rem'
+                      }}>
+                        ({item.durationSec}s)
+                      </span>
+                      {state.activeAgendaId === item.id && (
+                        <span style={{
+                          marginLeft: "0.5rem",
+                          padding: "0.2rem 0.5rem",
+                          backgroundColor: "#ffc107",
+                          borderRadius: "3px",
+                          fontSize: "0.8rem",
+                          fontWeight: "bold"
+                        }}>
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    {item.notes && (
+                      <div style={{ 
+                        fontSize: '0.9rem', 
+                        color: '#666',
+                        marginBottom: '0.5rem',
+                        fontStyle: 'italic'
+                      }}>
+                        {item.notes}
+                      </div>
+                    )}
+                    {isHost && (
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        {state.activeAgendaId !== item.id && (
+                          <button
+                            onClick={() => setActiveAgenda(item.id)}
+                            style={{ 
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.9rem"
+                            }}
+                          >
+                            Set Active
+                          </button>
+                        )}
+                        <button
+                          onClick={() => startEditingAgenda(item)}
+                          style={{ 
+                            padding: "0.25rem 0.5rem",
+                            fontSize: "0.9rem"
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteAgenda(item.id)}
+                          style={{ 
+                            padding: "0.25rem 0.5rem",
+                            backgroundColor: "#dc3545",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "3px",
+                            cursor: "pointer",
+                            fontSize: "0.9rem"
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </li>
             ))}
@@ -691,26 +890,41 @@ export default function StandaloneApp() {
           {isHost && (
             <div style={{ marginBottom: '1rem', padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "4px" }}>
               <strong>Add Agenda Item:</strong>
-              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+              <div style={{ marginTop: "0.5rem" }}>
                 <input
                   placeholder="Agenda title"
                   value={newAgendaTitle}
                   onChange={(e) => setNewAgendaTitle(e.target.value)}
-                  style={{ padding: "0.5rem", flex: "1", minWidth: "200px" }}
+                  style={{ padding: "0.5rem", width: "100%", marginBottom: "0.5rem" }}
                 />
-                <input
-                  placeholder="Duration (sec)"
-                  type="number"
-                  value={newAgendaDuration}
-                  onChange={(e) => setNewAgendaDuration(e.target.value)}
-                  style={{ padding: "0.5rem", width: "120px" }}
+                <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <input
+                    placeholder="Duration (sec)"
+                    type="number"
+                    value={newAgendaDuration}
+                    onChange={(e) => setNewAgendaDuration(e.target.value)}
+                    style={{ padding: "0.5rem", width: "150px" }}
+                  />
+                </div>
+                <textarea
+                  placeholder="Notes (optional)"
+                  value={newAgendaNotes}
+                  onChange={(e) => setNewAgendaNotes(e.target.value)}
+                  style={{ 
+                    padding: "0.5rem", 
+                    width: "100%", 
+                    marginBottom: "0.5rem",
+                    minHeight: "60px",
+                    fontFamily: "inherit"
+                  }}
                 />
                 <button
                   onClick={() => {
                     if (newAgendaTitle) {
-                      addAgenda(newAgendaTitle, Number(newAgendaDuration) || 0);
+                      addAgenda(newAgendaTitle, Number(newAgendaDuration) || 0, newAgendaNotes);
                       setNewAgendaTitle('');
                       setNewAgendaDuration('');
+                      setNewAgendaNotes('');
                     }
                   }}
                   style={{ padding: "0.5rem 1rem" }}
