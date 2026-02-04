@@ -29,6 +29,16 @@ export default function StandaloneApp() {
   const [viewerUrl, setViewerUrl] = useState("");
   const [hostUrl, setHostUrl] = useState("");
   
+  // Connection status and reconnection tracking
+  const [connectionStatus, setConnectionStatus] = useState("disconnected"); // 'connected', 'disconnected', 'reconnecting'
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [reconnectDelay, setReconnectDelay] = useState(0);
+  const [showConnectedBanner, setShowConnectedBanner] = useState(false);
+  
+  // Host privileges tracking
+  const [wasHost, setWasHost] = useState(false);
+  const [showHostLostWarning, setShowHostLostWarning] = useState(false);
+  
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const timePingIntervalRef = useRef(null);
@@ -89,6 +99,27 @@ export default function StandaloneApp() {
       }
     }
   }, []);
+
+  // Track host privileges changes
+  useEffect(() => {
+    if (wasHost && !isHost && connectionStatus === "connected") {
+      // Lost host privileges
+      setShowHostLostWarning(true);
+    }
+    if (isHost) {
+      setWasHost(true);
+    }
+  }, [isHost, wasHost, connectionStatus]);
+
+  // Auto-hide connected banner after 3 seconds
+  useEffect(() => {
+    if (showConnectedBanner) {
+      const timer = setTimeout(() => {
+        setShowConnectedBanner(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showConnectedBanner]);
 
   // Create new room
   const createRoom = async () => {
@@ -160,12 +191,26 @@ export default function StandaloneApp() {
     connectToRoom(roomId, hostKey || null);
   };
 
+  // Calculate exponential backoff delay
+  const calculateBackoff = (attempts) => {
+    // 1s, 2s, 4s, 8s, 16s, 30s (max)
+    const delay = Math.min(Math.pow(2, attempts) * 1000, 30000);
+    return delay;
+  };
+
   // Connect to WebSocket
   const connectToRoom = (room, key) => {
     if (!WS_URL) {
       setError("WebSocket URL not configured. Check VITE_WORKER_DOMAIN environment variable.");
       setMode("init");
+      setConnectionStatus("disconnected");
       return;
+    }
+    
+    // Clear any existing reconnect timer
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
     
     if (wsRef.current) {
@@ -173,6 +218,7 @@ export default function StandaloneApp() {
     }
     
     setError(null);
+    setConnectionStatus("reconnecting");
     
     const url = `${WS_URL}?room=${room}`;
     console.log("[WS] Connecting to", url);
@@ -182,6 +228,12 @@ export default function StandaloneApp() {
     
     ws.addEventListener("open", () => {
       console.log("[WS] Connected");
+      
+      // Reset reconnection state on successful connection
+      setReconnectAttempts(0);
+      setReconnectDelay(0);
+      setConnectionStatus("connected");
+      setShowConnectedBanner(true);
       
       // Send HELLO message with new structure
       ws.send(JSON.stringify({
@@ -255,7 +307,7 @@ export default function StandaloneApp() {
     
     ws.addEventListener("close", () => {
       console.log("[WS] Disconnected");
-      setMode("init");
+      setConnectionStatus("disconnected");
       
       // Clear intervals
       if (timePingIntervalRef.current) {
@@ -263,13 +315,21 @@ export default function StandaloneApp() {
         timePingIntervalRef.current = null;
       }
       
-      // Try to reconnect after 3 seconds
+      // Exponential backoff reconnection
+      // Calculate delay: 1s, 2s, 4s, 8s, 16s, 30s (max)
+      const delay = calculateBackoff(reconnectAttempts);
+      setReconnectDelay(delay);
+      
+      console.log(`[WS] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts + 1})`);
+      
+      // Try to reconnect after calculated delay
       reconnectTimerRef.current = setTimeout(() => {
         if (room && username) {
           console.log("[WS] Attempting to reconnect...");
+          setReconnectAttempts(prev => prev + 1);
           connectToRoom(room, key);
         }
-      }, 3000);
+      }, delay);
     });
     
     ws.addEventListener("error", (err) => {
@@ -445,6 +505,97 @@ export default function StandaloneApp() {
 
   return (
     <div style={{ padding: "1rem", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
+      {/* Connection Status Banners */}
+      {connectionStatus === "disconnected" && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "#ff4444",
+          color: "white",
+          padding: "10px",
+          textAlign: "center",
+          zIndex: 1000,
+          fontWeight: "bold",
+        }}>
+          ⚠️ Disconnected - Reconnecting in {Math.ceil(reconnectDelay / 1000)}s (attempt {reconnectAttempts})
+        </div>
+      )}
+
+      {connectionStatus === "reconnecting" && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "#ff9800",
+          color: "white",
+          padding: "10px",
+          textAlign: "center",
+          zIndex: 1000,
+          fontWeight: "bold",
+        }}>
+          🔄 Reconnecting... (attempt {reconnectAttempts})
+        </div>
+      )}
+
+      {connectionStatus === "connected" && showConnectedBanner && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "#4caf50",
+          color: "white",
+          padding: "10px",
+          textAlign: "center",
+          zIndex: 1000,
+          fontWeight: "bold",
+        }}>
+          ✓ Connected
+        </div>
+      )}
+
+      {/* Host Privileges Lost Warning */}
+      {showHostLostWarning && (
+        <div style={{
+          position: "fixed",
+          top: connectionStatus === "connected" && showConnectedBanner ? "50px" : "10px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#ff9800",
+          color: "white",
+          padding: "15px 20px",
+          borderRadius: "5px",
+          boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+          zIndex: 1001,
+          maxWidth: "400px",
+          width: "90%",
+        }}>
+          <div style={{ fontWeight: "bold", fontSize: "1.1rem", marginBottom: "8px" }}>
+            ⚠️ Host Privileges Lost
+          </div>
+          <div style={{ fontSize: "0.9rem", marginBottom: "12px" }}>
+            You are now a viewer. You can no longer control the meeting.
+          </div>
+          <button
+            onClick={() => setShowHostLostWarning(false)}
+            style={{
+              padding: "6px 16px",
+              backgroundColor: "white",
+              color: "#ff9800",
+              border: "none",
+              borderRadius: "3px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>🎯 Synced Meeting App</h1>
         

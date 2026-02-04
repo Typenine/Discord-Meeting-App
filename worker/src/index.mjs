@@ -390,6 +390,9 @@ export class MeetingRoom {
     this.metadata = new Map(); // ws -> { sessionId, clientId, userId, hostKey, clientTimeOffset }
     this.session = null;
     this.hostConfig = parseHostConfig(env.HOST_USER_IDS);
+    // Vote batching to prevent broadcast storms with 10-15 users
+    this.voteBatchTimer = null;
+    this.voteBatchPending = false;
   }
 
   async fetch(request) {
@@ -456,6 +459,24 @@ export class MeetingRoom {
         console.warn("[WS] broadcast send failed", String(e));
       }
     }
+  }
+
+  // Batched broadcast for vote casts to prevent storms with 10-15 users
+  // Aggregates multiple vote casts over 500ms window into single broadcast
+  batchedBroadcastState() {
+    // Clear any existing timer
+    if (this.voteBatchTimer) {
+      clearTimeout(this.voteBatchTimer);
+    }
+    
+    this.voteBatchPending = true;
+    
+    // Batch for 500ms - aggregates multiple votes into one broadcast
+    this.voteBatchTimer = setTimeout(() => {
+      this.voteBatchPending = false;
+      this.voteBatchTimer = null;
+      this.broadcastState();
+    }, 500);
   }
 
   handleWebSocket(ws, request) {
@@ -600,7 +621,8 @@ export class MeetingRoom {
       if (!isHost) {
         if (msg.type === "VOTE_CAST") {
           const ok = castVote(session, { userId: meta.clientId, optionId: msg.optionId });
-          if (ok) this.broadcastState();
+          // Use batched broadcast to prevent storms with 10-15 users voting simultaneously
+          if (ok) this.batchedBroadcastState();
         } else {
           ws.send(
             JSON.stringify({ type: "ERROR", error: "not_host", attempted: msg.type ?? null }),
