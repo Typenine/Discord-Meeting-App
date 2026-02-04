@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-      - deploy
-    paths:
-      - 'worker/**'
-      - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
 jobs:
@@ -55,9 +51,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "Deploying worker to Cloudflare..."
-          npx wrangler deploy --config wrangler.toml
+          npx wrangler deploy --config wrangler.toml 2>&1 | tee deploy-output.txt
           
-      - name: Get deployment info
+      - name: Print Backend URL
         working-directory: ./worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -71,16 +67,22 @@ jobs:
           WORKER_NAME=$(grep "^name" wrangler.toml | cut -d'"' -f2 | head -1)
           echo "Worker name: $WORKER_NAME"
           
-          # Construct the deployed URL
-          DEPLOYED_URL="https://${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
+          # Try to extract URL from wrangler output
+          if grep -q "https://" deploy-output.txt; then
+            DEPLOYED_URL=$(grep -o 'https://[^ ]*\.workers\.dev' deploy-output.txt | head -1)
+          fi
+          
+          # Fallback to constructed URL if extraction fails
+          if [ -z "$DEPLOYED_URL" ]; then
+            DEPLOYED_URL="https://${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
+          fi
           
           echo ""
-          echo "🚀 Deployed URL: $DEPLOYED_URL"
+          echo "BACKEND_URL=${DEPLOYED_URL}"
           echo ""
           echo "📋 Next steps:"
-          echo "  1. Set VITE_WORKER_DOMAIN in Vercel to: ${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
-          echo "     OR"
-          echo "  2. Set VITE_API_BASE in Vercel to: ${DEPLOYED_URL}/api"
+          echo "  Set VITE_API_BASE in Vercel to: ${DEPLOYED_URL}/api"
+          echo "  (The worker exposes API endpoints under the /api path)"
           echo ""
           echo "✓ Durable Object 'MEETING_ROOM' is bound and deployed"
           echo "====================================="
