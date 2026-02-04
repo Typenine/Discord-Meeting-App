@@ -364,35 +364,44 @@ export default function StandaloneApp() {
     });
     
     ws.addEventListener("close", () => {
-      console.log("[WS] Disconnected");
-      setConnectionStatus("disconnected");
-      
-      // Clear intervals
-      if (timePingIntervalRef.current) {
-        clearInterval(timePingIntervalRef.current);
-        timePingIntervalRef.current = null;
-      }
-      
-      // Exponential backoff reconnection
-      // Calculate delay: 1s, 2s, 4s, 8s, 16s, 30s (max)
-      const delay = calculateBackoff(reconnectAttempts);
-      setReconnectDelay(delay);
-      
-      console.log(`[WS] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts + 1})`);
-      
-      // Try to reconnect after calculated delay
-      reconnectTimerRef.current = setTimeout(() => {
-        if (room && username) {
-          console.log("[WS] Attempting to reconnect...");
-          setReconnectAttempts(prev => prev + 1);
-          connectToRoom(room, key);
+      // Only update state if this WebSocket is still the current one
+      // This prevents stale close events from old connections from overwriting the state
+      if (wsRef.current === ws) {
+        console.log("[WS] Disconnected");
+        setConnectionStatus("disconnected");
+        
+        // Clear intervals
+        if (timePingIntervalRef.current) {
+          clearInterval(timePingIntervalRef.current);
+          timePingIntervalRef.current = null;
         }
-      }, delay);
+        
+        // Exponential backoff reconnection
+        // Calculate delay: 1s, 2s, 4s, 8s, 16s, 30s (max)
+        const delay = calculateBackoff(reconnectAttempts);
+        setReconnectDelay(delay);
+        
+        console.log(`[WS] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts + 1})`);
+        
+        // Try to reconnect after calculated delay
+        reconnectTimerRef.current = setTimeout(() => {
+          if (room && username) {
+            console.log("[WS] Attempting to reconnect...");
+            setReconnectAttempts(prev => prev + 1);
+            connectToRoom(room, key);
+          }
+        }, delay);
+      } else {
+        console.log("[WS] Ignoring close event from old connection");
+      }
     });
     
     ws.addEventListener("error", (err) => {
-      console.error("[WS] Error:", err);
-      setError("Connection error. Retrying...");
+      // Only update state if this WebSocket is still the current one
+      if (wsRef.current === ws) {
+        console.error("[WS] Error:", err);
+        setError("Connection error. Retrying...");
+      }
     });
   };
 
