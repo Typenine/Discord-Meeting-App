@@ -69,7 +69,7 @@ jobs:
           
           # Try to extract URL from wrangler output
           if grep -q "https://" deploy-output.txt; then
-            DEPLOYED_URL=$(grep -oP 'https://[^\s]+\.workers\.dev' deploy-output.txt | head -1)
+            DEPLOYED_URL=$(grep -o 'https://[^ ]*\.workers\.dev' deploy-output.txt | head -1)
           fi
           
           # Fallback to constructed URL if extraction fails
@@ -82,6 +82,7 @@ jobs:
           echo ""
           echo "📋 Next steps:"
           echo "  Set VITE_API_BASE in Vercel to: ${DEPLOYED_URL}/api"
+          echo "  (The worker exposes API endpoints under the /api path)"
           echo ""
           echo "✓ Durable Object 'MEETING_ROOM' is bound and deployed"
           echo "====================================="
