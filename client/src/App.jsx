@@ -10,11 +10,6 @@ console.log("=== App.jsx Configuration ===");
 console.log("CONFIG VITE_API_BASE=" + (RAW_ENV_API_BASE || "(not set)"));
 console.log("CONFIG VITE_WORKER_DOMAIN=" + (RAW_ENV_WORKER_DOMAIN || "(not set)"));
 
-function normalizeApiBase(base) {
-  if (!base) return base;
-  return String(base).replace(/\/+$/, "");
-}
-
 function validateUrl(url, source) {
   if (!url) return url;
   const urlStr = String(url);
@@ -29,28 +24,39 @@ const API_BASE = (() => {
   // Discord Activity mode: use proxy path
   if (IN_DISCORD) return "/proxy/api";
   
-  // Check for explicit VITE_API_BASE configuration
+  // Option 1: Check for explicit VITE_API_BASE configuration
   const envBase = RAW_ENV_API_BASE && String(RAW_ENV_API_BASE).trim();
   if (envBase) {
+    // Use VITE_API_BASE exactly as provided, no string replacements or domain manipulation
     const validated = validateUrl(envBase, "VITE_API_BASE");
-    const normalized = normalizeApiBase(validated);
-    console.log("CONFIG computedApiBase=" + normalized);
-    return normalized;
+    // Ensure it ends with /api (add it only if missing)
+    let apiBase = validated;
+    if (!apiBase.endsWith("/api")) {
+      apiBase = apiBase + "/api";
+    }
+    console.log("CONFIG Final apiBase=" + apiBase);
+    return apiBase;
   }
   
-  // Check for VITE_WORKER_DOMAIN (can construct API URL from it)
+  // Option 2: Fall back to VITE_WORKER_DOMAIN only if VITE_API_BASE is missing
   const workerDomain = RAW_ENV_WORKER_DOMAIN && String(RAW_ENV_WORKER_DOMAIN).trim();
   if (workerDomain) {
+    // VITE_WORKER_DOMAIN must be a full host like xxx.workers.dev (not xxx.workers)
     const validated = validateUrl(workerDomain, "VITE_WORKER_DOMAIN");
-    const computed = `https://${validated}/api`;
-    console.log("CONFIG computedApiBase=" + computed);
-    return computed;
+    if (!validated.endsWith(".workers.dev")) {
+      const errorMsg = `VITE_WORKER_DOMAIN must end with .workers.dev (got: ${validated})`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    const apiBase = `https://${validated}/api`;
+    console.log("CONFIG Final apiBase=" + apiBase);
+    return apiBase;
   }
   
   // In development, fall back to localhost
   if (import.meta.env.DEV) {
     const devBase = "http://localhost:8787/api";
-    console.log("CONFIG computedApiBase=" + devBase);
+    console.log("CONFIG Final apiBase=" + devBase);
     return devBase;
   }
   

@@ -21,6 +21,72 @@ console.log("=== StandaloneApp.jsx Configuration ===");
 console.log("CONFIG VITE_API_BASE=" + (RAW_VITE_API_BASE || "(not set)"));
 console.log("CONFIG VITE_WORKER_DOMAIN=" + (RAW_VITE_WORKER_DOMAIN || "(not set)"));
 
+// Compute API_BASE and WS_URL with proper configuration rules
+const CONFIG_ERROR = { message: null, showBanner: false };
+
+const API_BASE = (() => {
+  if (typeof window === "undefined") return null;
+  
+  // Option 1: Check for explicit VITE_API_BASE configuration
+  const envBase = RAW_VITE_API_BASE && String(RAW_VITE_API_BASE).trim();
+  if (envBase) {
+    // Use VITE_API_BASE exactly as provided, no string replacements or domain manipulation
+    const validated = validateUrl(envBase, "VITE_API_BASE");
+    // Ensure it ends with /api (add it only if missing)
+    let apiBase = validated;
+    if (!apiBase.endsWith("/api")) {
+      apiBase = apiBase + "/api";
+    }
+    console.log("CONFIG Final apiBase=" + apiBase);
+    return apiBase;
+  }
+  
+  // Option 2: Fall back to VITE_WORKER_DOMAIN only if VITE_API_BASE is missing
+  const workerDomain = RAW_VITE_WORKER_DOMAIN && String(RAW_VITE_WORKER_DOMAIN).trim();
+  if (workerDomain) {
+    // VITE_WORKER_DOMAIN must be a full host like xxx.workers.dev (not xxx.workers)
+    const validated = validateUrl(workerDomain, "VITE_WORKER_DOMAIN");
+    if (!validated.endsWith(".workers.dev")) {
+      const errorMsg = `VITE_WORKER_DOMAIN must end with .workers.dev (got: ${validated})`;
+      console.error(errorMsg);
+      CONFIG_ERROR.message = errorMsg;
+      CONFIG_ERROR.showBanner = true;
+      return null;
+    }
+    const apiBase = `https://${validated}/api`;
+    console.log("CONFIG Final apiBase=" + apiBase);
+    return apiBase;
+  }
+  
+  // In development, fall back to localhost
+  if (import.meta.env.DEV) {
+    const devBase = "http://localhost:8787/api";
+    console.log("CONFIG Final apiBase=" + devBase);
+    return devBase;
+  }
+  
+  // Production without configuration: fail with clear error
+  const errorMsg = "Production deployment requires VITE_API_BASE or VITE_WORKER_DOMAIN environment variable.";
+  console.error(errorMsg);
+  CONFIG_ERROR.message = errorMsg;
+  CONFIG_ERROR.showBanner = true;
+  return null;
+})();
+
+// Derive WS_URL from API_BASE
+const WS_URL = (() => {
+  if (typeof window === "undefined") return null;
+  
+  if (API_BASE) {
+    // Derive wsUrl from apiBase by replacing http(s):// with ws(s):// and appending /ws
+    const wsUrl = API_BASE.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://") + "/ws";
+    console.log("CONFIG Final wsUrl=" + wsUrl);
+    return wsUrl;
+  }
+  
+  return null;
+})();
+
 export default function StandaloneApp() {
   const [mode, setMode] = useState("init"); // 'init', 'creating', 'joining', 'connected'
   const [roomId, setRoomId] = useState("");
@@ -61,32 +127,6 @@ export default function StandaloneApp() {
   const reconnectTimerRef = useRef(null);
   const timePingIntervalRef = useRef(null);
   const localTimerIntervalRef = useRef(null);
-
-  // Determine WebSocket URL
-  const WS_URL = (() => {
-    if (typeof window === "undefined") return null;
-    
-    // For production, connect to Cloudflare Worker directly
-    // WebSocket cannot be proxied through Vercel
-    if (import.meta.env.PROD) {
-      // In production, use environment variable or fail with clear error
-      const workerDomain = import.meta.env.VITE_WORKER_DOMAIN;
-      if (!workerDomain) {
-        console.error("VITE_WORKER_DOMAIN not configured. Set this in Vercel environment variables.");
-        return null;
-      }
-      // Validate domain doesn't contain placeholders
-      const validated = validateUrl(workerDomain, "VITE_WORKER_DOMAIN (WebSocket)");
-      const wsUrl = `wss://${validated}/api/ws`;
-      console.log("CONFIG computedWsUrl=" + wsUrl);
-      return wsUrl;
-    }
-    
-    // For local dev, connect to local Cloudflare Worker
-    const devWsUrl = "ws://localhost:8787/api/ws";
-    console.log("CONFIG computedWsUrl=" + devWsUrl);
-    return devWsUrl;
-  })();
 
   // Parse URL on mount - support both /:roomId and /room/:roomId patterns
   useEffect(() => {
@@ -156,22 +196,12 @@ export default function StandaloneApp() {
     setError(null);
     
     try {
-      // API endpoint for room creation
-      const apiBase = import.meta.env.PROD 
-        ? (() => {
-            const workerDomain = import.meta.env.VITE_WORKER_DOMAIN;
-            if (!workerDomain) {
-              throw new Error("VITE_WORKER_DOMAIN not configured");
-            }
-            // Validate domain doesn't contain placeholders
-            const validated = validateUrl(workerDomain, "VITE_WORKER_DOMAIN (API)");
-            const computedBase = `https://${validated}`;
-            console.log("CONFIG computedApiBase=" + computedBase);
-            return computedBase;
-          })()
-        : "http://localhost:8787";
+      // Use the global API_BASE configuration
+      if (!API_BASE) {
+        throw new Error("API base URL not configured");
+      }
       
-      const res = await fetch(`${apiBase}/api/room/create`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/room/create`, { method: "POST" });
       const data = await res.json();
       
       if (!res.ok) {
@@ -582,6 +612,24 @@ export default function StandaloneApp() {
           fontWeight: "bold",
         }}>
           ✓ Connected
+        </div>
+      )}
+
+      {/* Configuration Error Banner */}
+      {CONFIG_ERROR.showBanner && CONFIG_ERROR.message && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "#dc3545",
+          color: "white",
+          padding: "10px",
+          textAlign: "center",
+          zIndex: 1000,
+          fontWeight: "bold",
+        }}>
+          ❌ Configuration Error: {CONFIG_ERROR.message}
         </div>
       )}
 
