@@ -8,13 +8,18 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   
   // Allow Vercel deployments (must match https://*.vercel.app pattern)
-  if (origin.match(/^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/)) return true;
+  // This regex allows any reasonable subdomain including complex preview deployment names
+  // Examples: app.vercel.app, my-app-git-main-user.vercel.app, project-hash-team.vercel.app
+  if (origin.match(/^https:\/\/[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.vercel\.app$/)) return true;
   
-  // Allow localhost for development
+  // Allow localhost for development (common Vite/React/Node ports)
   const allowedLocalOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
-    'http://localhost:8787'
+    'http://localhost:8787',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8787'
   ];
   if (allowedLocalOrigins.includes(origin)) return true;
   
@@ -26,10 +31,16 @@ function getCorsHeaders(request) {
   const origin = request.headers.get('Origin');
   
   // If no origin header, don't set CORS headers
-  if (!origin) return {};
+  if (!origin) {
+    console.log('[CORS] No Origin header in request');
+    return {};
+  }
   
   // Check if origin is allowed
-  if (!isAllowedOrigin(origin)) return {};
+  const allowed = isAllowedOrigin(origin);
+  console.log('[CORS] Origin:', origin, '| Allowed:', allowed);
+  
+  if (!allowed) return {};
   
   return {
     'Access-Control-Allow-Origin': origin,
