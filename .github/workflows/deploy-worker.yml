@@ -60,7 +60,7 @@ jobs:
           echo "Extracting deployed URL from wrangler output..."
           echo "====================================="
           
-          # Extract the first URL matching the pattern https://[a-z0-9-]+.[a-z0-9-]+.workers.dev
+          # Extract the first URL matching the pattern https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev
           DEPLOYED_URL=$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' deploy-output.txt | head -1)
           
           # Fail if no URL was extracted

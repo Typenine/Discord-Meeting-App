@@ -20,7 +20,7 @@ function validateUrl(url, source) {
   const urlStr = String(url);
   // Check for asterisks (both raw and URL-encoded)
   if (urlStr.includes("*") || urlStr.includes("%2A")) {
-    throw new Error(`Invalid Worker domain; remove placeholder. Source: ${source}, Value: ${urlStr}`);
+    throw new Error(`Invalid Worker domain; remove placeholder. (Source: ${source}, Value: ${urlStr})`);
   }
   return urlStr;
 }
