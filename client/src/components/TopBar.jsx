@@ -1,5 +1,5 @@
 import React from "react";
-import BrandHeader from "./BrandHeader.jsx";
+import logo from "../assets/league-meeting-logo.png";
 
 export default function TopBar({ 
   roomId, 
@@ -10,12 +10,12 @@ export default function TopBar({
   showViewToggle = false,
   uiVersion = null
 }) {
-  const getStatusColor = () => {
+  const getStatusClass = () => {
     switch (connectionStatus) {
-      case "connected": return "var(--color-success)";
-      case "reconnecting": return "var(--color-warning)";
-      case "disconnected": return "var(--color-destructive)";
-      default: return "var(--color-muted)";
+      case "connected": return "pill-success";
+      case "reconnecting": return "pill-warning";
+      case "disconnected": return "pill-danger";
+      default: return "pill-neutral";
     }
   };
 
@@ -29,72 +29,59 @@ export default function TopBar({
   };
 
   return (
-    <div style={{
-      position: "sticky",
-      top: 0,
-      backgroundColor: "#050505",
-      borderBottom: "2px solid #0b5f98",
-      padding: "var(--spacing-lg) var(--spacing-xl)",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      zIndex: 100,
-      boxShadow: "var(--shadow-md)"
-    }}>
-      {/* Left: Logo + Branding */}
-      <BrandHeader showRoomInfo={true} roomId={roomId} />
-
-      {/* Right: UI Version + Status + Role + Toggle */}
-      <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "var(--spacing-lg)" 
-      }}>
-        {/* UI Version Badge */}
-        {uiVersion && (
-          <div className="badge badgeGold" style={{ 
-            fontSize: "var(--font-size-xs)",
-            fontWeight: "700"
-          }}>
-            UI: {uiVersion}
-          </div>
-        )}
-
-        {/* Connection Status */}
-        <div className="pillStatus" style={{ color: getStatusColor() }}>
-          <span style={{ fontWeight: "500" }}>{getStatusText()}</span>
-        </div>
-
-        {/* Role Badge */}
-        <div className={`badge ${isHost && !viewAsAttendee ? 'badgeBlue' : 'badgeNeutral'}`}>
-          {isHost && !viewAsAttendee ? "🔑 HOST" : "👥 ATTENDEE"}
-        </div>
-
-        {/* View as Attendee Toggle */}
-        {showViewToggle && isHost && (
-          <label style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--spacing-sm)",
-            cursor: "pointer",
-            fontSize: "var(--font-size-sm)",
-            fontWeight: "500",
-            color: "#fcfcfc",
-            padding: "var(--spacing-sm) var(--spacing-md)",
-            backgroundColor: "#0b5f98",
-            borderRadius: "var(--radius-pill)",
-            border: "1px solid #bf9944",
-            userSelect: "none"
-          }}>
-            <input
-              type="checkbox"
-              checked={viewAsAttendee}
-              onChange={onToggleViewAsAttendee}
-              style={{ cursor: "pointer" }}
+    <div className="topBar">
+      <div className="topBar-inner">
+        {/* Left: Logo + Branding */}
+        <div className="topBar-left">
+          <div className="brand">
+            <img 
+              src={logo} 
+              alt="League Meeting App" 
+              className="brandLogo"
             />
-            View as Attendee
-          </label>
-        )}
+            <div className="brand-text">
+              <div className="brandTitle">East v. West</div>
+              <div className="brandSubtitle">League Meeting</div>
+            </div>
+          </div>
+          {roomId && (
+            <div className="pill pill-accent">
+              Room: <strong>{roomId}</strong>
+            </div>
+          )}
+        </div>
+
+        {/* Right: UI Version + Status + Role + Toggle */}
+        <div className="topBar-right">
+          {/* UI Version Badge */}
+          {uiVersion && (
+            <div className="pill pill-accent">
+              UI: {uiVersion}
+            </div>
+          )}
+
+          {/* Connection Status */}
+          <div className={`pill ${getStatusClass()}`}>
+            {getStatusText()}
+          </div>
+
+          {/* Role Badge */}
+          <div className={`pill ${isHost && !viewAsAttendee ? 'pill-primary' : 'pill-neutral'}`}>
+            {isHost && !viewAsAttendee ? "🔑 HOST" : "👥 ATTENDEE"}
+          </div>
+
+          {/* View as Attendee Toggle */}
+          {showViewToggle && isHost && (
+            <label className="btn btnGhost btnSmall">
+              <input
+                type="checkbox"
+                checked={viewAsAttendee}
+                onChange={onToggleViewAsAttendee}
+              />
+              View as Attendee
+            </label>
+          )}
+        </div>
       </div>
     </div>
   );
