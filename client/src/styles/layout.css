@@ -614,12 +614,8 @@
    POPOUT MODE STYLES - COMPACT MINI-VIEW (420x720)
    ===================================================== */
 
-.isPopout .layoutRoot {
-  /* Remove top bar in popout mode for more space */
-}
-
 .isPopout .topBar {
-  /* Compact top bar */
+  /* Compact top bar for more space */
   padding: var(--spacing-xs) var(--spacing-sm);
 }
 

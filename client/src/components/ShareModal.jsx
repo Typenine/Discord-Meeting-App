@@ -79,7 +79,7 @@ export default function ShareModal({
               opacity: 0.7,
               fontStyle: "italic"
             }}>
-              Viewer link can be shared with attendees.
+              Share this link with meeting attendees.
             </div>
           </div>
           

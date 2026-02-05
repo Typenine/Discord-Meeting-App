@@ -44,7 +44,11 @@ export function generateHostLink(roomId, hostKey) {
 /**
  * Open popout window for mini-view
  * @param {string} roomId - The room ID
- * @param {string} hostKey - Optional host key (will always open as attendee view)
+ * @param {string} hostKey - Optional host key (included in URL but view forced to attendee mode)
+ * 
+ * Note: The hostKey is included in the URL to maintain host privileges on the connection,
+ * but the view is forced to attendee mode via ?as=attendee to show the compact attendee UI.
+ * This allows a host to use the popout while keeping their host connection active.
  */
 export function openPopoutWindow(roomId, hostKey) {
   const baseUrl = window.location.origin;
