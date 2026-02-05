@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import BrandHeader from "./components/BrandHeader.jsx";
 import logo from "./assets/league-meeting-logo.png";
+
+const UI_VERSION = "WAR-ROOM-001";
 
 // Determine API base for HTTP polling.
 const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
@@ -486,17 +487,15 @@ export default function App() {
   const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
 
   return (
-    <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
+    <div className="appShell">
+      {/* Dev Badge - Only in dev mode */}
+      {import.meta.env.DEV && (
+        <div className="devBadge">UI: {UI_VERSION}</div>
+      )}
+      
       {/* Health Status Banner */}
       {healthStatus && healthStatus.warnings && healthStatus.warnings.length > 0 && (
-        <div style={{ 
-          padding: "0.75rem", 
-          marginBottom: "1rem", 
-          backgroundColor: "#fff3cd", 
-          border: "1px solid #ffc107", 
-          borderRadius: "4px",
-          color: "#856404"
-        }}>
+        <div className="banner banner-warning">
           <strong>⚠️ System Warnings:</strong>
           <ul style={{ margin: "0.5rem 0 0 0", paddingLeft: "1.5rem" }}>
             {healthStatus.warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -506,104 +505,62 @@ export default function App() {
       
       {/* Auto-rejoin Prompt */}
       {showRejoinPrompt && lastSession && status === "init" && (
-        <div style={{ 
-          padding: "1rem", 
-          marginBottom: "1rem", 
-          backgroundColor: "#d1ecf1", 
-          border: "1px solid #0c5460", 
-          borderRadius: "4px",
-          color: "#0c5460"
-        }}>
-          <strong>🔄 Resume Meeting?</strong>
-          <p style={{ margin: "0.5rem 0" }}>
-            You were in a meeting. Would you like to rejoin?
-          </p>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button onClick={handleRejoin} style={{ 
-              padding: "0.5rem 1rem", 
-              backgroundColor: "#0c5460", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "4px",
-              cursor: "pointer"
-            }}>
-              Rejoin Meeting
-            </button>
-            <button onClick={dismissRejoin} style={{ 
-              padding: "0.5rem 1rem", 
-              backgroundColor: "transparent", 
-              color: "#0c5460", 
-              border: "1px solid #0c5460", 
-              borderRadius: "4px",
-              cursor: "pointer"
-            }}>
-              Start Fresh
-            </button>
+        <div className="container" style={{ paddingTop: "var(--spacing-xl)" }}>
+          <div className="banner banner-info">
+            <strong>🔄 Resume Meeting?</strong>
+            <p style={{ margin: "0.5rem 0" }}>
+              You were in a meeting. Would you like to rejoin?
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "var(--spacing-md)" }}>
+              <button 
+                className="btn btnPrimary"
+                onClick={handleRejoin}
+              >
+                Rejoin Meeting
+              </button>
+              <button 
+                className="btn btnSecondary"
+                onClick={dismissRejoin}
+              >
+                Start Fresh
+              </button>
+            </div>
           </div>
         </div>
       )}
       
       {/* Error Banner */}
       {error && (
-        <div style={{ 
-          padding: "0.75rem", 
-          marginBottom: "1rem", 
-          backgroundColor: error.type === 'unauthorized' ? "#f8d7da" : "#f8d7da", 
-          border: "1px solid #dc3545", 
-          borderRadius: "4px",
-          color: "#721c24"
-        }}>
-          <strong>{error.type === 'unauthorized' ? '🔒 Authorization Error' : '❌ Error'}:</strong> {error.message}
-          <button 
-            onClick={() => setError(null)} 
-            style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
-          >×</button>
-        </div>
-      )}
-      
-      {/* Mode and Identity Indicator (shown when in meeting) */}
-      {status === "joined" && state && (
-        <div style={{
-          padding: "0.5rem 1rem",
-          marginBottom: "1rem",
-          backgroundColor: "#f0e6ff",
-          border: "1px solid #7c3aed",
-          borderRadius: "4px",
-          fontSize: "0.85rem",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}>
-          <div>
-            <span style={{ fontWeight: "bold", color: "#7c3aed" }}>Mode: Discord Activity</span>
-            {" | "}
-            <span style={{ color: "#555" }}>
-              Role: {state.hostUserId === userId ? "🔑 Host" : "👥 Viewer"}
-            </span>
-          </div>
-          <div style={{ color: "#666", fontSize: "0.75rem" }}>
-            ID: {userId ? (userId.length > 20 ? userId.substring(0, 20) + "..." : userId) : "unknown"}
+        <div className="container" style={{ paddingTop: status === "init" ? "var(--spacing-xl)" : "0" }}>
+          <div className="banner banner-danger">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+              <div>
+                <strong>{error.type === 'unauthorized' ? '🔒 Authorization Error' : '❌ Error'}:</strong> {error.message}
+              </div>
+              <button 
+                onClick={() => setError(null)} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.5rem", color: "inherit", lineHeight: 1, padding: 0, marginLeft: "var(--spacing-md)" }}
+              >×</button>
+            </div>
           </div>
         </div>
       )}
       
       {status === "init" && (
-        <div className="homeContainer">
-          <BrandHeader />
-          <h2 style={{ 
-            margin: "var(--spacing-2xl) 0 0 0",
-            color: "var(--color-muted)",
-            fontWeight: "normal",
-            textAlign: "center"
-          }}>
-            Join or Create Meeting
-          </h2>
+        <div className="container container-narrow" style={{ paddingTop: "var(--spacing-2xl)", paddingBottom: "var(--spacing-4xl)" }}>
+          {/* Brand Header */}
+          <div className="brandHeader">
+            <img src={logo} alt="League Meeting App" className="brandLogo" />
+            <h1 className="brandTitle">East v. West</h1>
+            <div className="brandSubtitle">League Meeting</div>
+          </div>
           
-          <div className="homeCards">
+          {/* Two-Card Layout */}
+          <div className="grid2">
             {/* Card 1: Create Meeting */}
             <div className="card">
               <div className="cardHeader">
-                <h3>Create New Meeting</h3>
+                <h3 className="cardTitle">Create New Meeting</h3>
               </div>
               <div className="cardBody">
                 <label className="label">Your Name</label>
@@ -627,7 +584,7 @@ export default function App() {
             {/* Card 2: Join Meeting */}
             <div className="card">
               <div className="cardHeader">
-                <h3>Join Existing Meeting</h3>
+                <h3 className="cardTitle">Join Existing Meeting</h3>
               </div>
               <div className="cardBody">
                 <label className="label">Your Name</label>
@@ -648,7 +605,7 @@ export default function App() {
                 <button 
                   className="btn btnAccent btnLarge btnFull"
                   style={{ marginTop: "var(--spacing-xl)" }}
-                  onClick={joinMeeting} 
+                  onClick={() => joinMeeting()} 
                   disabled={!username || !sessionInput}
                 >
                   Join Meeting
@@ -659,98 +616,99 @@ export default function App() {
         </div>
       )}
       {status === "joined" && state && (
-        <div>
-          {/* Channel Context Header */}
+        <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-4xl)" }}>
+          {/* Channel Context */}
           {(state.channelId || state.guildId) && (
             <div style={{ 
-              padding: "0.75rem", 
-              marginBottom: "1rem", 
-              backgroundColor: "#5865F2", 
-              color: "white", 
-              borderRadius: "4px",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem"
+              display: "flex", 
+              alignItems: "center", 
+              gap: "var(--spacing-md)", 
+              marginBottom: "var(--spacing-xl)" 
             }}>
-              <span style={{ fontSize: "1.2rem" }}>💬</span>
-              <div>
-                {state.channelId && <div style={{ fontWeight: "bold" }}>Channel: #{state.channelId}</div>}
-                {state.guildId && <div style={{ fontSize: "0.9rem", opacity: 0.9 }}>Server: {state.guildId}</div>}
-              </div>
+              <span className="pill pill-primary">
+                💬 Channel: #{state.channelId || 'Unknown'}
+              </span>
+              {state.guildId && (
+                <span className="pill pill-neutral">
+                  Server: {state.guildId}
+                </span>
+              )}
             </div>
           )}
           
-          {/* Connection & Host Status Bar */}
+          {/* Connection & Host Status */}
           <div style={{ 
-            padding: "0.5rem 0.75rem", 
-            marginBottom: "1rem", 
-            backgroundColor: "#e7f3ff", 
-            border: "1px solid #0066cc", 
-            borderRadius: "4px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center",
+            marginBottom: "var(--spacing-xl)"
           }}>
             <div>
-              <strong>Meeting ID:</strong> {sessionId}
+              <span className="pill pill-accent">
+                Meeting ID: {sessionId}
+              </span>
             </div>
             <div>
               {isHost ? (
-                <span style={{ 
-                  padding: "0.25rem 0.5rem", 
-                  backgroundColor: "#28a745", 
-                  color: "white", 
-                  borderRadius: "4px",
-                  fontSize: "0.85rem",
-                  fontWeight: "bold"
-                }}>
+                <span className="pill pill-success">
                   ✓ HOST ACCESS
                 </span>
               ) : (
-                <span style={{ 
-                  padding: "0.25rem 0.5rem", 
-                  backgroundColor: "#6c757d", 
-                  color: "white", 
-                  borderRadius: "4px",
-                  fontSize: "0.85rem"
-                }}>
+                <span className="pill pill-neutral">
                   ATTENDEE
                 </span>
               )}
             </div>
           </div>
           
+          {/* Mode and Identity Indicator */}
+          <div style={{ 
+            display: "flex", 
+            gap: "var(--spacing-md)", 
+            marginBottom: "var(--spacing-xl)",
+            flexWrap: "wrap"
+          }}>
+            <span className="pill pill-primary">
+              Mode: Discord Activity
+            </span>
+            <span className="pill pill-neutral">
+              Role: {state.hostUserId === userId ? "🔑 Host" : "👥 Viewer"}
+            </span>
+            <span className="pill pill-neutral" style={{ fontSize: "var(--font-size-xs)" }}>
+              ID: {userId ? (userId.length > 20 ? userId.substring(0, 20) + "..." : userId) : "unknown"}
+            </span>
+          </div>
+          
           {/* System Health Panel for Hosts */}
           {isHost && healthStatus && (
-            <details style={{ 
-              marginBottom: "1rem", 
-              padding: "0.75rem",
-              backgroundColor: "#f8f9fa",
-              border: "1px solid #dee2e6",
-              borderRadius: "4px"
-            }}>
-              <summary style={{ cursor: "pointer", fontWeight: "bold", marginBottom: "0.5rem" }}>
+            <details className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+              <summary style={{ 
+                cursor: "pointer", 
+                fontWeight: "var(--font-weight-semibold)", 
+                padding: "var(--spacing-lg)",
+                listStyle: "none"
+              }}>
                 📊 System Diagnostics {healthStatus.ok ? "✅" : "⚠️"}
               </summary>
-              <div style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
-                <div style={{ marginBottom: "0.5rem" }}>
+              <div className="cardBody" style={{ paddingTop: 0 }}>
+                <div style={{ marginBottom: "var(--spacing-md)" }}>
                   <strong>Configuration:</strong>
-                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "var(--spacing-xs)" }}>
                     <li>Client ID: {healthStatus.config?.clientId ? "✓ Configured" : "❌ Missing"}</li>
                     <li>Client Secret: {healthStatus.config?.secretConfigured ? "✓ Configured" : "❌ Missing"}</li>
                     <li>Redirect URI: {healthStatus.config?.redirectUri ? "✓ Configured" : "❌ Missing"}</li>
                   </ul>
                 </div>
-                <div style={{ marginBottom: "0.5rem" }}>
+                <div style={{ marginBottom: "var(--spacing-md)" }}>
                   <strong>Host Authorization:</strong>
-                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "var(--spacing-xs)" }}>
                     <li>Allow All: {healthStatus.hostAuth?.allowAll ? "Yes" : "No"}</li>
                     <li>Authorized Hosts: {healthStatus.hostAuth?.hostIdsCount || 0}</li>
                   </ul>
                 </div>
-                <div style={{ marginBottom: "0.5rem" }}>
+                <div style={{ marginBottom: "var(--spacing-md)" }}>
                   <strong>Persistence:</strong>
-                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "var(--spacing-xs)" }}>
                     <li>Total Saves: {healthStatus.store?.persistence?.totalSaves || 0}</li>
                     <li>Total Failures: {healthStatus.store?.persistence?.totalFailures || 0}</li>
                     <li>Consecutive Failures: {healthStatus.store?.persistence?.consecutiveFailures || 0}</li>
@@ -759,7 +717,7 @@ export default function App() {
                 </div>
                 <div>
                   <strong>Sessions:</strong>
-                  <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                  <ul style={{ marginLeft: "1.5rem", marginTop: "var(--spacing-xs)" }}>
                     <li>Active: {healthStatus.store?.sessions?.active || 0}</li>
                     <li>Ended: {healthStatus.store?.sessions?.ended || 0}</li>
                     <li>Total: {healthStatus.store?.sessions?.total || 0}</li>
@@ -769,88 +727,143 @@ export default function App() {
             </details>
           )}
           
-          <h2>Meeting Controls</h2>
-          <p>You are <strong>{username}</strong> {isHost && "(with host privileges)"}</p>
-          <h3>Attendance</h3>
-          <ul>
+          <h2 style={{ marginBottom: "var(--spacing-lg)" }}>Meeting Controls</h2>
+          <p style={{ marginBottom: "var(--spacing-xl)" }}>
+            You are <strong>{username}</strong> {isHost && "(with host privileges)"}
+          </p>
+          
+          <h3 style={{ marginBottom: "var(--spacing-md)" }}>Attendance</h3>
+          <ul style={{ marginBottom: "var(--spacing-xl)", paddingLeft: "var(--spacing-xl)" }}>
             {Object.values(state.attendance || {}).map((att) => (
               <li key={att.userId}>{att.displayName || att.userId}</li>
             ))}
           </ul>
-          <h3>Agenda</h3>
-          <ul>
+          
+          <h3 style={{ marginBottom: "var(--spacing-md)" }}>Agenda</h3>
+          <ul style={{ marginBottom: "var(--spacing-lg)", paddingLeft: "var(--spacing-xl)" }}>
             {state.agenda.map((item) => (
-              <li key={item.id} style={{ marginBottom: '0.5rem' }}>
+              <li key={item.id} style={{ marginBottom: "var(--spacing-md)" }}>
                 <strong>{item.title}</strong> ({item.durationSec || 0}s) {state.currentAgendaItemId === item.id && <span>[Active]</span>}
                 {isHost && (
                   <>
-                    <button onClick={() => setActiveAgenda(item.id)} style={{ marginLeft: '0.25rem' }}>Set Active</button>
-                    <button onClick={() => deleteAgendaItem(item.id)} style={{ marginLeft: '0.25rem' }}>Delete</button>
+                    <button className="btn btnSmall btnSecondary" onClick={() => setActiveAgenda(item.id)} style={{ marginLeft: "var(--spacing-sm)" }}>Set Active</button>
+                    <button className="btn btnSmall btnDanger" onClick={() => deleteAgendaItem(item.id)} style={{ marginLeft: "var(--spacing-sm)" }}>Delete</button>
                   </>
                 )}
               </li>
             ))}
           </ul>
+          
           {isHost && (
-            <div style={{ marginBottom: '1rem' }}>
-              <input placeholder="Agenda title" value={newAgendaTitle} onChange={(e) => setNewAgendaTitle(e.target.value)} />
-              <input placeholder="Duration (sec)" type="number" value={newAgendaDuration} onChange={(e) => setNewAgendaDuration(e.target.value)} style={{ marginLeft: '0.25rem' }} />
-              <button onClick={() => { addAgenda(newAgendaTitle, Number(newAgendaDuration) || 0); setNewAgendaTitle(''); setNewAgendaDuration(''); }} style={{ marginLeft: '0.25rem' }}>Add Agenda</button>
+            <div style={{ marginBottom: "var(--spacing-xl)", display: "flex", gap: "var(--spacing-md)" }}>
+              <input 
+                className="input" 
+                placeholder="Agenda title" 
+                value={newAgendaTitle} 
+                onChange={(e) => setNewAgendaTitle(e.target.value)} 
+              />
+              <input 
+                className="input" 
+                placeholder="Duration (sec)" 
+                type="number" 
+                value={newAgendaDuration} 
+                onChange={(e) => setNewAgendaDuration(e.target.value)} 
+                style={{ width: "150px" }}
+              />
+              <button 
+                className="btn btnPrimary" 
+                onClick={() => { addAgenda(newAgendaTitle, Number(newAgendaDuration) || 0); setNewAgendaTitle(''); setNewAgendaDuration(''); }}
+              >
+                Add Agenda
+              </button>
             </div>
           )}
-          <h3>Timer</h3>
-          <p>{state.timer.running ? 'Running' : 'Paused'} - Remaining: {state.timer.remainingSec}s</p>
+          
+          <h3 style={{ marginBottom: "var(--spacing-md)" }}>Timer</h3>
+          <p style={{ marginBottom: "var(--spacing-md)" }}>
+            {state.timer.running ? (
+              <span className="pill pill-success">Running</span>
+            ) : (
+              <span className="pill pill-neutral">Paused</span>
+            )}
+            {" "}
+            <span className="pill pill-accent">Remaining: {state.timer.remainingSec}s</span>
+          </p>
+          
           {isHost && (
-            <div>
-              <button onClick={startTimer}>Start</button>
-              <button onClick={pauseTimer} style={{ marginLeft: '0.25rem' }}>Pause</button>
-              <button onClick={() => extendTimer(60)} style={{ marginLeft: '0.25rem' }}>+60s</button>
+            <div style={{ marginBottom: "var(--spacing-xl)", display: "flex", gap: "var(--spacing-md)" }}>
+              <button className="btn btnPrimary" onClick={startTimer}>Start</button>
+              <button className="btn btnSecondary" onClick={pauseTimer}>Pause</button>
+              <button className="btn btnAccent" onClick={() => extendTimer(60)}>+60s</button>
             </div>
           )}
-          <h3>Voting</h3>
+          
+          <h3 style={{ marginBottom: "var(--spacing-md)" }}>Voting</h3>
           {state.vote.open ? (
-            <div>
-              <p>{state.vote.question}</p>
-              <ul>
+            <div style={{ marginBottom: "var(--spacing-xl)" }}>
+              <p style={{ marginBottom: "var(--spacing-md)", fontWeight: "var(--font-weight-semibold)" }}>
+                {state.vote.question}
+              </p>
+              <ul style={{ marginBottom: "var(--spacing-md)", paddingLeft: "var(--spacing-xl)" }}>
                 {state.vote.options.map((opt, idx) => (
-                  <li key={idx}>
+                  <li key={idx} style={{ marginBottom: "var(--spacing-sm)" }}>
                     {opt}{' '}
                     {!isHost && (
-                      <button onClick={() => castVote(idx)} disabled={state.vote.votesByUserId && state.vote.votesByUserId[userId] !== undefined}>Vote</button>
+                      <button 
+                        className="btn btnSmall btnPrimary"
+                        onClick={() => castVote(idx)} 
+                        disabled={state.vote.votesByUserId && state.vote.votesByUserId[userId] !== undefined}
+                        style={{ marginLeft: "var(--spacing-sm)" }}
+                      >
+                        Vote
+                      </button>
                     )}
                   </li>
                 ))}
               </ul>
-              {isHost && <button onClick={closeVote}>Close vote</button>}
+              {isHost && (
+                <button className="btn btnDanger" onClick={closeVote}>Close vote</button>
+              )}
             </div>
           ) : (
             isHost && (
-              <div>
-                <input placeholder="Vote question" value={voteQuestion} onChange={(e) => setVoteQuestion(e.target.value)} />
-                <input placeholder="Options comma separated" value={voteOptions} onChange={(e) => setVoteOptions(e.target.value)} style={{ marginLeft: '0.25rem' }} />
-                <button onClick={() => { openVote(voteQuestion, voteOptions.split(',').map((s) => s.trim()).filter(Boolean)); setVoteQuestion(''); }} style={{ marginLeft: '0.25rem' }}>Open vote</button>
+              <div style={{ marginBottom: "var(--spacing-xl)", display: "flex", gap: "var(--spacing-md)" }}>
+                <input 
+                  className="input"
+                  placeholder="Vote question" 
+                  value={voteQuestion} 
+                  onChange={(e) => setVoteQuestion(e.target.value)} 
+                />
+                <input 
+                  className="input"
+                  placeholder="Options comma separated" 
+                  value={voteOptions} 
+                  onChange={(e) => setVoteOptions(e.target.value)} 
+                  style={{ width: "300px" }}
+                />
+                <button 
+                  className="btn btnAccent"
+                  onClick={() => { openVote(voteQuestion, voteOptions.split(',').map((s) => s.trim()).filter(Boolean)); setVoteQuestion(''); }}
+                >
+                  Open vote
+                </button>
               </div>
             )
           )}
+          
           {isHost && (
-            <div style={{ marginTop: '1rem' }}>
-              <button onClick={endMeeting}>End meeting</button>
+            <div style={{ marginTop: "var(--spacing-2xl)" }}>
+              <button className="btn btnDanger btnLarge" onClick={endMeeting}>End meeting</button>
             </div>
           )}
         </div>
       )}
       {status === 'ended' && (
-        <div>
-          <h2>Meeting ended</h2>
-          <p>Minutes have been generated and stored.</p>
+        <div className="container container-narrow" style={{ paddingTop: "var(--spacing-4xl)", textAlign: "center" }}>
+          <h2 style={{ marginBottom: "var(--spacing-lg)" }}>Meeting ended</h2>
+          <p className="text-muted">Minutes have been generated and stored.</p>
         </div>
       )}
-      
-      {/* Footer with logo watermark */}
-      <div className="footer">
-        <img src={logo} alt="League Meeting App" className="footerLogo" />
-        <div>East v. West League Meeting</div>
-      </div>
     </div>
   );
 }
