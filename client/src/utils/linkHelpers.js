@@ -28,14 +28,17 @@ export function getLinkBaseUrl() {
 export function generateViewerLink(roomId) {
   const baseUrl = getLinkBaseUrl();
   const viewerLink = `${baseUrl}/${roomId}`;
-  // TODO: Remove debug logging after verifying fix on Vercel (see VIEWER_POPOUT_FIX.md)
-  console.log('[DEBUG VIEWER LINK]', {
-    roomId,
-    baseUrl,
-    windowOrigin: window.location.origin,
-    envUrl: import.meta.env.VITE_PUBLIC_APP_URL || '(not set)',
-    viewerLink
-  });
+  
+  // DEBUG: Enhanced logging for Vercel 404 investigation
+  console.group('🔍 [VIEWER LINK DEBUG]');
+  console.log('Room ID:', roomId);
+  console.log('Base URL (from getLinkBaseUrl):', baseUrl);
+  console.log('window.location.origin:', window.location.origin);
+  console.log('window.location.pathname:', window.location.pathname);
+  console.log('VITE_PUBLIC_APP_URL:', import.meta.env.VITE_PUBLIC_APP_URL || '(not set)');
+  console.log('🎯 GENERATED VIEWER LINK:', viewerLink);
+  console.groupEnd();
+  
   return viewerLink;
 }
 
@@ -64,16 +67,15 @@ export function openPopoutWindow(roomId, hostKey) {
   // Always open as attendee view with popout flag
   const url = `${baseUrl}/${roomId}?popout=1&as=attendee${hostKey ? `&hostKey=${hostKey}` : ''}`;
   
-  // TODO: Remove debug logging after verifying fix on Vercel (see VIEWER_POPOUT_FIX.md)
-  // Note: This is intentionally logging sensitive data for debugging 404 issues
-  console.log('[DEBUG POPOUT]', {
-    roomId,
-    hostKey: hostKey ? '***' : '(none)',
-    baseUrl,
-    windowOrigin: window.location.origin,
-    windowPathname: window.location.pathname,
-    popoutUrl: url
-  });
+  // DEBUG: Enhanced logging for Vercel 404 investigation
+  console.group('🔍 [POPOUT DEBUG]');
+  console.log('Room ID:', roomId);
+  console.log('Host Key:', hostKey ? '***PRESENT***' : '(none)');
+  console.log('Base URL (window.location.origin):', baseUrl);
+  console.log('window.location.pathname:', window.location.pathname);
+  console.log('window.location.href:', window.location.href);
+  console.log('🎯 POPOUT URL:', url);
+  console.groupEnd();
   
   window.open(
     url,

@@ -156,14 +156,13 @@ export default function StandaloneApp() {
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     
-    // TODO: Remove debug logging after verifying fix on Vercel (see VIEWER_POPOUT_FIX.md)
-    // Note: This is intentionally logging sensitive data for debugging 404 issues
-    console.log('[DEBUG URL PARSING]', {
-      fullUrl: window.location.href,
-      pathname: path,
-      search: window.location.search,
-      origin: window.location.origin
-    });
+    // DEBUG: Enhanced logging for Vercel 404 investigation
+    console.group('🔍 [URL PARSING DEBUG]');
+    console.log('Full URL:', window.location.href);
+    console.log('Origin:', window.location.origin);
+    console.log('Pathname:', path);
+    console.log('Search:', window.location.search);
+    console.groupEnd();
     
     // Extract roomId from path: /:roomId or /room/:roomId
     let urlRoomId = null;
@@ -187,12 +186,12 @@ export default function StandaloneApp() {
     const isPopout = params.get("popout") === '1';
     const asMode = params.get("as");
     
-    console.log('[DEBUG URL PARSED]', {
-      urlRoomId,
-      urlHostKey: urlHostKey ? '***' : '(none)',
-      isPopout,
-      asMode
-    });
+    console.group('🔍 [PARSED URL PARAMS]');
+    console.log('Room ID:', urlRoomId || '(none)');
+    console.log('Host Key:', urlHostKey ? '***PRESENT***' : '(none)');
+    console.log('Popout Mode:', isPopout);
+    console.log('As Mode:', asMode || '(none)');
+    console.groupEnd();
     
     // Check if URL specifies attendee view mode
     const forceAttendeeView = isAttendeeViewMode();
