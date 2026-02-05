@@ -6,6 +6,8 @@ import BrandHeader from "./components/BrandHeader.jsx";
 import { formatTime } from "./utils/timeFormat.js";
 import logo from "./assets/league-meeting-logo.png";
 
+const UI_VERSION = "STYLE-REDO-PROOF-001";
+
 // Standalone Meeting App - connects to Cloudflare Worker via WebSocket
 // Supports room + hostKey authentication model
 
@@ -658,7 +660,7 @@ export default function StandaloneApp() {
             onClick={() => setShowHostLostWarning(false)}
             style={{
               padding: "6px 16px",
-              backgroundColor: "white",
+              backgroundColor: "#050505",
               color: "#ff9800",
               border: "none",
               borderRadius: "3px",
@@ -675,10 +677,10 @@ export default function StandaloneApp() {
         <div style={{
           padding: "0.75rem",
           margin: "1rem",
-          backgroundColor: "#f8d7da",
+          backgroundColor: "#1a1a1a",
           border: "1px solid #dc3545",
           borderRadius: "4px",
-          color: "#721c24"
+          color: "#fcfcfc"
         }}>
           <strong>❌ Error:</strong> {error}
           <button
@@ -702,7 +704,7 @@ export default function StandaloneApp() {
           zIndex: 1000
         }}>
           <div style={{
-            backgroundColor: "white",
+            backgroundColor: "#050505",
             padding: "2rem",
             borderRadius: "8px",
             maxWidth: "600px",
@@ -715,7 +717,7 @@ export default function StandaloneApp() {
               <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>👥 Viewer Link (share with attendees):</h3>
               <div style={{
                 padding: "0.75rem",
-                backgroundColor: "#f8f9fa",
+                backgroundColor: "#1a1a1a",
                 border: "1px solid #dee2e6",
                 borderRadius: "4px",
                 wordBreak: "break-all",
@@ -728,7 +730,7 @@ export default function StandaloneApp() {
                 style={{
                   marginTop: "0.5rem",
                   padding: "0.5rem 1rem",
-                  backgroundColor: "#007bff",
+                  backgroundColor: "#0b5f98",
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
@@ -767,7 +769,7 @@ export default function StandaloneApp() {
               </button>
             </div>
             
-            <p style={{ fontSize: "0.9rem", color: "#666" }}>
+            <p style={{ fontSize: "0.9rem", color: "#fcfcfc" }}>
               <strong>Important:</strong> Save the host link to control the meeting. 
               The viewer link is safe to share publicly.
             </p>
@@ -795,6 +797,14 @@ export default function StandaloneApp() {
       {mode === "init" && (
         <div className="homeContainer">
           <BrandHeader />
+          
+          <div className="badge badgeGold" style={{ 
+            fontSize: "var(--font-size-sm)",
+            fontWeight: "700",
+            marginTop: "var(--spacing-lg)"
+          }}>
+            UI: {UI_VERSION}
+          </div>
           
           <h2 style={{ 
             margin: "var(--spacing-2xl) 0 0 0",
@@ -892,12 +902,12 @@ export default function StandaloneApp() {
           <div style={{
             width: "50px",
             height: "50px",
-            border: "4px solid #f3f3f3",
-            borderTop: "4px solid #007bff",
+            border: "4px solid #1a1a1a",
+            borderTop: "4px solid #0b5f98",
             borderRadius: "50%",
             animation: "spin 1s linear infinite"
           }} />
-          <p style={{ fontSize: "1.2rem", color: "#666" }}>Connecting to room...</p>
+          <p style={{ fontSize: "1.2rem", color: "#fcfcfc" }}>Connecting to room...</p>
           <style>{`
             @keyframes spin {
               0% { transform: rotate(0deg); }
@@ -916,6 +926,7 @@ export default function StandaloneApp() {
             viewAsAttendee={viewAsAttendee}
             onToggleViewAsAttendee={() => setViewAsAttendee(!viewAsAttendee)}
             showViewToggle={isHost}
+            uiVersion={UI_VERSION}
           />
           
           <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>

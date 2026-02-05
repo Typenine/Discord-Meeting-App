@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import BrandHeader from "./components/BrandHeader.jsx";
 import logo from "./assets/league-meeting-logo.png";
 
+const UI_VERSION = "STYLE-REDO-PROOF-001";
+
 // Determine API base for HTTP polling.
 const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
 const RAW_ENV_API_BASE = import.meta.env.VITE_API_BASE;
@@ -486,7 +488,7 @@ export default function App() {
   const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
 
   return (
-    <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
+    <div style={{ padding: "1rem", fontFamily: "sans-serif", backgroundColor: "#050505", minHeight: "100vh", color: "#fcfcfc" }}>
       {/* Health Status Banner */}
       {healthStatus && healthStatus.warnings && healthStatus.warnings.length > 0 && (
         <div style={{ 
@@ -509,34 +511,26 @@ export default function App() {
         <div style={{ 
           padding: "1rem", 
           marginBottom: "1rem", 
-          backgroundColor: "#d1ecf1", 
-          border: "1px solid #0c5460", 
+          backgroundColor: "#0b5f98", 
+          border: "1px solid #bf9944", 
           borderRadius: "4px",
-          color: "#0c5460"
+          color: "#fcfcfc"
         }}>
           <strong>🔄 Resume Meeting?</strong>
           <p style={{ margin: "0.5rem 0" }}>
             You were in a meeting. Would you like to rejoin?
           </p>
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button onClick={handleRejoin} style={{ 
-              padding: "0.5rem 1rem", 
-              backgroundColor: "#0c5460", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "4px",
-              cursor: "pointer"
-            }}>
+            <button 
+              className="btn btnPrimary"
+              onClick={handleRejoin}
+            >
               Rejoin Meeting
             </button>
-            <button onClick={dismissRejoin} style={{ 
-              padding: "0.5rem 1rem", 
-              backgroundColor: "transparent", 
-              color: "#0c5460", 
-              border: "1px solid #0c5460", 
-              borderRadius: "4px",
-              cursor: "pointer"
-            }}>
+            <button 
+              className="btn btnSecondary"
+              onClick={dismissRejoin}
+            >
               Start Fresh
             </button>
           </div>
@@ -548,15 +542,15 @@ export default function App() {
         <div style={{ 
           padding: "0.75rem", 
           marginBottom: "1rem", 
-          backgroundColor: error.type === 'unauthorized' ? "#f8d7da" : "#f8d7da", 
-          border: "1px solid #dc3545", 
+          backgroundColor: "rgba(190, 22, 30, 0.2)", 
+          border: "1px solid #be161e", 
           borderRadius: "4px",
-          color: "#721c24"
+          color: "#fcfcfc"
         }}>
           <strong>{error.type === 'unauthorized' ? '🔒 Authorization Error' : '❌ Error'}:</strong> {error.message}
           <button 
             onClick={() => setError(null)} 
-            style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
+            style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem", color: "#fcfcfc" }}
           >×</button>
         </div>
       )}
@@ -566,7 +560,7 @@ export default function App() {
         <div style={{
           padding: "0.5rem 1rem",
           marginBottom: "1rem",
-          backgroundColor: "#f0e6ff",
+          backgroundColor: "#1a1a1a",
           border: "1px solid #7c3aed",
           borderRadius: "4px",
           fontSize: "0.85rem",
@@ -577,11 +571,11 @@ export default function App() {
           <div>
             <span style={{ fontWeight: "bold", color: "#7c3aed" }}>Mode: Discord Activity</span>
             {" | "}
-            <span style={{ color: "#555" }}>
+            <span style={{ color: "#aaa" }}>
               Role: {state.hostUserId === userId ? "🔑 Host" : "👥 Viewer"}
             </span>
           </div>
-          <div style={{ color: "#666", fontSize: "0.75rem" }}>
+          <div style={{ color: "#888", fontSize: "0.75rem" }}>
             ID: {userId ? (userId.length > 20 ? userId.substring(0, 20) + "..." : userId) : "unknown"}
           </div>
         </div>
@@ -590,6 +584,14 @@ export default function App() {
       {status === "init" && (
         <div className="homeContainer">
           <BrandHeader />
+          <div className="badge badgeGold" style={{ 
+            fontSize: "var(--font-size-sm)",
+            fontWeight: "700",
+            marginTop: "var(--spacing-lg)",
+            marginBottom: "var(--spacing-lg)"
+          }}>
+            UI: {UI_VERSION}
+          </div>
           <h2 style={{ 
             margin: "var(--spacing-2xl) 0 0 0",
             color: "var(--color-muted)",
@@ -665,7 +667,7 @@ export default function App() {
             <div style={{ 
               padding: "0.75rem", 
               marginBottom: "1rem", 
-              backgroundColor: "#5865F2", 
+              backgroundColor: "#0b5f98", 
               color: "white", 
               borderRadius: "4px",
               display: "flex",
@@ -684,8 +686,8 @@ export default function App() {
           <div style={{ 
             padding: "0.5rem 0.75rem", 
             marginBottom: "1rem", 
-            backgroundColor: "#e7f3ff", 
-            border: "1px solid #0066cc", 
+            backgroundColor: "#1a1a1a", 
+            border: "1px solid #0b5f98", 
             borderRadius: "4px",
             display: "flex",
             justifyContent: "space-between",

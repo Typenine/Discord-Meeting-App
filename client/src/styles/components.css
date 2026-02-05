@@ -94,7 +94,7 @@
 }
 
 .btnPrimary {
-  background-color: var(--color-primary);
+  background-color: #0b5f98;
   color: white;
 }
 
@@ -114,7 +114,7 @@
 }
 
 .btnDanger {
-  background-color: var(--color-destructive);
+  background-color: #be161e;
   color: white;
 }
 
@@ -124,7 +124,7 @@
 }
 
 .btnAccent {
-  background-color: var(--color-accent);
+  background-color: #bf9944;
   color: white;
 }
 
@@ -218,17 +218,17 @@
 }
 
 .badgeGold {
-  background-color: var(--color-accent);
+  background-color: #bf9944;
   color: white;
 }
 
 .badgeBlue {
-  background-color: var(--color-primary);
+  background-color: #0b5f98;
   color: white;
 }
 
 .badgeRed {
-  background-color: var(--color-destructive);
+  background-color: #be161e;
   color: white;
 }
 
@@ -367,7 +367,7 @@
 }
 
 .listItem.active {
-  border-color: var(--color-accent);
+  border-color: #bf9944;
   background-color: #fffbf0;
 }
 

@@ -7,7 +7,8 @@ export default function TopBar({
   connectionStatus, 
   viewAsAttendee, 
   onToggleViewAsAttendee,
-  showViewToggle = false
+  showViewToggle = false,
+  uiVersion = null
 }) {
   const getStatusColor = () => {
     switch (connectionStatus) {
@@ -31,8 +32,8 @@ export default function TopBar({
     <div style={{
       position: "sticky",
       top: 0,
-      backgroundColor: "var(--color-background)",
-      borderBottom: `2px solid var(--color-primary)`,
+      backgroundColor: "#050505",
+      borderBottom: "2px solid #0b5f98",
       padding: "var(--spacing-lg) var(--spacing-xl)",
       display: "flex",
       justifyContent: "space-between",
@@ -43,12 +44,22 @@ export default function TopBar({
       {/* Left: Logo + Branding */}
       <BrandHeader showRoomInfo={true} roomId={roomId} />
 
-      {/* Right: Status + Role + Toggle */}
+      {/* Right: UI Version + Status + Role + Toggle */}
       <div style={{ 
         display: "flex", 
         alignItems: "center", 
         gap: "var(--spacing-lg)" 
       }}>
+        {/* UI Version Badge */}
+        {uiVersion && (
+          <div className="badge badgeGold" style={{ 
+            fontSize: "var(--font-size-xs)",
+            fontWeight: "700"
+          }}>
+            UI: {uiVersion}
+          </div>
+        )}
+
         {/* Connection Status */}
         <div className="pillStatus" style={{ color: getStatusColor() }}>
           <span style={{ fontWeight: "500" }}>{getStatusText()}</span>
@@ -68,11 +79,11 @@ export default function TopBar({
             cursor: "pointer",
             fontSize: "var(--font-size-sm)",
             fontWeight: "500",
-            color: "var(--color-text)",
+            color: "#fcfcfc",
             padding: "var(--spacing-sm) var(--spacing-md)",
-            backgroundColor: "#e7f3ff",
+            backgroundColor: "#0b5f98",
             borderRadius: "var(--radius-pill)",
-            border: `1px solid var(--color-primary)`,
+            border: "1px solid #bf9944",
             userSelect: "none"
           }}>
             <input
