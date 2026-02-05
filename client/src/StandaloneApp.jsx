@@ -4,6 +4,7 @@ import RoomLayout from "./components/RoomLayout.jsx";
 import HostPanel from "./components/HostPanel.jsx";
 import BrandHeader from "./components/BrandHeader.jsx";
 import { formatTime } from "./utils/timeFormat.js";
+import logo from "./assets/league-meeting-logo.png";
 
 // Standalone Meeting App - connects to Cloudflare Worker via WebSocket
 // Supports room + hostKey authentication model
@@ -869,6 +870,12 @@ export default function StandaloneApp() {
                 </button>
               </div>
             </div>
+          </div>
+          
+          {/* Footer with logo watermark */}
+          <div className="footer">
+            <img src={logo} alt="League Meeting App" className="footerLogo" />
+            <div>East v. West League Meeting</div>
           </div>
         </div>
       )}
