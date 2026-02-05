@@ -2,11 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import TopBar from "./components/TopBar.jsx";
 import RoomLayout from "./components/RoomLayout.jsx";
 import HostPanel from "./components/HostPanel.jsx";
-import BrandHeader from "./components/BrandHeader.jsx";
 import { formatTime } from "./utils/timeFormat.js";
 import logo from "./assets/league-meeting-logo.png";
 
-const UI_VERSION = "STYLE-REDO-PROOF-001";
+const UI_VERSION = "WAR-ROOM-001";
 
 // Standalone Meeting App - connects to Cloudflare Worker via WebSocket
 // Supports room + hostKey authentication model
@@ -563,54 +562,54 @@ export default function StandaloneApp() {
   };
 
   return (
-    <div style={{ fontFamily: "sans-serif", height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="appShell">
       {/* Connection Status Banners - only show when connected mode */}
       {mode === "connected" && connectionStatus === "disconnected" && (
-        <div style={{
+        <div className="banner banner-danger" style={{
           position: "fixed",
           top: 0,
           left: 0,
           right: 0,
-          backgroundColor: "#ff4444",
-          color: "white",
-          padding: "10px",
-          textAlign: "center",
           zIndex: 1000,
-          fontWeight: "bold",
+          borderRadius: 0,
+          borderLeft: "none",
+          borderTop: "4px solid var(--color-danger)",
+          textAlign: "center",
+          fontWeight: "var(--font-weight-bold)",
         }}>
           ⚠️ Disconnected - Reconnecting in {Math.ceil(reconnectDelay / 1000)}s (attempt {reconnectAttempts})
         </div>
       )}
 
       {mode === "connected" && connectionStatus === "reconnecting" && (
-        <div style={{
+        <div className="banner banner-warning" style={{
           position: "fixed",
           top: 0,
           left: 0,
           right: 0,
-          backgroundColor: "#ff9800",
-          color: "white",
-          padding: "10px",
-          textAlign: "center",
           zIndex: 1000,
-          fontWeight: "bold",
+          borderRadius: 0,
+          borderLeft: "none",
+          borderTop: "4px solid var(--color-warning)",
+          textAlign: "center",
+          fontWeight: "var(--font-weight-bold)",
         }}>
           🔄 Reconnecting... (attempt {reconnectAttempts})
         </div>
       )}
 
       {mode === "connected" && connectionStatus === "connected" && showConnectedBanner && (
-        <div style={{
+        <div className="banner banner-success" style={{
           position: "fixed",
           top: 0,
           left: 0,
           right: 0,
-          backgroundColor: "#4caf50",
-          color: "white",
-          padding: "10px",
-          textAlign: "center",
           zIndex: 1000,
-          fontWeight: "bold",
+          borderRadius: 0,
+          borderLeft: "none",
+          borderTop: "4px solid var(--color-success)",
+          textAlign: "center",
+          fontWeight: "var(--font-weight-bold)",
         }}>
           ✓ Connected
         </div>
@@ -618,17 +617,17 @@ export default function StandaloneApp() {
 
       {/* Configuration Error Banner */}
       {CONFIG_ERROR.showBanner && CONFIG_ERROR.message && (
-        <div style={{
+        <div className="banner banner-danger" style={{
           position: "fixed",
           top: 0,
           left: 0,
           right: 0,
-          backgroundColor: "#dc3545",
-          color: "white",
-          padding: "10px",
-          textAlign: "center",
           zIndex: 1000,
-          fontWeight: "bold",
+          borderRadius: 0,
+          borderLeft: "none",
+          borderTop: "4px solid var(--color-danger)",
+          textAlign: "center",
+          fontWeight: "var(--font-weight-bold)",
         }}>
           ❌ Configuration Error: {CONFIG_ERROR.message}
         </div>
@@ -636,37 +635,25 @@ export default function StandaloneApp() {
 
       {/* Host Privileges Lost Warning */}
       {showHostLostWarning && (
-        <div style={{
+        <div className="card card-elevated" style={{
           position: "fixed",
-          top: connectionStatus === "connected" && showConnectedBanner ? "50px" : "10px",
+          top: connectionStatus === "connected" && showConnectedBanner ? "60px" : "20px",
           left: "50%",
           transform: "translateX(-50%)",
-          backgroundColor: "#ff9800",
-          color: "white",
-          padding: "15px 20px",
-          borderRadius: "5px",
-          boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
           zIndex: 1001,
           maxWidth: "400px",
           width: "90%",
+          padding: "var(--spacing-xl)",
         }}>
-          <div style={{ fontWeight: "bold", fontSize: "1.1rem", marginBottom: "8px" }}>
+          <div style={{ fontWeight: "var(--font-weight-bold)", fontSize: "var(--font-size-lg)", marginBottom: "var(--spacing-md)" }}>
             ⚠️ Host Privileges Lost
           </div>
-          <div style={{ fontSize: "0.9rem", marginBottom: "12px" }}>
+          <div style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--spacing-lg)", opacity: 0.9 }}>
             You are now a viewer. You can no longer control the meeting.
           </div>
           <button
             onClick={() => setShowHostLostWarning(false)}
-            style={{
-              padding: "6px 16px",
-              backgroundColor: "#050505",
-              color: "#ff9800",
-              border: "none",
-              borderRadius: "3px",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
+            className="btn btnGhost btnFull"
           >
             Dismiss
           </button>
@@ -674,18 +661,17 @@ export default function StandaloneApp() {
       )}
       
       {error && mode !== "connected" && (
-        <div style={{
-          padding: "0.75rem",
-          margin: "1rem",
-          backgroundColor: "#1a1a1a",
-          border: "1px solid #dc3545",
-          borderRadius: "4px",
-          color: "#fcfcfc"
+        <div className="banner banner-danger" style={{ 
+          margin: "var(--spacing-xl)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between"
         }}>
-          <strong>❌ Error:</strong> {error}
+          <span><strong>❌ Error:</strong> {error}</span>
           <button
             onClick={() => setError(null)}
-            style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
+            className="btn btnIcon btnGhost"
+            style={{ padding: "var(--spacing-sm)" }}
           >×</button>
         </div>
       )}
@@ -697,129 +683,113 @@ export default function StandaloneApp() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
+          backgroundColor: "var(--color-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 1000
+          zIndex: 1000,
+          backdropFilter: "blur(4px)",
         }}>
-          <div style={{
-            backgroundColor: "#050505",
-            padding: "2rem",
-            borderRadius: "8px",
+          <div className="card card-elevated" style={{
             maxWidth: "600px",
-            width: "90%"
+            width: "90%",
           }}>
-            <h2 style={{ marginTop: 0 }}>🎉 Room Created!</h2>
-            <p>Room ID: <strong>{roomId}</strong></p>
-            
-            <div style={{ marginBottom: "1.5rem" }}>
-              <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>👥 Viewer Link (share with attendees):</h3>
-              <div style={{
-                padding: "0.75rem",
-                backgroundColor: "#1a1a1a",
-                border: "1px solid #dee2e6",
-                borderRadius: "4px",
-                wordBreak: "break-all",
-                fontSize: "0.9rem"
-              }}>
-                {viewerUrl}
+            <div className="cardHeader">
+              <h2 className="cardTitle">🎉 Room Created!</h2>
+            </div>
+            <div className="cardBody">
+              <p style={{ marginBottom: "var(--spacing-xl)" }}>
+                Room ID: <span className="pill pill-accent">{roomId}</span>
+              </p>
+              
+              <div style={{ marginBottom: "var(--spacing-xl)" }}>
+                <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: "var(--font-weight-semibold)", marginBottom: "var(--spacing-sm)" }}>
+                  👥 Viewer Link (share with attendees):
+                </h3>
+                <div style={{
+                  padding: "var(--spacing-md)",
+                  backgroundColor: "rgba(0, 0, 0, 0.3)",
+                  border: "1px solid var(--color-border-subtle)",
+                  borderRadius: "var(--radius-md)",
+                  wordBreak: "break-all",
+                  fontSize: "var(--font-size-sm)",
+                  fontFamily: "var(--font-family-mono)",
+                  marginBottom: "var(--spacing-sm)"
+                }}>
+                  {viewerUrl}
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(viewerUrl)}
+                  className="btn btnPrimary btnSmall"
+                >
+                  📋 Copy Viewer Link
+                </button>
               </div>
+              
+              <div style={{ marginBottom: "var(--spacing-xl)" }}>
+                <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: "var(--font-weight-semibold)", marginBottom: "var(--spacing-sm)" }}>
+                  🔑 Host Link (keep this secret!):
+                </h3>
+                <div style={{
+                  padding: "var(--spacing-md)",
+                  backgroundColor: "rgba(191, 153, 68, 0.1)",
+                  border: "1px solid var(--color-accent)",
+                  borderRadius: "var(--radius-md)",
+                  wordBreak: "break-all",
+                  fontSize: "var(--font-size-sm)",
+                  fontFamily: "var(--font-family-mono)",
+                  marginBottom: "var(--spacing-sm)"
+                }}>
+                  {hostUrl}
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(hostUrl)}
+                  className="btn btnAccent btnSmall"
+                >
+                  📋 Copy Host Link
+                </button>
+              </div>
+              
+              <div className="banner banner-warning" style={{ marginBottom: "var(--spacing-xl)" }}>
+                <strong>Important:</strong> Save the host link to control the meeting. 
+                The viewer link is safe to share publicly.
+              </div>
+              
               <button
-                onClick={() => navigator.clipboard.writeText(viewerUrl)}
-                style={{
-                  marginTop: "0.5rem",
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#0b5f98",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
+                onClick={startMeeting}
+                className="btn btnPrimary btnLarge btnFull"
               >
-                📋 Copy Viewer Link
+                Start Meeting
               </button>
             </div>
-            
-            <div style={{ marginBottom: "1.5rem" }}>
-              <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>🔑 Host Link (keep this secret!):</h3>
-              <div style={{
-                padding: "0.75rem",
-                backgroundColor: "#fff3cd",
-                border: "1px solid #ffc107",
-                borderRadius: "4px",
-                wordBreak: "break-all",
-                fontSize: "0.9rem"
-              }}>
-                {hostUrl}
-              </div>
-              <button
-                onClick={() => navigator.clipboard.writeText(hostUrl)}
-                style={{
-                  marginTop: "0.5rem",
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "var(--color-accent)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                📋 Copy Host Link
-              </button>
-            </div>
-            
-            <p style={{ fontSize: "0.9rem", color: "#fcfcfc" }}>
-              <strong>Important:</strong> Save the host link to control the meeting. 
-              The viewer link is safe to share publicly.
-            </p>
-            
-            <button
-              onClick={startMeeting}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: "var(--color-primary)",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                width: "100%"
-              }}
-            >
-              Start Meeting
-            </button>
           </div>
         </div>
       )}
       
       {mode === "init" && (
-        <div className="homeContainer">
-          <BrandHeader />
-          
-          <div className="badge badgeGold" style={{ 
-            fontSize: "var(--font-size-sm)",
-            fontWeight: "700",
-            marginTop: "var(--spacing-lg)"
-          }}>
-            UI: {UI_VERSION}
+        <div className="container container-narrow" style={{ 
+          padding: "var(--spacing-2xl) var(--spacing-xl)",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh"
+        }}>
+          <div className="brandHeader">
+            <img src={logo} alt="League Meeting" className="brandLogo" />
+            <h1 className="brandTitle">East v. West</h1>
+            <p className="brandSubtitle">League Meeting</p>
           </div>
           
-          <h2 style={{ 
-            margin: "var(--spacing-2xl) 0 0 0",
-            color: "var(--color-muted)",
-            fontWeight: "normal",
-            textAlign: "center"
-          }}>
-            Join or Create Meeting
-          </h2>
+          {import.meta.env.DEV && (
+            <div className="devBadge">
+              UI: {UI_VERSION}
+            </div>
+          )}
           
-          <div className="homeCards">
+          <div className="grid2" style={{ marginTop: "var(--spacing-2xl)" }}>
             {/* Card 1: Create Meeting */}
             <div className="card">
               <div className="cardHeader">
-                <h3>Create New Meeting</h3>
+                <h3 className="cardTitle">Create New Meeting</h3>
               </div>
               <div className="cardBody">
                 <label className="label">Your Name</label>
@@ -843,7 +813,7 @@ export default function StandaloneApp() {
             {/* Card 2: Join Meeting */}
             <div className="card">
               <div className="cardHeader">
-                <h3>Join Existing Meeting</h3>
+                <h3 className="cardTitle">Join Existing Meeting</h3>
               </div>
               <div className="cardBody">
                 <label className="label">Your Name</label>
@@ -882,9 +852,20 @@ export default function StandaloneApp() {
             </div>
           </div>
           
-          {/* Footer with logo watermark */}
-          <div className="footer">
-            <img src={logo} alt="League Meeting App" className="footerLogo" />
+          {/* Footer */}
+          <div style={{ 
+            marginTop: "auto",
+            paddingTop: "var(--spacing-3xl)",
+            textAlign: "center",
+            opacity: 0.5,
+            fontSize: "var(--font-size-sm)"
+          }}>
+            <img src={logo} alt="League Meeting App" style={{ 
+              height: "32px",
+              width: "auto",
+              marginBottom: "var(--spacing-sm)",
+              opacity: 0.6
+            }} />
             <div>East v. West League Meeting</div>
           </div>
         </div>
@@ -897,17 +878,19 @@ export default function StandaloneApp() {
           alignItems: "center",
           justifyContent: "center",
           height: "100vh",
-          gap: "1rem"
+          gap: "var(--spacing-lg)"
         }}>
           <div style={{
             width: "50px",
             height: "50px",
-            border: "4px solid #1a1a1a",
-            borderTop: "4px solid #0b5f98",
+            border: "4px solid var(--color-border-muted)",
+            borderTop: "4px solid var(--color-accent)",
             borderRadius: "50%",
             animation: "spin 1s linear infinite"
           }} />
-          <p style={{ fontSize: "1.2rem", color: "#fcfcfc" }}>Connecting to room...</p>
+          <p style={{ fontSize: "var(--font-size-xl)", color: "var(--color-text)" }}>
+            Connecting to room...
+          </p>
           <style>{`
             @keyframes spin {
               0% { transform: rotate(0deg); }
