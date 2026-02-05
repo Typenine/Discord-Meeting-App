@@ -11,10 +11,10 @@ export default function TopBar({
 }) {
   const getStatusColor = () => {
     switch (connectionStatus) {
-      case "connected": return "#4caf50";
-      case "reconnecting": return "#ff9800";
+      case "connected": return "var(--color-success)";
+      case "reconnecting": return "var(--color-warning)";
       case "disconnected": return "var(--color-destructive)";
-      default: return "#9e9e9e";
+      default: return "var(--color-muted)";
     }
   };
 
@@ -32,13 +32,13 @@ export default function TopBar({
       position: "sticky",
       top: 0,
       backgroundColor: "var(--color-background)",
-      borderBottom: "2px solid var(--color-primary)",
-      padding: "1rem 1.5rem",
+      borderBottom: `2px solid var(--color-primary)`,
+      padding: "var(--spacing-lg) var(--spacing-xl)",
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
       zIndex: 100,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+      boxShadow: "var(--shadow-md)"
     }}>
       {/* Left: Logo + Branding */}
       <BrandHeader showRoomInfo={true} roomId={roomId} />
@@ -47,37 +47,15 @@ export default function TopBar({
       <div style={{ 
         display: "flex", 
         alignItems: "center", 
-        gap: "1rem" 
+        gap: "var(--spacing-lg)" 
       }}>
         {/* Connection Status */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          padding: "0.4rem 0.8rem",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "20px",
-          fontSize: "0.85rem"
-        }}>
-          <div style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            backgroundColor: getStatusColor(),
-            animation: connectionStatus === "reconnecting" ? "pulse 1.5s ease-in-out infinite" : "none"
-          }} />
+        <div className="pillStatus" style={{ color: getStatusColor() }}>
           <span style={{ fontWeight: "500" }}>{getStatusText()}</span>
         </div>
 
         {/* Role Badge */}
-        <div style={{
-          padding: "0.4rem 0.8rem",
-          backgroundColor: isHost && !viewAsAttendee ? "var(--color-primary)" : "#6c757d",
-          color: "white",
-          borderRadius: "20px",
-          fontSize: "0.85rem",
-          fontWeight: "bold"
-        }}>
+        <div className={`badge ${isHost && !viewAsAttendee ? 'badgeBlue' : 'badgeNeutral'}`}>
           {isHost && !viewAsAttendee ? "🔑 HOST" : "👥 ATTENDEE"}
         </div>
 
@@ -86,14 +64,14 @@ export default function TopBar({
           <label style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
+            gap: "var(--spacing-sm)",
             cursor: "pointer",
-            fontSize: "0.85rem",
+            fontSize: "var(--font-size-sm)",
             fontWeight: "500",
             color: "var(--color-text)",
-            padding: "0.4rem 0.8rem",
+            padding: "var(--spacing-sm) var(--spacing-md)",
             backgroundColor: "#e7f3ff",
-            borderRadius: "20px",
+            borderRadius: "var(--radius-pill)",
             border: `1px solid var(--color-primary)`,
             userSelect: "none"
           }}>
@@ -107,14 +85,6 @@ export default function TopBar({
           </label>
         )}
       </div>
-
-      {/* Pulse animation for reconnecting status */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
     </div>
   );
 }
