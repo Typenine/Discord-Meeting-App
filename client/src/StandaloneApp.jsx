@@ -128,8 +128,9 @@ export default function StandaloneApp() {
     // Load persisted username from localStorage if available
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("evw_username");
-      // Basic validation: max 100 chars, no control characters
-      if (stored && stored.length <= 100 && !/[\x00-\x1F\x7F]/.test(stored)) {
+      // Basic validation: max 100 chars, no control chars, no HTML special chars
+      if (stored && stored.length <= 100 && 
+          !/[\x00-\x1F\x7F<>"']/.test(stored)) {
         return stored;
       }
     }
@@ -440,50 +441,50 @@ export default function StandaloneApp() {
     // Set connection timeout (10 seconds)
     connectionTimeoutRef.current = setTimeout(() => {
       // Only trigger timeout if:
-      // 1. WebSocket exists and is not OPEN (readyState 1)
+      // 1. WebSocket exists and is still CONNECTING (readyState 0) or never opened
       // 2. Mode is still "joining" (not already connected)
-      if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN && mode === "joining") {
-        console.error("[WS TIMEOUT] Connection failed to establish in 10 seconds");
-        console.error("[WS TIMEOUT] Final readyState:", wsRef.current.readyState, 
-          wsRef.current.readyState === 0 ? "(CONNECTING)" :
-          wsRef.current.readyState === 2 ? "(CLOSING)" :
-          wsRef.current.readyState === 3 ? "(CLOSED)" : "(UNKNOWN)");
-        setConnectionTimeout(true);
-        setConnectionStatus("disconnected");
-        
-        // Close the websocket if still connecting
-        if (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN) {
+      // Skip if CLOSING (2) or CLOSED (3) as close handler will deal with it
+      if (wsRef.current && mode === "joining") {
+        const state = wsRef.current.readyState;
+        if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
+          console.error("[WS TIMEOUT] Connection failed to establish in 10 seconds");
+          console.error("[WS TIMEOUT] Final readyState:", state, 
+            state === 0 ? "(CONNECTING)" : "(OPEN but no HELLO_ACK)");
+          setConnectionTimeout(true);
+          setConnectionStatus("disconnected");
+          
+          // Close the websocket if still connecting or open but not fully joined
           wsRef.current.close();
-        }
-        
-        // Perform health check
-        if (API_BASE) {
-          fetch(`${API_BASE}/health`)
-            .then(res => {
-              if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
-              }
-              const contentType = res.headers.get("content-type");
-              if (contentType && contentType.includes("application/json")) {
-                return res.json();
-              } else {
-                return res.text().then(text => ({ raw: text }));
-              }
-            })
-            .then(data => {
-              console.log("[HEALTH CHECK] Success:", data);
-              setConnectionDiagnostics(prev => ({
-                ...prev,
-                healthCheckStatus: 'success: ' + JSON.stringify(data),
-              }));
-            })
-            .catch(err => {
-              console.error("[HEALTH CHECK] Failed:", err);
-              setConnectionDiagnostics(prev => ({
-                ...prev,
-                healthCheckStatus: 'failed: ' + err.message,
-              }));
-            });
+          
+          // Perform health check
+          if (API_BASE) {
+            fetch(`${API_BASE}/health`)
+              .then(res => {
+                if (!res.ok) {
+                  throw new Error(`HTTP ${res.status}`);
+                }
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                  return res.json();
+                } else {
+                  return res.text().then(text => ({ raw: text }));
+                }
+              })
+              .then(data => {
+                console.log("[HEALTH CHECK] Success:", data);
+                setConnectionDiagnostics(prev => ({
+                  ...prev,
+                  healthCheckStatus: 'success: ' + JSON.stringify(data),
+                }));
+              })
+              .catch(err => {
+                console.error("[HEALTH CHECK] Failed:", err);
+                setConnectionDiagnostics(prev => ({
+                  ...prev,
+                  healthCheckStatus: 'failed: ' + err.message,
+                }));
+              });
+          }
         }
       }
     }, 10000);
