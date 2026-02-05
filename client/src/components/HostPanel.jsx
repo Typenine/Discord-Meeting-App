@@ -106,16 +106,8 @@ export default function HostPanel({
       }}>
         <h3 style={{ margin: 0, color: "var(--color-text)" }}>Host Controls</h3>
         <button
+          className="btnIcon btnClose"
           onClick={() => setIsCollapsed(true)}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: "var(--font-size-2xl)",
-            cursor: "pointer",
-            color: "var(--color-muted)",
-            padding: 0,
-            lineHeight: 1
-          }}
         >
           ×
         </button>

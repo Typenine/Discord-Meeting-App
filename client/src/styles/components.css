@@ -146,6 +146,25 @@
   width: 100%;
 }
 
+/* Icon/Close Buttons */
+.btnIcon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--color-muted);
+  transition: color 0.15s ease;
+}
+
+.btnIcon:hover {
+  color: var(--color-text);
+}
+
+.btnClose {
+  font-size: var(--font-size-2xl);
+  line-height: 1;
+}
+
 /* Inputs */
 .input {
   width: 100%;

@@ -50,22 +50,7 @@ export default function TopBar({
         gap: "var(--spacing-lg)" 
       }}>
         {/* Connection Status */}
-        <div className="pillStatus" style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--spacing-sm)",
-          padding: "var(--spacing-sm) var(--spacing-md)",
-          backgroundColor: "var(--color-muted-bg)",
-          borderRadius: "var(--radius-pill)",
-          fontSize: "var(--font-size-sm)"
-        }}>
-          <div style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "var(--radius-full)",
-            backgroundColor: getStatusColor(),
-            animation: connectionStatus === "reconnecting" ? "pulse 1.5s ease-in-out infinite" : "none"
-          }} />
+        <div className="pillStatus" style={{ color: getStatusColor() }}>
           <span style={{ fontWeight: "500" }}>{getStatusText()}</span>
         </div>
 
@@ -100,14 +85,6 @@ export default function TopBar({
           </label>
         )}
       </div>
-
-      {/* Pulse animation for reconnecting status */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
     </div>
   );
 }
