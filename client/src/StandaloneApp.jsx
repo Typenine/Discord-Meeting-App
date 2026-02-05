@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import TopBar from "./components/TopBar.jsx";
 import RoomLayout from "./components/RoomLayout.jsx";
 import HostPanel from "./components/HostPanel.jsx";
+import BrandHeader from "./components/BrandHeader.jsx";
 
 // Standalone Meeting App - connects to Cloudflare Worker via WebSocket
 // Supports room + hostKey authentication model
@@ -451,6 +452,31 @@ export default function StandaloneApp() {
     };
   }, [state?.timer?.running, state?.timer?.endsAtMs, state?.timer?.pausedRemainingSec, state?.timer?.durationSec, serverTimeOffset]);
 
+  // Update document title dynamically based on active agenda item and timer
+  useEffect(() => {
+    if (!state || mode !== "connected") {
+      // Reset to default when not in a meeting
+      document.title = "East v. West League Meeting";
+      return;
+    }
+
+    if (state.activeAgendaId && state.timer.running) {
+      // Find active agenda item
+      const activeItem = state.agenda.find(item => item.id === state.activeAgendaId);
+      if (activeItem) {
+        // Format timer as MM:SS
+        const mins = Math.floor(localTimer / 60);
+        const secs = localTimer % 60;
+        const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        document.title = `${timeStr} – ${activeItem.title}`;
+        return;
+      }
+    }
+    
+    // Default title when not running or no active item
+    document.title = "East v. West League Meeting";
+  }, [state, localTimer, mode]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -737,8 +763,8 @@ export default function StandaloneApp() {
                 style={{
                   marginTop: "0.5rem",
                   padding: "0.5rem 1rem",
-                  backgroundColor: "#ffc107",
-                  color: "black",
+                  backgroundColor: "var(--color-accent)",
+                  color: "white",
                   border: "none",
                   borderRadius: "4px",
                   cursor: "pointer"
@@ -757,7 +783,7 @@ export default function StandaloneApp() {
               onClick={startMeeting}
               style={{
                 padding: "0.75rem 1.5rem",
-                backgroundColor: "#28a745",
+                backgroundColor: "var(--color-primary)",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
@@ -784,32 +810,10 @@ export default function StandaloneApp() {
           justifyContent: "center",
           minHeight: "100vh"
         }}>
-          {/* Logo */}
-          <img 
-            src="/src/League Meeting App Logo.png" 
-            alt="League Meeting App" 
-            style={{ 
-              maxWidth: "200px", 
-              marginBottom: "2rem",
-              width: "100%",
-              height: "auto" 
-            }}
-            onError={(e) => {
-              // Hide if logo doesn't load
-              e.target.style.display = "none";
-            }}
-          />
-          
-          <h1 style={{ 
-            margin: "0 0 1rem 0",
-            textAlign: "center",
-            color: "#333"
-          }}>
-            East v. West — League Meeting
-          </h1>
+          <BrandHeader />
           
           <h2 style={{ 
-            margin: "0 0 2rem 0",
+            margin: "2rem 0 2rem 0",
             color: "#666",
             fontWeight: "normal",
             textAlign: "center"
@@ -840,7 +844,7 @@ export default function StandaloneApp() {
                 disabled={!username}
                 style={{
                   padding: "1rem 1.5rem",
-                  backgroundColor: "#28a745",
+                  backgroundColor: "var(--color-primary)",
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
@@ -902,7 +906,7 @@ export default function StandaloneApp() {
               disabled={!username || !roomId}
               style={{
                 padding: "1rem 1.5rem",
-                backgroundColor: "#007bff",
+                backgroundColor: "var(--color-accent)",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",

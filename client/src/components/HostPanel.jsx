@@ -18,11 +18,20 @@ export default function HostPanel({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [newAgendaTitle, setNewAgendaTitle] = useState("");
-  const [newAgendaDuration, setNewAgendaDuration] = useState("");
+  const [newAgendaMinutes, setNewAgendaMinutes] = useState("");
+  const [newAgendaSeconds, setNewAgendaSeconds] = useState("");
+
+  // Helper function to format seconds as MM:SS
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
   const [newAgendaNotes, setNewAgendaNotes] = useState("");
   const [editingItemId, setEditingItemId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
-  const [editDuration, setEditDuration] = useState("");
+  const [editMinutes, setEditMinutes] = useState("");
+  const [editSeconds, setEditSeconds] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [voteQuestion, setVoteQuestion] = useState("");
   const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
@@ -30,20 +39,33 @@ export default function HostPanel({
   const startEditingAgenda = (item) => {
     setEditingItemId(item.id);
     setEditTitle(item.title);
-    setEditDuration(String(item.durationSec));
+    // Convert seconds to minutes and seconds
+    const totalSec = item.durationSec || 0;
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    setEditMinutes(String(mins));
+    setEditSeconds(String(secs));
     setEditNotes(item.notes || "");
   };
 
   const saveEditingAgenda = () => {
     if (editingItemId && editTitle) {
+      // Convert minutes and seconds to total seconds
+      const mins = parseInt(editMinutes) || 0;
+      const secs = parseInt(editSeconds) || 0;
+      // Validate seconds range
+      const validSecs = Math.max(0, Math.min(59, secs));
+      const totalSeconds = mins * 60 + validSecs;
+      
       onUpdateAgenda(editingItemId, {
         title: editTitle,
-        durationSec: Number(editDuration) || 0,
+        durationSec: totalSeconds,
         notes: editNotes
       });
       setEditingItemId(null);
       setEditTitle("");
-      setEditDuration("");
+      setEditMinutes("");
+      setEditSeconds("");
       setEditNotes("");
     }
   };
@@ -51,7 +73,8 @@ export default function HostPanel({
   const cancelEditingAgenda = () => {
     setEditingItemId(null);
     setEditTitle("");
-    setEditDuration("");
+    setEditMinutes("");
+    setEditSeconds("");
     setEditNotes("");
   };
 
@@ -172,7 +195,7 @@ export default function HostPanel({
               disabled={state.timer.durationSec <= 0}
               style={{
                 padding: "0.5rem 1rem",
-                backgroundColor: "#28a745",
+                backgroundColor: "var(--color-primary)",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
@@ -189,8 +212,8 @@ export default function HostPanel({
               onClick={onPauseTimer}
               style={{
                 padding: "0.5rem 1rem",
-                backgroundColor: "#ffc107",
-                color: "black",
+                backgroundColor: "var(--color-accent)",
+                color: "white",
                 border: "none",
                 borderRadius: "4px",
                 cursor: "pointer",
@@ -205,7 +228,7 @@ export default function HostPanel({
               onClick={onResumeTimer}
               style={{
                 padding: "0.5rem 1rem",
-                backgroundColor: "#28a745",
+                backgroundColor: "var(--color-primary)",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
@@ -220,7 +243,7 @@ export default function HostPanel({
             onClick={onResetTimer}
             style={{
               padding: "0.5rem 1rem",
-              backgroundColor: "#dc3545",
+              backgroundColor: "var(--color-destructive)",
               color: "white",
               border: "none",
               borderRadius: "4px",
@@ -293,20 +316,46 @@ export default function HostPanel({
                   borderRadius: "3px"
                 }}
               />
-              <input
-                placeholder="Duration (sec)"
-                type="number"
-                value={editDuration}
-                onChange={(e) => setEditDuration(e.target.value)}
-                style={{ 
-                  padding: "0.4rem", 
-                  width: "100%",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.9rem",
-                  border: "1px solid #ccc",
-                  borderRadius: "3px"
-                }}
-              />
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ flex: 1 }}>
+                  <input
+                    placeholder="Minutes"
+                    type="number"
+                    min="0"
+                    value={editMinutes}
+                    onChange={(e) => setEditMinutes(e.target.value)}
+                    style={{ 
+                      padding: "0.4rem", 
+                      width: "100%",
+                      fontSize: "0.9rem",
+                      border: "1px solid #ccc",
+                      borderRadius: "3px"
+                    }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <input
+                    placeholder="Seconds (0-59)"
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={editSeconds}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (e.target.value === "" || (val >= 0 && val <= 59)) {
+                        setEditSeconds(e.target.value);
+                      }
+                    }}
+                    style={{ 
+                      padding: "0.4rem", 
+                      width: "100%",
+                      fontSize: "0.9rem",
+                      border: "1px solid #ccc",
+                      borderRadius: "3px"
+                    }}
+                  />
+                </div>
+              </div>
               <textarea
                 placeholder="Notes (optional)"
                 value={editNotes}
@@ -328,7 +377,7 @@ export default function HostPanel({
                   style={{
                     flex: 1,
                     padding: "0.4rem",
-                    backgroundColor: "#28a745",
+                    backgroundColor: "var(--color-primary)",
                     color: "white",
                     border: "none",
                     borderRadius: "3px",
@@ -365,7 +414,7 @@ export default function HostPanel({
               fontSize: "0.85rem"
             }}>
               <div style={{ fontWeight: "bold", marginBottom: "0.25rem" }}>
-                {item.title} ({item.durationSec}s)
+                {item.title} ({formatTime(item.durationSec)})
               </div>
               <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
                 {state.activeAgendaId !== item.id && (
@@ -403,7 +452,7 @@ export default function HostPanel({
                   style={{ 
                     padding: "0.2rem 0.4rem",
                     fontSize: "0.75rem",
-                    backgroundColor: "#dc3545",
+                    backgroundColor: "var(--color-destructive)",
                     color: "white",
                     border: "none",
                     borderRadius: "3px",
@@ -436,20 +485,46 @@ export default function HostPanel({
               borderRadius: "3px"
             }}
           />
-          <input
-            placeholder="Duration (sec)"
-            type="number"
-            value={newAgendaDuration}
-            onChange={(e) => setNewAgendaDuration(e.target.value)}
-            style={{ 
-              padding: "0.4rem", 
-              width: "100%",
-              marginBottom: "0.5rem",
-              fontSize: "0.9rem",
-              border: "1px solid #ccc",
-              borderRadius: "3px"
-            }}
-          />
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <div style={{ flex: 1 }}>
+              <input
+                placeholder="Minutes"
+                type="number"
+                min="0"
+                value={newAgendaMinutes}
+                onChange={(e) => setNewAgendaMinutes(e.target.value)}
+                style={{ 
+                  padding: "0.4rem", 
+                  width: "100%",
+                  fontSize: "0.9rem",
+                  border: "1px solid #ccc",
+                  borderRadius: "3px"
+                }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <input
+                placeholder="Seconds (0-59)"
+                type="number"
+                min="0"
+                max="59"
+                value={newAgendaSeconds}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (e.target.value === "" || (val >= 0 && val <= 59)) {
+                    setNewAgendaSeconds(e.target.value);
+                  }
+                }}
+                style={{ 
+                  padding: "0.4rem", 
+                  width: "100%",
+                  fontSize: "0.9rem",
+                  border: "1px solid #ccc",
+                  borderRadius: "3px"
+                }}
+              />
+            </div>
+          </div>
           <textarea
             placeholder="Notes (optional)"
             value={newAgendaNotes}
@@ -468,16 +543,24 @@ export default function HostPanel({
           <button
             onClick={() => {
               if (newAgendaTitle) {
-                onAddAgenda(newAgendaTitle, Number(newAgendaDuration) || 0, newAgendaNotes);
+                // Convert minutes and seconds to total seconds
+                const mins = parseInt(newAgendaMinutes) || 0;
+                const secs = parseInt(newAgendaSeconds) || 0;
+                // Validate seconds range
+                const validSecs = Math.max(0, Math.min(59, secs));
+                const totalSeconds = mins * 60 + validSecs;
+                
+                onAddAgenda(newAgendaTitle, totalSeconds, newAgendaNotes);
                 setNewAgendaTitle("");
-                setNewAgendaDuration("");
+                setNewAgendaMinutes("");
+                setNewAgendaSeconds("");
                 setNewAgendaNotes("");
               }
             }}
             style={{
               width: "100%",
               padding: "0.5rem",
-              backgroundColor: "#28a745",
+              backgroundColor: "var(--color-primary)",
               color: "white",
               border: "none",
               borderRadius: "3px",
@@ -505,7 +588,7 @@ export default function HostPanel({
             style={{
               width: "100%",
               padding: "0.5rem",
-              backgroundColor: "#dc3545",
+              backgroundColor: "var(--color-destructive)",
               color: "white",
               border: "none",
               borderRadius: "3px",

@@ -1,4 +1,5 @@
 import React from "react";
+import BrandHeader from "./BrandHeader.jsx";
 
 export default function TopBar({ 
   roomId, 
@@ -12,7 +13,7 @@ export default function TopBar({
     switch (connectionStatus) {
       case "connected": return "#4caf50";
       case "reconnecting": return "#ff9800";
-      case "disconnected": return "#f44336";
+      case "disconnected": return "var(--color-destructive)";
       default: return "#9e9e9e";
     }
   };
@@ -30,8 +31,8 @@ export default function TopBar({
     <div style={{
       position: "sticky",
       top: 0,
-      backgroundColor: "#ffffff",
-      borderBottom: "2px solid #dee2e6",
+      backgroundColor: "var(--color-background)",
+      borderBottom: "2px solid var(--color-primary)",
       padding: "1rem 1.5rem",
       display: "flex",
       justifyContent: "space-between",
@@ -40,33 +41,7 @@ export default function TopBar({
       boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
     }}>
       {/* Left: Logo + Branding */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-        <img 
-          src="/src/League Meeting App Logo.png" 
-          alt="League Meeting App" 
-          style={{ height: "40px", width: "auto" }}
-          onError={(e) => {
-            // Fallback if logo doesn't load
-            e.target.style.display = "none";
-          }}
-        />
-        <div>
-          <div style={{ 
-            fontSize: "1.2rem", 
-            fontWeight: "bold",
-            color: "#333"
-          }}>
-            East v. West — League Meeting
-          </div>
-          <div style={{ 
-            fontSize: "0.85rem", 
-            color: "#666",
-            marginTop: "2px"
-          }}>
-            Room: <strong>{roomId}</strong>
-          </div>
-        </div>
-      </div>
+      <BrandHeader showRoomInfo={true} roomId={roomId} />
 
       {/* Right: Status + Role + Toggle */}
       <div style={{ 
@@ -97,7 +72,7 @@ export default function TopBar({
         {/* Role Badge */}
         <div style={{
           padding: "0.4rem 0.8rem",
-          backgroundColor: isHost && !viewAsAttendee ? "#28a745" : "#6c757d",
+          backgroundColor: isHost && !viewAsAttendee ? "var(--color-primary)" : "#6c757d",
           color: "white",
           borderRadius: "20px",
           fontSize: "0.85rem",
@@ -115,11 +90,11 @@ export default function TopBar({
             cursor: "pointer",
             fontSize: "0.85rem",
             fontWeight: "500",
-            color: "#333",
+            color: "var(--color-text)",
             padding: "0.4rem 0.8rem",
             backgroundColor: "#e7f3ff",
             borderRadius: "20px",
-            border: "1px solid #0066cc",
+            border: `1px solid var(--color-primary)`,
             userSelect: "none"
           }}>
             <input
