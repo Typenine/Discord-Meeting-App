@@ -12,8 +12,7 @@ export default function RoomLayout({
 }) {
   if (!state) {
     return (
-      <div className="flex items-center text-center" style={{
-        justifyContent: "center",
+      <div className="flex items-center justify-center text-center" style={{
         height: "calc(100vh - var(--topbar-height))"
       }}>
         <div className="text-muted" style={{ fontSize: "var(--font-size-lg)" }}>
