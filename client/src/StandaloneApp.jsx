@@ -156,6 +156,8 @@ export default function StandaloneApp() {
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     
+    // TODO: Remove debug logging after verifying fix on Vercel (see VIEWER_POPOUT_FIX.md)
+    // Note: This is intentionally logging sensitive data for debugging 404 issues
     console.log('[DEBUG URL PARSING]', {
       fullUrl: window.location.href,
       pathname: path,

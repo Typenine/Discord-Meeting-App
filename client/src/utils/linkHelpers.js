@@ -28,6 +28,7 @@ export function getLinkBaseUrl() {
 export function generateViewerLink(roomId) {
   const baseUrl = getLinkBaseUrl();
   const viewerLink = `${baseUrl}/${roomId}`;
+  // TODO: Remove debug logging after verifying fix on Vercel (see VIEWER_POPOUT_FIX.md)
   console.log('[DEBUG VIEWER LINK]', {
     roomId,
     baseUrl,
@@ -63,6 +64,8 @@ export function openPopoutWindow(roomId, hostKey) {
   // Always open as attendee view with popout flag
   const url = `${baseUrl}/${roomId}?popout=1&as=attendee${hostKey ? `&hostKey=${hostKey}` : ''}`;
   
+  // TODO: Remove debug logging after verifying fix on Vercel (see VIEWER_POPOUT_FIX.md)
+  // Note: This is intentionally logging sensitive data for debugging 404 issues
   console.log('[DEBUG POPOUT]', {
     roomId,
     hostKey: hostKey ? '***' : '(none)',
