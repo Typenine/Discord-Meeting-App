@@ -18,6 +18,5 @@
     }
   ],
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "trailingSlash": false
+  "outputDirectory": "dist"
 }
