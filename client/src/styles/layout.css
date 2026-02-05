@@ -655,10 +655,6 @@
   display: none;
 }
 
-.isPopout .timelinePanel {
-  display: none;
-}
-
 .isPopout .votingSection {
   display: none;
 }
@@ -739,17 +735,20 @@
   letter-spacing: 1px;
 }
 
-.isPopout .agendaTimeline {
-  /* Only show first item (next up) */
+.isPopout .timelinePanel .sectionTitle::after {
+  content: " — Next Up";
 }
 
+/* Hide all timeline items by default in popout */
 .isPopout .timelineItem {
+  display: none;
   padding: var(--spacing-sm);
   margin-bottom: var(--spacing-xs);
 }
 
-.isPopout .timelineItem:not(:first-child) {
-  display: none; /* Hide all except first item */
+/* Show only the item immediately following the active one */
+.isPopout .timelineItem.active + .timelineItem {
+  display: block;
 }
 
 .isPopout .timelineItemTitle {
