@@ -30,7 +30,7 @@ export default function RoomLayout({
       flex: 1,
       overflowY: "auto",
       padding: "1.5rem",
-      backgroundColor: "#ffffff"
+      backgroundColor: "var(--color-background)"
     }}>
       {/* Main Content Grid */}
       <div style={{
@@ -49,7 +49,7 @@ export default function RoomLayout({
           <h2 style={{ 
             marginTop: 0, 
             marginBottom: "1rem",
-            color: "#333",
+            color: "var(--color-text)",
             fontSize: "1.5rem"
           }}>
             Current Agenda Item
@@ -62,7 +62,7 @@ export default function RoomLayout({
                 <div style={{
                   padding: "1rem",
                   backgroundColor: "#fff3cd",
-                  border: "2px solid #ffc107",
+                  border: `2px solid var(--color-accent)`,
                   borderRadius: "6px",
                   marginBottom: "1rem"
                 }}>
@@ -70,7 +70,7 @@ export default function RoomLayout({
                     fontSize: "1.3rem", 
                     fontWeight: "bold",
                     marginBottom: "0.5rem",
-                    color: "#333"
+                    color: "var(--color-text)"
                   }}>
                     {activeItem.title}
                   </div>
@@ -90,7 +90,7 @@ export default function RoomLayout({
                     marginTop: "0.5rem",
                     fontWeight: "500"
                   }}>
-                    Duration: {activeItem.durationSec} seconds
+                    Duration: {formatTime(activeItem.durationSec)}
                   </div>
                 </div>
                 
@@ -98,7 +98,7 @@ export default function RoomLayout({
                 <div style={{
                   padding: "2rem",
                   backgroundColor: state.timer.running ? "#d1ecf1" : "#ffffff",
-                  border: `3px solid ${state.timer.running ? "#0c5460" : "#dee2e6"}`,
+                  border: `3px solid ${state.timer.running ? "var(--color-primary)" : "#dee2e6"}`,
                   borderRadius: "8px",
                   textAlign: "center"
                 }}>
@@ -106,7 +106,7 @@ export default function RoomLayout({
                     fontSize: "4rem", 
                     fontWeight: "bold", 
                     fontFamily: "monospace",
-                    color: state.timer.running && localTimer < 10 ? "#dc3545" : "#333",
+                    color: state.timer.running && localTimer < 10 ? "var(--color-destructive)" : "var(--color-text)",
                     marginBottom: "0.5rem"
                   }}>
                     {formatTime(localTimer)}
@@ -179,7 +179,7 @@ export default function RoomLayout({
                   marginBottom: "0.75rem",
                   padding: "1rem",
                   backgroundColor: state.activeAgendaId === item.id ? "#fff3cd" : "#ffffff",
-                  border: `2px solid ${state.activeAgendaId === item.id ? "#ffc107" : "#dee2e6"}`,
+                  border: `2px solid ${state.activeAgendaId === item.id ? "var(--color-accent)" : "#dee2e6"}`,
                   borderRadius: "6px"
                 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem" }}>
@@ -187,7 +187,7 @@ export default function RoomLayout({
                       minWidth: "30px",
                       height: "30px",
                       borderRadius: "50%",
-                      backgroundColor: state.activeAgendaId === item.id ? "#ffc107" : "#6c757d",
+                      backgroundColor: state.activeAgendaId === item.id ? "var(--color-accent)" : "#6c757d",
                       color: "white",
                       display: "flex",
                       alignItems: "center",
@@ -202,7 +202,7 @@ export default function RoomLayout({
                         fontWeight: "bold", 
                         fontSize: "1.1rem",
                         marginBottom: "0.25rem",
-                        color: "#333"
+                        color: "var(--color-text)"
                       }}>
                         {item.title}
                       </div>
@@ -211,7 +211,7 @@ export default function RoomLayout({
                         color: "#666",
                         marginBottom: "0.25rem"
                       }}>
-                        Duration: {item.durationSec} seconds
+                        Duration: {formatTime(item.durationSec)}
                       </div>
                       {item.notes && (
                         <div style={{ 
@@ -227,12 +227,12 @@ export default function RoomLayout({
                         <div style={{
                           marginTop: "0.5rem",
                           padding: "0.25rem 0.75rem",
-                          backgroundColor: "#ffc107",
+                          backgroundColor: "var(--color-accent)",
                           borderRadius: "20px",
                           display: "inline-block",
                           fontSize: "0.85rem",
                           fontWeight: "bold",
-                          color: "#000"
+                          color: "white"
                         }}>
                           ⭐ ACTIVE NOW
                         </div>

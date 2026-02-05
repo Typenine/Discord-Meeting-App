@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import BrandHeader from "./components/BrandHeader.jsx";
 
 // Determine API base for HTTP polling.
 const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
@@ -204,6 +205,12 @@ export default function App() {
       clearInterval(interval);
     };
   }, [status, sessionId, revision, userId]);
+
+  // Update document title dynamically (note: App.jsx doesn't have timer support like StandaloneApp)
+  useEffect(() => {
+    // Just set default title for now - full timer support would need more state
+    document.title = "East v. West League Meeting";
+  }, []);
 
   const startMeeting = async () => {
     try {
@@ -581,18 +588,83 @@ export default function App() {
       
       {status === "init" && (
         <div>
-          <h2>Join or Start Meeting</h2>
-          <div>
-            <label>Your name:</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
-          <div style={{ marginTop: "0.5rem" }}>
-            <button onClick={startMeeting} disabled={!username}>Start new meeting</button>
-          </div>
-          <div style={{ marginTop: "0.5rem" }}>
-            <label>Meeting ID:</label>
-            <input value={sessionInput} onChange={(e) => setSessionInput(e.target.value)} />
-            <button onClick={joinMeeting} disabled={!username || !sessionInput}>Join meeting</button>
+          <BrandHeader />
+          <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
+            <h2 style={{ color: "var(--color-primary)", marginBottom: "1.5rem" }}>Join or Start Meeting</h2>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Your name:</label>
+              <input 
+                value={username} 
+                onChange={(e) => setUsername(e.target.value)} 
+                style={{ 
+                  width: "100%", 
+                  padding: "0.5rem", 
+                  fontSize: "1rem",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px"
+                }}
+              />
+            </div>
+            <div style={{ marginTop: "1rem" }}>
+              <button 
+                onClick={startMeeting} 
+                disabled={!username}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  backgroundColor: "var(--color-primary)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: username ? "pointer" : "not-allowed",
+                  opacity: username ? 1 : 0.5
+                }}
+              >
+                Start new meeting
+              </button>
+            </div>
+            <div style={{ 
+              margin: "2rem 0", 
+              textAlign: "center", 
+              color: "#666",
+              fontSize: "0.9rem"
+            }}>
+              — OR —
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Meeting ID:</label>
+              <input 
+                value={sessionInput} 
+                onChange={(e) => setSessionInput(e.target.value)}
+                style={{ 
+                  width: "100%", 
+                  padding: "0.5rem", 
+                  fontSize: "1rem",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px"
+                }}
+              />
+            </div>
+            <button 
+              onClick={joinMeeting} 
+              disabled={!username || !sessionInput}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                fontSize: "1rem",
+                fontWeight: "bold",
+                backgroundColor: "var(--color-accent)",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: (username && sessionInput) ? "pointer" : "not-allowed",
+                opacity: (username && sessionInput) ? 1 : 0.5
+              }}
+            >
+              Join meeting
+            </button>
           </div>
         </div>
       )}
