@@ -232,7 +232,7 @@ export default function RoomLayout({
                           display: "inline-block",
                           fontSize: "0.85rem",
                           fontWeight: "bold",
-                          color: "#fff"
+                          color: "white"
                         }}>
                           ⭐ ACTIVE NOW
                         </div>

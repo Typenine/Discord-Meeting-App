@@ -3,6 +3,7 @@ import TopBar from "./components/TopBar.jsx";
 import RoomLayout from "./components/RoomLayout.jsx";
 import HostPanel from "./components/HostPanel.jsx";
 import BrandHeader from "./components/BrandHeader.jsx";
+import { formatTime } from "./utils/timeFormat.js";
 
 // Standalone Meeting App - connects to Cloudflare Worker via WebSocket
 // Supports room + hostKey authentication model
@@ -464,10 +465,8 @@ export default function StandaloneApp() {
       // Find active agenda item
       const activeItem = state.agenda.find(item => item.id === state.activeAgendaId);
       if (activeItem) {
-        // Format timer as MM:SS
-        const mins = Math.floor(localTimer / 60);
-        const secs = localTimer % 60;
-        const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        // Format timer as MM:SS using shared utility
+        const timeStr = formatTime(localTimer);
         document.title = `${timeStr} – ${activeItem.title}`;
         return;
       }
@@ -558,13 +557,6 @@ export default function StandaloneApp() {
   // Attendee actions
   const castVote = (optionId) => {
     sendMessage({ type: "VOTE_CAST", optionId });
-  };
-
-  // Format seconds to MM:SS
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (

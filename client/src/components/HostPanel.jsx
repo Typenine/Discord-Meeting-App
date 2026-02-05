@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { formatTime } from "../utils/timeFormat.js";
 
 export default function HostPanel({ 
   state, 
@@ -20,13 +21,6 @@ export default function HostPanel({
   const [newAgendaTitle, setNewAgendaTitle] = useState("");
   const [newAgendaMinutes, setNewAgendaMinutes] = useState("");
   const [newAgendaSeconds, setNewAgendaSeconds] = useState("");
-
-  // Helper function to format seconds as MM:SS
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
   const [newAgendaNotes, setNewAgendaNotes] = useState("");
   const [editingItemId, setEditingItemId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
