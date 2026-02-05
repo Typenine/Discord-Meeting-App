@@ -605,7 +605,7 @@ export default function App() {
                 <button 
                   className="btn btnAccent btnLarge btnFull"
                   style={{ marginTop: "var(--spacing-xl)" }}
-                  onClick={joinMeeting} 
+                  onClick={() => joinMeeting()} 
                   disabled={!username || !sessionInput}
                 >
                   Join Meeting
