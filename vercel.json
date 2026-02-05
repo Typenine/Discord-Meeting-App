@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "rewrites": [
     {
       "source": "/health",
@@ -9,11 +10,11 @@
       "destination": "/api/health"
     },
     {
-      "source": "/proxy/api/:path*",
-      "destination": "/api/:path*"
+      "source": "/proxy/api/(.*)",
+      "destination": "/api/$1"
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],

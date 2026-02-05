@@ -18,31 +18,19 @@ The `vercel.json` configuration was using regex syntax `(.*)` for the catch-all 
 
 ## Solution Implemented
 
-### 1. Updated vercel.json Rewrites
-**Changed from:**
-```json
-{
-  "source": "/(.*)",
-  "destination": "/index.html"
-}
-```
+### Critical Fix: Disable Framework Detection
 
-**To:**
-```json
-{
-  "source": "/:path*",
-  "destination": "/index.html"
-}
-```
+Added `"framework": null` to `vercel.json` to explicitly disable Vercel's framework auto-detection:
 
-**Full configuration:**
+**vercel.json:**
 ```json
 {
+  "framework": null,
   "rewrites": [
     { "source": "/health", "destination": "/api/health" },
     { "source": "/proxy/health", "destination": "/api/health" },
-    { "source": "/proxy/api/:path*", "destination": "/api/:path*" },
-    { "source": "/:path*", "destination": "/index.html" }
+    { "source": "/proxy/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "buildCommand": "npm run build",
   "outputDirectory": "dist"
@@ -50,10 +38,16 @@ The `vercel.json` configuration was using regex syntax `(.*)` for the catch-all 
 ```
 
 **Why this works:**
-- `:path*` is Vercel's preferred syntax for catch-all patterns
-- More reliable than regex patterns
-- Matches any path including `/{roomId}`, `/{roomId}?popout=1`, etc.
-- Properly rewrites to `/index.html` for SPA routing
+- `"framework": null` tells Vercel to use the "Other" preset instead of auto-detecting Vite
+- The "Other" preset respects custom `vercel.json` configuration
+- Rewrites are now processed correctly in order:
+  1. Specific routes first (`/health`, `/proxy/*`)
+  2. Catch-all `/(.*)" last (routes everything else to index.html)
+  3. `/api/*` still handled automatically as serverless functions (before rewrites)
+
+### Rewrite Pattern
+
+Using the proven `/(.*)" regex pattern as recommended by Vercel community for SPA routing. This is the standard pattern used in Vercel documentation and community solutions.
 
 ### 2. Added Temporary Debug Logging
 
