@@ -1,0 +1,168 @@
+/* =====================================================
+   HOST PANEL - CONTROL ROOM AESTHETIC
+   ===================================================== */
+
+/* Main Host Panel Container */
+.hostPanel {
+  width: 380px;
+  height: calc(100vh - var(--topbar-height));
+  background: var(--color-surface-elevated);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Header */
+.hostPanelHeader {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-glass);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.hostPanelTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Scrollable Content Area */
+.hostPanelContent {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--spacing-xl);
+}
+
+/* Custom scrollbar for control room aesthetic */
+.hostPanelContent::-webkit-scrollbar {
+  width: 8px;
+}
+
+.hostPanelContent::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.hostPanelContent::-webkit-scrollbar-thumb {
+  background: var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.hostPanelContent::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border);
+}
+
+/* Section Labels */
+.sectionLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--spacing-sm);
+  opacity: 0.7;
+}
+
+/* Agenda Item Styles */
+.agendaItem {
+  padding: var(--spacing-md);
+  background: var(--color-glass);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.agendaItem:hover {
+  border-color: var(--color-border);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.agendaItem.active {
+  border-color: var(--color-accent);
+  background: rgba(191, 153, 68, 0.15);
+  box-shadow: 0 0 12px rgba(191, 153, 68, 0.2);
+}
+
+.agendaItemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.agendaItemTitle {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  flex: 1;
+  font-size: var(--font-size-sm);
+}
+
+.agendaItemActions {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+/* Agenda Item Edit Mode */
+.agendaItemEdit {
+  padding: var(--spacing-md);
+  background: rgba(191, 153, 68, 0.1);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 16px rgba(191, 153, 68, 0.2);
+}
+
+/* Agenda Item Add Section */
+.agendaItemAdd {
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+/* Timer Button Group */
+.timerButtonGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+/* Collapsed State */
+.hostPanelCollapsed {
+  position: fixed;
+  top: calc(var(--topbar-height) + var(--spacing-lg));
+  right: var(--spacing-lg);
+  z-index: 50;
+}
+
+.hostPanelCollapsed .btn {
+  box-shadow: var(--shadow-lg), var(--shadow-glow-blue);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .hostPanel {
+    width: 340px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hostPanel {
+    position: fixed;
+    top: var(--topbar-height);
+    right: 0;
+    width: 100%;
+    max-width: 400px;
+    z-index: 60;
+  }
+}
