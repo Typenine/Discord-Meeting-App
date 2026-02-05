@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import logo from "../assets/league-meeting-logo.png";
 
 export default function TopBar({ 
@@ -13,6 +13,8 @@ export default function TopBar({
   onPopoutClick = null,
   hidePopoutButton = false
 }) {
+  const [showDebug, setShowDebug] = useState(false);
+  
   const getStatusClass = () => {
     switch (connectionStatus) {
       case "connected": return "pill-success";
@@ -86,13 +88,23 @@ export default function TopBar({
 
           {/* Popout Button */}
           {onPopoutClick && !hidePopoutButton && (
-            <button
-              onClick={onPopoutClick}
-              className="btn btnGhost btnSmall"
-              title="Open mini-view in popout window"
-            >
-              🪟 Popout
-            </button>
+            <>
+              <button
+                onClick={onPopoutClick}
+                className="btn btnGhost btnSmall"
+                title="Open mini-view in popout window"
+              >
+                🪟 Popout
+              </button>
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                className="btn btnGhost btnSmall"
+                title="Toggle debug info"
+                style={{ padding: "0 var(--spacing-sm)" }}
+              >
+                🔍
+              </button>
+            </>
           )}
 
           {/* View as Attendee Toggle */}
@@ -108,6 +120,48 @@ export default function TopBar({
           )}
         </div>
       </div>
+      
+      {/* Debug Info Popup for Popout Investigation */}
+      {showDebug && onPopoutClick && (
+        <div style={{
+          position: "fixed",
+          top: "60px",
+          right: "10px",
+          backgroundColor: "rgba(0, 0, 0, 0.95)",
+          border: "2px solid orange",
+          borderRadius: "var(--radius-md)",
+          padding: "var(--spacing-md)",
+          zIndex: 1000,
+          fontSize: "var(--font-size-xs)",
+          fontFamily: "var(--font-family-mono)",
+          maxWidth: "500px",
+          color: "white"
+        }}>
+          <div style={{ 
+            fontWeight: "var(--font-weight-bold)", 
+            marginBottom: "var(--spacing-sm)",
+            color: "orange"
+          }}>
+            🔍 POPOUT DEBUG INFO
+          </div>
+          <div style={{ lineHeight: 1.6 }}>
+            <div><strong>window.location.origin:</strong> {window.location.origin}</div>
+            <div><strong>window.location.pathname:</strong> {window.location.pathname}</div>
+            <div><strong>window.location.href:</strong> {window.location.href}</div>
+            <div><strong>Room ID:</strong> {roomId || '(not set)'}</div>
+            <div style={{ marginTop: "var(--spacing-sm)", opacity: 0.7 }}>
+              Popout will open: {window.location.origin}/?room={roomId}&mode=popout&as=attendee
+            </div>
+          </div>
+          <button
+            onClick={() => setShowDebug(false)}
+            className="btn btnGhost btnSmall"
+            style={{ marginTop: "var(--spacing-sm)", width: "100%" }}
+          >
+            Close
+          </button>
+        </div>
+      )}
     </div>
   );
 }

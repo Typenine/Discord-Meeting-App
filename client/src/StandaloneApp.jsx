@@ -151,23 +151,25 @@ export default function StandaloneApp() {
   const timePingIntervalRef = useRef(null);
   const localTimerIntervalRef = useRef(null);
 
-  // Parse URL on mount - support both /:roomId and /room/:roomId patterns
+  // Parse URL on mount - support multiple URL patterns for flexibility
   useEffect(() => {
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     
-    // TODO: Remove debug logging after verifying fix on Vercel (see VIEWER_POPOUT_FIX.md)
-    // Note: This is intentionally logging sensitive data for debugging 404 issues
-    console.log('[DEBUG URL PARSING]', {
-      fullUrl: window.location.href,
-      pathname: path,
-      search: window.location.search,
-      origin: window.location.origin
-    });
+    // DEBUG: Enhanced logging for Vercel 404 investigation
+    console.group('🔍 [URL PARSING DEBUG]');
+    console.log('Full URL:', window.location.href);
+    console.log('Origin:', window.location.origin);
+    console.log('Pathname:', path);
+    console.log('Search:', window.location.search);
+    console.groupEnd();
     
-    // Extract roomId from path: /:roomId or /room/:roomId
-    let urlRoomId = null;
-    if (path && path !== '/') {
+    // Extract roomId - Priority: query param > path-based
+    // This ensures /?room=X works reliably on Vercel
+    let urlRoomId = params.get("room");
+    
+    // Fallback: Extract from path /:roomId or /room/:roomId for backward compatibility
+    if (!urlRoomId && path && path !== '/') {
       const pathParts = path.split('/').filter(Boolean);
       if (pathParts.length === 1) {
         // Pattern: /:roomId
@@ -178,21 +180,19 @@ export default function StandaloneApp() {
       }
     }
     
-    // Also check query param for backward compatibility
-    if (!urlRoomId) {
-      urlRoomId = params.get("room");
-    }
-    
     const urlHostKey = params.get("hostKey");
-    const isPopout = params.get("popout") === '1';
+    const mode = params.get("mode");
+    // Support both ?mode=popout and legacy ?popout=1
+    const isPopout = mode === 'popout' || params.get("popout") === '1';
     const asMode = params.get("as");
     
-    console.log('[DEBUG URL PARSED]', {
-      urlRoomId,
-      urlHostKey: urlHostKey ? '***' : '(none)',
-      isPopout,
-      asMode
-    });
+    console.group('🔍 [PARSED URL PARAMS]');
+    console.log('Room ID:', urlRoomId || '(none)');
+    console.log('Host Key:', urlHostKey ? '***PRESENT***' : '(none)');
+    console.log('Mode:', mode || '(none)');
+    console.log('Popout Mode:', isPopout);
+    console.log('As Mode:', asMode || '(none)');
+    console.groupEnd();
     
     // Check if URL specifies attendee view mode
     const forceAttendeeView = isAttendeeViewMode();
@@ -277,8 +277,8 @@ export default function StandaloneApp() {
   // Start meeting after showing links - navigate to room URL
   const startMeeting = () => {
     setShowLinks(false);
-    // Update URL to room path with hostKey
-    const newUrl = `${window.location.origin}/${roomId}?hostKey=${hostKey}`;
+    // Update URL using query params for consistency with share links
+    const newUrl = `${window.location.origin}/?room=${roomId}&hostKey=${hostKey}&mode=host`;
     window.history.pushState({}, '', newUrl);
     // Connect to room
     connectToRoom(roomId, hostKey);

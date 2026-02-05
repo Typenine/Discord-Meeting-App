@@ -1,5 +1,5 @@
 import React from "react";
-import { generateViewerLink, generateHostLink } from "../utils/linkHelpers.js";
+import { generateViewerLink, generateHostLink, getLinkBaseUrl } from "../utils/linkHelpers.js";
 
 export default function ShareModal({ 
   roomId, 
@@ -9,6 +9,16 @@ export default function ShareModal({
 }) {
   const viewerUrl = generateViewerLink(roomId);
   const hostUrl = hostKey ? generateHostLink(roomId, hostKey) : null;
+  
+  // Debug info for Vercel 404 investigation
+  const debugInfo = {
+    windowOrigin: window.location.origin,
+    windowPathname: window.location.pathname,
+    windowHref: window.location.href,
+    baseUrl: getLinkBaseUrl(),
+    viewerUrl,
+    hostUrl: hostUrl || '(not set)'
+  };
 
   const copyToClipboard = async (text, label) => {
     try {
@@ -121,6 +131,41 @@ export default function ShareModal({
               </div>
             </div>
           )}
+          
+          {/* Debug Info Section for Vercel 404 Investigation */}
+          <div style={{
+            marginTop: "var(--spacing-xl)",
+            padding: "var(--spacing-md)",
+            backgroundColor: "rgba(255, 165, 0, 0.1)",
+            border: "1px solid rgba(255, 165, 0, 0.5)",
+            borderRadius: "var(--radius-md)",
+            fontSize: "var(--font-size-xs)",
+            fontFamily: "var(--font-family-mono)"
+          }}>
+            <div style={{ 
+              fontWeight: "var(--font-weight-bold)", 
+              marginBottom: "var(--spacing-sm)",
+              color: "orange"
+            }}>
+              🔍 DEBUG INFO (Vercel 404 Investigation)
+            </div>
+            <div style={{ lineHeight: 1.6 }}>
+              <div><strong>window.location.origin:</strong> {debugInfo.windowOrigin}</div>
+              <div><strong>window.location.pathname:</strong> {debugInfo.windowPathname}</div>
+              <div><strong>window.location.href:</strong> {debugInfo.windowHref}</div>
+              <div><strong>Base URL (getLinkBaseUrl):</strong> {debugInfo.baseUrl}</div>
+              <div><strong>Generated Viewer URL:</strong> {debugInfo.viewerUrl}</div>
+              {isHost && <div><strong>Generated Host URL:</strong> {debugInfo.hostUrl}</div>}
+            </div>
+            <div style={{ 
+              marginTop: "var(--spacing-sm)", 
+              fontSize: "var(--font-size-xs)", 
+              opacity: 0.7,
+              fontStyle: "italic"
+            }}>
+              Check browser DevTools Network tab for x-meeting-config: 1 header
+            </div>
+          </div>
           
           <button
             onClick={onClose}

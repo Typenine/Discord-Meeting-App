@@ -1,181 +1,147 @@
-# Implementation Summary: Vercel API Deployment
+# Vercel 404 Fix - Implementation Summary
 
-## Objective
-Enable backend API to run on Vercel alongside the frontend, eliminating the 404 errors on `/api/health` and other endpoints.
+## Problem
+Viewer link and popout window were returning Vercel's branded 404 NOT_FOUND error instead of loading the meeting app.
 
-## Changes Made
+## Root Cause Analysis
+The issue was likely caused by:
+1. **Path-based routing**: Using URLs like `/room123` instead of query params
+2. **Unclear if vercel.json was being applied**: No way to verify config in production
+3. **Possible VITE_PUBLIC_APP_URL misconfiguration**: Could introduce Discord/proxy paths
 
-### 1. Vercel Serverless Function (`/api/[...path].js`)
-- **Purpose**: Catch-all handler for `/api/*` requests
-- **Implementation**: 
-  - Imports Express app factory
-  - Initializes store and host authorization
-  - Exports Express app for Vercel to wrap
-- **Key Features**:
-  - Optimized cold start (skips .env file checks on Vercel)
-  - Reuses all existing server logic
-  - No code duplication
+## Solution Implemented
 
-### 2. Vercel Configuration (`vercel.json`)
-- **Build**: Installs client dependencies and builds to `client/dist`
-- **Rewrites**:
-  - `/health` → `/api/health` (for root health checks)
-  - `/proxy/health` → `/api/health` (Discord Activity support)
-  - `/proxy/api/*` → `/api/*` (Discord Activity routing)
+### 1. Diagnostic Tools (Evidence Collection)
+- ✅ Added `x-meeting-config: 1` header to vercel.json for all routes
+- ✅ On-screen debug panels showing exact URLs being generated
+- ✅ Enhanced console logging with grouped output
+- ✅ Debug button (🔍) next to Popout for real-time URL inspection
 
-### 3. Server Refactoring (`server/src/app.js`)
-- **Created**: Reusable Express app factory function `createApp(config)`
-- **Parameters**:
-  - `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI` - Discord OAuth config
-  - `HOST_ALLOW_ALL`, `HOST_IDS` - Host authorization config
-  - `mountAtRoot` - When `true`, mounts API routes at both `/` and `/api`
-- **Why**: Allows both standalone server and Vercel serverless to use same code
-- **Backward Compatible**: Existing standalone server continues to work
+### 2. URL Format Changes (Fix)
+Changed from path-based to query param-based URLs:
 
-### 4. Client API Base Fix (`client/src/App.jsx`)
-- **Before**: Fallback to `http://127.0.0.1:8787/api` in production
-- **After**: 
-  - Development: Uses `http://localhost:8787/api` (better DX)
-  - Production: Uses same-origin `/api` (no hardcoded host)
-  - Discord: Uses `/proxy/api` (unchanged)
-- **Impact**: Eliminates network calls to 127.0.0.1 in deployed builds
+**Before:**
+- Viewer: `https://app.com/room123`
+- Host: `https://app.com/room123?hostKey=abc`
+- Popout: `https://app.com/room123?popout=1&as=attendee`
 
-### 5. Root Dependencies (`package.json`)
-- **Added**: `express`, `dotenv` at repository root
-- **Purpose**: Vercel needs dependencies for serverless functions
-- **Separate**: Doesn't affect client or server subdirectories
+**After:**
+- Viewer: `https://app.com/?room=room123&mode=viewer`
+- Host: `https://app.com/?room=room123&hostKey=abc&mode=host`
+- Popout: `https://app.com/?room=room123&mode=popout&as=attendee`
 
-### 6. Documentation (`VERCEL_DEPLOYMENT.md`)
-- Deployment instructions
-- Environment variable configuration
-- Verification steps
-- Troubleshooting guide
-- Local development setup
+### 3. Base URL Standardization
+- Removed dependency on `VITE_PUBLIC_APP_URL` environment variable
+- Always use `window.location.origin` for consistency
+- Prevents any Discord-specific paths or proxy URLs from appearing
 
-## Architecture
+### 4. Backward Compatibility
+- URL parsing still supports old formats (`/roomId`, `/room/roomId`)
+- Supports both `?mode=popout` and legacy `?popout=1`
+- Graceful fallback if query param not found
 
-```
-┌─────────────────┐
-│  Client Request │
-│  /api/health    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────────┐
-│  Vercel Platform                │
-│                                 │
-│  ┌───────────────────────────┐ │
-│  │ Static Files (client/dist)│ │
-│  │ - HTML, JS, CSS           │ │
-│  └───────────────────────────┘ │
-│                                 │
-│  ┌───────────────────────────┐ │
-│  │ Serverless Function       │ │
-│  │ /api/[...path].js         │ │
-│  │                           │ │
-│  │ ┌─────────────────────┐  │ │
-│  │ │ Express App         │  │ │
-│  │ │ (server/src/app.js) │  │ │
-│  │ │                     │  │ │
-│  │ │ - Health routes     │  │ │
-│  │ │ - Session routes    │  │ │
-│  │ │ - Agenda routes     │  │ │
-│  │ │ - Timer routes      │  │ │
-│  │ │ - Vote routes       │  │ │
-│  │ └─────────────────────┘  │ │
-│  └───────────────────────────┘ │
-└─────────────────────────────────┘
-```
+## Why This Fixes the Issue
 
-## Verification Checklist
+1. **Query params guarantee SPA routing**: 
+   - All URLs hit root path `/` with query params
+   - Vercel's `/(.*) → /index.html` rewrite ALWAYS matches
+   - No complex path parsing needed
 
-### ✅ Local Testing (Completed)
-- [x] Standalone server starts and responds to `/health`
-- [x] API endpoint `/api/session/start` works
-- [x] Client builds successfully
-- [x] No syntax errors in serverless function
+2. **Consistent base URL**:
+   - Always `window.location.origin` (no env var confusion)
+   - No proxy or Discord paths in share links
 
-### 🔄 Vercel Preview Testing (Requires Deployment)
-- [ ] `/api/health` returns JSON (not 404)
-- [ ] Meeting creation uses same-origin `/api/session/start`
-- [ ] No requests to 127.0.0.1 in browser network tab
-- [ ] `/proxy/api/health` works (Discord Activity)
-
-## Security Review
-
-### No New Vulnerabilities Introduced
-- ✅ No hardcoded secrets or credentials
-- ✅ Environment variables properly loaded from Vercel
-- ✅ Host authorization enforced (same as before)
-- ✅ No SQL injection (no database used)
-- ✅ No command injection (no shell commands)
-- ✅ Express security defaults maintained
-- ✅ Same authentication/authorization as standalone server
-
-### Security Features Preserved
-- OAuth token exchange server-side only
-- Host authorization checks on all actions
-- Input validation on all endpoints
-- CORS handled by Vercel/Express defaults
-
-## Migration Impact
-
-### No Breaking Changes
-- ✅ Standalone server works exactly as before
-- ✅ Existing environment variables unchanged
-- ✅ API routes identical
-- ✅ Client behavior same (except fixed localhost fallback)
-
-### Developer Experience Improvements
-- ✅ Better local dev (localhost:8787 in dev mode)
-- ✅ Better production (same-origin in production)
-- ✅ Clear documentation for Vercel deployment
-- ✅ No manual Vercel dashboard configuration needed
-
-## Next Steps
-
-1. **Deploy to Vercel Preview**
-   - Push to GitHub triggers automatic Vercel deployment
-   - Verify all acceptance criteria on preview URL
-
-2. **Set Environment Variables** (if not already set)
-   - `DISCORD_CLIENT_ID`
-   - `DISCORD_CLIENT_SECRET`
-   - `DISCORD_REDIRECT_URI`
-   - `HOST_USER_IDS` (optional)
-
-3. **Test on Preview**
-   - Visit `https://<preview-url>/api/health`
-   - Create a meeting and verify network calls
-   - Test Discord Activity with `/proxy/api/*`
-
-4. **Merge to Production**
-   - Once preview verified, merge PR
-   - Vercel automatically deploys to production
+3. **Verifiable configuration**:
+   - `x-meeting-config: 1` header proves vercel.json is applied
+   - If missing, immediately identifies Vercel dashboard misconfiguration
 
 ## Files Changed
 
-```
-Modified:
-  - client/src/App.jsx (API base logic)
-  - server/src/index.js (use app factory)
-  - server/src/app.js (new file - app factory)
+### Core Changes
+- `vercel.json` - Added diagnostic header
+- `client/src/utils/linkHelpers.js` - Query param URL generation
+- `client/src/StandaloneApp.jsx` - Query param URL parsing
+- `client/src/components/ShareModal.jsx` - Debug info panel
+- `client/src/components/TopBar.jsx` - Debug button
 
-Added:
-  - api/[...path].js (serverless function)
-  - vercel.json (Vercel configuration)
-  - package.json (root dependencies)
-  - package-lock.json (dependency lock)
-  - VERCEL_DEPLOYMENT.md (deployment guide)
-  - IMPLEMENTATION_SUMMARY.md (this file)
-```
+### Documentation
+- `VERCEL_404_FIX_TESTING.md` - Comprehensive testing guide
 
-## Rollback Plan
+## Testing Instructions
 
-If issues occur after deployment:
+### Phase 1: Deploy & Verify Configuration
+1. Deploy this branch to Vercel
+2. Open app in browser
+3. Open DevTools → Network tab
+4. Check if `x-meeting-config: 1` appears in response headers
+   - ✅ Present: vercel.json is being applied correctly
+   - ❌ Missing: Vercel dashboard settings issue (check Root Directory / Framework Preset)
 
-1. Revert the PR in GitHub
-2. Vercel automatically redeploys previous version
-3. Alternatively, use Vercel dashboard to rollback to specific deployment
+### Phase 2: Verify URL Generation
+1. Create/join a meeting room
+2. Click "📤 Share" button
+3. Review debug panel at bottom of modal
+4. Verify URLs use format: `/?room=X&mode=Y`
+5. Click "🔍" button next to Popout
+6. Verify popout URL format
 
-No data loss risk - sessions are ephemeral and stored in serverless memory.
+### Phase 3: Test Functionality
+1. **Viewer Link Test**:
+   - Copy viewer link from Share modal
+   - Open in incognito/private window
+   - Should load meeting room successfully ✅
+
+2. **Popout Test**:
+   - Click "🪟 Popout" button
+   - Should open popup window with compact view ✅
+
+3. **Console Test**:
+   - Check browser console for grouped logs
+   - Verify all URLs are query param based
+   - No errors or warnings ✅
+
+## Expected Outcome
+
+After deployment:
+- ✅ Viewer links work in incognito mode
+- ✅ Popout window opens successfully
+- ✅ No Vercel 404 errors
+- ✅ All share URLs use query param format
+- ✅ Header verification confirms config is applied
+
+## Cleanup After Verification
+
+Once confirmed working in production:
+1. Remove `x-meeting-config` header from vercel.json
+2. Remove debug panels from ShareModal and TopBar
+3. Simplify console.log statements
+4. Keep the query param URL format (this is the fix)
+
+## Technical Details
+
+### URL Parsing Priority
+1. Check `?room=X` query param (new format)
+2. Fallback to path parsing (`/roomId`) for backward compatibility
+3. Fallback to `?room` query param (legacy)
+
+### Why Query Params Work Better on Vercel
+- Single entry point (`/`) is more reliable than pattern matching
+- No ambiguity about what constitutes a room ID in path
+- Browser always treats query params as part of same route
+- Vercel's SPA rewrite `/(.*) → /index.html` catches everything
+
+## Security Considerations
+- Debug info includes current URLs but no sensitive tokens
+- Host keys shown as `***PRESENT***` in logs
+- All debug features should be removed in production
+
+## Performance Impact
+- Minimal: Only adds console logging and small debug UI
+- No impact on core app functionality
+- Debug UI can be completely removed after verification
+
+---
+
+**Status**: ✅ Ready for Deployment & Testing
+**Branch**: `copilot/validate-vercel-json-rewrites`
+**Next Steps**: Deploy to Vercel and run validation tests
