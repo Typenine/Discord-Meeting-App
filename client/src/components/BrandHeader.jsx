@@ -1,5 +1,5 @@
 import React from "react";
-import logo from "../logo.png";
+import logo from "../assets/league-meeting-logo.png";
 
 export default function BrandHeader({ showRoomInfo = false, roomId = null }) {
   return (
