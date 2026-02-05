@@ -147,9 +147,10 @@ export default function TopBar({
           <div style={{ lineHeight: 1.6 }}>
             <div><strong>window.location.origin:</strong> {window.location.origin}</div>
             <div><strong>window.location.pathname:</strong> {window.location.pathname}</div>
+            <div><strong>window.location.href:</strong> {window.location.href}</div>
             <div><strong>Room ID:</strong> {roomId || '(not set)'}</div>
             <div style={{ marginTop: "var(--spacing-sm)", opacity: 0.7 }}>
-              Popout will open: {window.location.origin}/{roomId}?popout=1&as=attendee
+              Popout will open: {window.location.origin}/?room={roomId}&mode=popout&as=attendee
             </div>
           </div>
           <button

@@ -14,8 +14,8 @@ export default function ShareModal({
   const debugInfo = {
     windowOrigin: window.location.origin,
     windowPathname: window.location.pathname,
+    windowHref: window.location.href,
     baseUrl: getLinkBaseUrl(),
-    envUrl: import.meta.env.VITE_PUBLIC_APP_URL || '(not set)',
     viewerUrl,
     hostUrl: hostUrl || '(not set)'
   };
@@ -152,8 +152,8 @@ export default function ShareModal({
             <div style={{ lineHeight: 1.6 }}>
               <div><strong>window.location.origin:</strong> {debugInfo.windowOrigin}</div>
               <div><strong>window.location.pathname:</strong> {debugInfo.windowPathname}</div>
+              <div><strong>window.location.href:</strong> {debugInfo.windowHref}</div>
               <div><strong>Base URL (getLinkBaseUrl):</strong> {debugInfo.baseUrl}</div>
-              <div><strong>VITE_PUBLIC_APP_URL:</strong> {debugInfo.envUrl}</div>
               <div><strong>Generated Viewer URL:</strong> {debugInfo.viewerUrl}</div>
               {isHost && <div><strong>Generated Host URL:</strong> {debugInfo.hostUrl}</div>}
             </div>
