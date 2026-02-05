@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm install --prefix client && npm run build --prefix client"
+    "build": "npm install --prefix client && npm run build --prefix client && cp -r client/dist dist && ls -la dist"
   },
   "dependencies": {
     "express": "^4.19.2",
