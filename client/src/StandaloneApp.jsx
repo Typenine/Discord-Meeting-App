@@ -243,20 +243,25 @@ export default function StandaloneApp() {
       setRoomId(urlRoomId);
       if (urlHostKey) {
         setHostKey(urlHostKey);
-        setMode("joining");
-      } else {
-        setMode("joining");
       }
+      // Don't set mode to "joining" yet - wait for username
+      // The auto-connect effect will trigger when username is available
     }
   }, []);
 
-  // Auto-connect when mode is "joining" and username exists (from localStorage or set later)
+  // Auto-connect when we have roomId + username but haven't started connecting yet
+  // This handles both: URL with ?room=X and manual "Join Room" button click
   useEffect(() => {
-    if (mode === "joining" && roomId && username.trim() && connectionStatus === "disconnected") {
-      console.log("[AUTO-CONNECT] Conditions met: mode=joining, roomId=" + roomId + ", username=" + username);
+    // Only auto-connect if:
+    // 1. We have roomId and username
+    // 2. We're in init mode (not already connecting/connected)
+    // 3. Not disconnected due to timeout (user should manually retry)
+    if (roomId && username.trim() && mode === "init" && !connectionTimeout && connectionStatus === "disconnected") {
+      console.log("[AUTO-CONNECT] Initiating connection: roomId=" + roomId + ", username=" + username);
+      setMode("joining"); // Set mode to joining to show connecting UI
       connectToRoom(roomId, hostKey || null);
     }
-  }, [mode, roomId, username, hostKey, connectionStatus]);
+  }, [roomId, username, hostKey, mode, connectionStatus, connectionTimeout]);
 
   // Persist username to localStorage
   useEffect(() => {
@@ -350,6 +355,7 @@ export default function StandaloneApp() {
       return;
     }
     
+    setMode("joining"); // Set mode to show connecting UI
     connectToRoom(roomId, hostKey || null);
   };
 
