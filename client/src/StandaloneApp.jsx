@@ -792,125 +792,83 @@ export default function StandaloneApp() {
       )}
       
       {mode === "init" && (
-        <div style={{ 
-          padding: "2rem", 
-          maxWidth: "800px", 
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh"
-        }}>
+        <div className="homeContainer">
           <BrandHeader />
           
           <h2 style={{ 
-            margin: "2rem 0 2rem 0",
-            color: "#666",
+            margin: "var(--spacing-2xl) 0 0 0",
+            color: "var(--color-muted)",
             fontWeight: "normal",
             textAlign: "center"
           }}>
             Join or Create Meeting
           </h2>
           
-          <div style={{ width: "100%", maxWidth: "400px" }}>
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Your Name:</label>
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your name"
-                style={{ 
-                  padding: "0.75rem", 
-                  width: "100%",
-                  fontSize: "1rem",
-                  border: "1px solid #dee2e6",
-                  borderRadius: "4px"
-                }}
-              />
+          <div className="homeCards">
+            {/* Card 1: Create Meeting */}
+            <div className="card">
+              <div className="cardHeader">
+                <h3>Create New Meeting</h3>
+              </div>
+              <div className="cardBody">
+                <label className="label">Your Name</label>
+                <input
+                  className="input"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your name"
+                />
+                <button
+                  className="btn btnPrimary btnLarge btnFull"
+                  style={{ marginTop: "var(--spacing-xl)" }}
+                  onClick={createRoom}
+                  disabled={!username}
+                >
+                  Create New Meeting Room
+                </button>
+              </div>
             </div>
             
-            <div style={{ marginBottom: "2rem" }}>
-              <button
-                onClick={createRoom}
-                disabled={!username}
-                style={{
-                  padding: "1rem 1.5rem",
-                  backgroundColor: "var(--color-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: username ? "pointer" : "not-allowed",
-                  fontSize: "1.1rem",
-                  fontWeight: "bold",
-                  width: "100%",
-                  opacity: username ? 1 : 0.5
-                }}
-              >
-                Create New Meeting Room
-              </button>
+            {/* Card 2: Join Meeting */}
+            <div className="card">
+              <div className="cardHeader">
+                <h3>Join Existing Meeting</h3>
+              </div>
+              <div className="cardBody">
+                <label className="label">Your Name</label>
+                <input
+                  className="input"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your name"
+                  style={{ marginBottom: "var(--spacing-lg)" }}
+                />
+                <label className="label">Room ID</label>
+                <input
+                  className="input"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  placeholder="Enter room ID"
+                  style={{ marginBottom: "var(--spacing-lg)" }}
+                />
+                <label className="label">Host Key (optional)</label>
+                <input
+                  className="input"
+                  value={hostKey}
+                  onChange={(e) => setHostKey(e.target.value)}
+                  placeholder="Enter host key to control meeting"
+                />
+                <span className="helper">Leave blank to join as attendee</span>
+                <button
+                  className="btn btnAccent btnLarge btnFull"
+                  style={{ marginTop: "var(--spacing-xl)" }}
+                  onClick={joinRoom}
+                  disabled={!username || !roomId}
+                >
+                  Join Room
+                </button>
+              </div>
             </div>
-            
-            <div style={{ 
-              textAlign: "center",
-              margin: "2rem 0",
-              color: "#666",
-              fontWeight: "bold"
-            }}>
-              — OR —
-            </div>
-            
-            <h3 style={{ fontSize: "1.2rem", marginBottom: "1rem" }}>Join Existing Room</h3>
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Room ID:</label>
-              <input
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                placeholder="Enter room ID"
-                style={{ 
-                  padding: "0.75rem", 
-                  width: "100%",
-                  fontSize: "1rem",
-                  border: "1px solid #dee2e6",
-                  borderRadius: "4px"
-                }}
-              />
-            </div>
-            
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Host Key (optional):</label>
-              <input
-                value={hostKey}
-                onChange={(e) => setHostKey(e.target.value)}
-                placeholder="Enter host key to control meeting"
-                style={{ 
-                  padding: "0.75rem", 
-                  width: "100%",
-                  fontSize: "1rem",
-                  border: "1px solid #dee2e6",
-                  borderRadius: "4px"
-                }}
-              />
-            </div>
-            
-            <button
-              onClick={joinRoom}
-              disabled={!username || !roomId}
-              style={{
-                padding: "1rem 1.5rem",
-                backgroundColor: "var(--color-accent)",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: (username && roomId) ? "pointer" : "not-allowed",
-                fontSize: "1.1rem",
-                fontWeight: "bold",
-                width: "100%",
-                opacity: (username && roomId) ? 1 : 0.5
-              }}
-            >
-              Join Room
-            </button>
           </div>
         </div>
       )}

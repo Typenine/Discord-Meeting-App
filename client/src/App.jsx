@@ -587,84 +587,73 @@ export default function App() {
       )}
       
       {status === "init" && (
-        <div>
+        <div className="homeContainer">
           <BrandHeader />
-          <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
-            <h2 style={{ color: "var(--color-primary)", marginBottom: "1.5rem" }}>Join or Start Meeting</h2>
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Your name:</label>
-              <input 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)} 
-                style={{ 
-                  width: "100%", 
-                  padding: "0.5rem", 
-                  fontSize: "1rem",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px"
-                }}
-              />
+          <h2 style={{ 
+            margin: "var(--spacing-2xl) 0 0 0",
+            color: "var(--color-muted)",
+            fontWeight: "normal",
+            textAlign: "center"
+          }}>
+            Join or Create Meeting
+          </h2>
+          
+          <div className="homeCards">
+            {/* Card 1: Create Meeting */}
+            <div className="card">
+              <div className="cardHeader">
+                <h3>Create New Meeting</h3>
+              </div>
+              <div className="cardBody">
+                <label className="label">Your Name</label>
+                <input 
+                  className="input"
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  placeholder="Enter your name"
+                />
+                <button 
+                  className="btn btnPrimary btnLarge btnFull"
+                  style={{ marginTop: "var(--spacing-xl)" }}
+                  onClick={startMeeting} 
+                  disabled={!username}
+                >
+                  Start New Meeting
+                </button>
+              </div>
             </div>
-            <div style={{ marginTop: "1rem" }}>
-              <button 
-                onClick={startMeeting} 
-                disabled={!username}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
-                  fontWeight: "bold",
-                  backgroundColor: "var(--color-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: username ? "pointer" : "not-allowed",
-                  opacity: username ? 1 : 0.5
-                }}
-              >
-                Start new meeting
-              </button>
+            
+            {/* Card 2: Join Meeting */}
+            <div className="card">
+              <div className="cardHeader">
+                <h3>Join Existing Meeting</h3>
+              </div>
+              <div className="cardBody">
+                <label className="label">Your Name</label>
+                <input 
+                  className="input"
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  placeholder="Enter your name"
+                  style={{ marginBottom: "var(--spacing-lg)" }}
+                />
+                <label className="label">Meeting ID</label>
+                <input 
+                  className="input"
+                  value={sessionInput} 
+                  onChange={(e) => setSessionInput(e.target.value)}
+                  placeholder="Enter meeting ID"
+                />
+                <button 
+                  className="btn btnAccent btnLarge btnFull"
+                  style={{ marginTop: "var(--spacing-xl)" }}
+                  onClick={joinMeeting} 
+                  disabled={!username || !sessionInput}
+                >
+                  Join Meeting
+                </button>
+              </div>
             </div>
-            <div style={{ 
-              margin: "2rem 0", 
-              textAlign: "center", 
-              color: "#666",
-              fontSize: "0.9rem"
-            }}>
-              — OR —
-            </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Meeting ID:</label>
-              <input 
-                value={sessionInput} 
-                onChange={(e) => setSessionInput(e.target.value)}
-                style={{ 
-                  width: "100%", 
-                  padding: "0.5rem", 
-                  fontSize: "1rem",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px"
-                }}
-              />
-            </div>
-            <button 
-              onClick={joinMeeting} 
-              disabled={!username || !sessionInput}
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                fontSize: "1rem",
-                fontWeight: "bold",
-                backgroundColor: "var(--color-accent)",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: (username && sessionInput) ? "pointer" : "not-allowed",
-                opacity: (username && sessionInput) ? 1 : 0.5
-              }}
-            >
-              Join meeting
-            </button>
           </div>
         </div>
       )}
