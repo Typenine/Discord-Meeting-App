@@ -686,7 +686,7 @@ select:focus {
 
 .hidden { display: none; }
 
-/* Dev-only Badge */
+/* Dev Badge (visibility controlled in JSX) */
 .devBadge {
   position: fixed;
   bottom: var(--spacing-md);
