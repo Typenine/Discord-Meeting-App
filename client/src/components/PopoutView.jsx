@@ -41,7 +41,7 @@ export default function PopoutView({
           
           {/* Large Timer */}
           <div className="popoutTimer">
-            <div className={`popoutTimerValue ${state.timer.running && localTimer < 10 ? 'warning' : ''}`}>
+            <div className={`popoutTimerValue ${localTimer < 10 ? 'warning' : ''}`}>
               {formatTime(localTimer)}
             </div>
             <div className="popoutTimerStatus">
