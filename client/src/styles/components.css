@@ -21,6 +21,7 @@
   border-left: 2px solid var(--color-border);
   overflow-y: auto;
   padding: var(--spacing-lg);
+  flex-shrink: 0;
 }
 
 @media (max-width: 968px) {
@@ -28,6 +29,11 @@
     width: 100%;
     border-left: none;
     border-top: 2px solid var(--color-border);
+    max-height: 50vh;
+  }
+  
+  .homeCards {
+    grid-template-columns: 1fr !important;
   }
 }
 
