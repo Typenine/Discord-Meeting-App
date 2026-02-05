@@ -185,6 +185,7 @@ This single variable is used for both WebSocket and HTTP connections.
 |----------|----------|-------------|---------|
 | `VITE_WORKER_DOMAIN` | Yes* | Cloudflare Worker domain (without https://) | `my-worker.workers.dev` |
 | `VITE_API_BASE` | Yes* | Alternative: Full API URL | `https://my-worker.workers.dev/api` |
+| `VITE_PUBLIC_APP_URL` | No | Public-facing frontend URL for invite links (optional) | `https://discord-meeting-prod.vercel.app` |
 
 *At least one is required for production deployment
 
@@ -295,6 +296,26 @@ For issues, questions, or feature requests, please:
 - Open an issue on GitHub
 - Check the documentation files listed above
 - Review the troubleshooting section
+
+## Troubleshooting
+
+### Vercel Deployment Protection
+
+**Problem**: Viewers are prompted to sign into Vercel when accessing shared meeting links.
+
+**Solution**: This occurs when Vercel Deployment Protection or Vercel Authentication is enabled for your production deployment.
+
+To fix this:
+1. Go to your Vercel project dashboard
+2. Navigate to **Settings** → **Deployment Protection**
+3. For the **Production** deployment:
+   - Disable **Vercel Authentication** (if enabled)
+   - Disable **Deployment Protection** (if enabled)
+4. Redeploy your application
+
+**Note**: Deployment Protection is useful for preview/staging environments, but should typically be disabled for production deployments that need to be publicly accessible.
+
+**Alternative**: If you need to keep Deployment Protection enabled for some reason, you can set the `VITE_PUBLIC_APP_URL` environment variable to a different public URL that doesn't have protection enabled, and invite links will be generated using that URL.
 
 ---
 
