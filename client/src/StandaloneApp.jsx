@@ -156,6 +156,13 @@ export default function StandaloneApp() {
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     
+    console.log('[DEBUG URL PARSING]', {
+      fullUrl: window.location.href,
+      pathname: path,
+      search: window.location.search,
+      origin: window.location.origin
+    });
+    
     // Extract roomId from path: /:roomId or /room/:roomId
     let urlRoomId = null;
     if (path && path !== '/') {
@@ -175,6 +182,15 @@ export default function StandaloneApp() {
     }
     
     const urlHostKey = params.get("hostKey");
+    const isPopout = params.get("popout") === '1';
+    const asMode = params.get("as");
+    
+    console.log('[DEBUG URL PARSED]', {
+      urlRoomId,
+      urlHostKey: urlHostKey ? '***' : '(none)',
+      isPopout,
+      asMode
+    });
     
     // Check if URL specifies attendee view mode
     const forceAttendeeView = isAttendeeViewMode();

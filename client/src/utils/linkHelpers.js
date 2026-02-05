@@ -27,7 +27,15 @@ export function getLinkBaseUrl() {
  */
 export function generateViewerLink(roomId) {
   const baseUrl = getLinkBaseUrl();
-  return `${baseUrl}/${roomId}`;
+  const viewerLink = `${baseUrl}/${roomId}`;
+  console.log('[DEBUG VIEWER LINK]', {
+    roomId,
+    baseUrl,
+    windowOrigin: window.location.origin,
+    envUrl: import.meta.env.VITE_PUBLIC_APP_URL || '(not set)',
+    viewerLink
+  });
+  return viewerLink;
 }
 
 /**
@@ -54,6 +62,15 @@ export function openPopoutWindow(roomId, hostKey) {
   const baseUrl = window.location.origin;
   // Always open as attendee view with popout flag
   const url = `${baseUrl}/${roomId}?popout=1&as=attendee${hostKey ? `&hostKey=${hostKey}` : ''}`;
+  
+  console.log('[DEBUG POPOUT]', {
+    roomId,
+    hostKey: hostKey ? '***' : '(none)',
+    baseUrl,
+    windowOrigin: window.location.origin,
+    windowPathname: window.location.pathname,
+    popoutUrl: url
+  });
   
   window.open(
     url,
