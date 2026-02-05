@@ -2,8 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import TopBar from "./components/TopBar.jsx";
 import RoomLayout from "./components/RoomLayout.jsx";
 import HostPanel from "./components/HostPanel.jsx";
+import AttendanceRail from "./components/AttendanceRail.jsx";
 import { formatTime } from "./utils/timeFormat.js";
 import logo from "./assets/league-meeting-logo.png";
+import "./styles/theme.css";
+import "./styles/layout.css";
+import "./styles/hostPanel.css";
 
 const UI_VERSION = "WAR-ROOM-001";
 
@@ -901,7 +905,7 @@ export default function StandaloneApp() {
       )}
       
       {mode === "connected" && state && (
-        <>
+        <div className="layoutRoot">
           <TopBar 
             roomId={roomId}
             isHost={isHost}
@@ -912,7 +916,8 @@ export default function StandaloneApp() {
             uiVersion={UI_VERSION}
           />
           
-          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+          <div className={`mainContentGrid ${isHost && !viewAsAttendee ? 'withHostPanel' : ''}`}>
+            {/* Left Column: Main Content */}
             <RoomLayout 
               state={state}
               username={username}
@@ -924,6 +929,15 @@ export default function StandaloneApp() {
               onCastVote={castVote}
             />
             
+            {/* Right Column: Attendance Rail (always visible) */}
+            <AttendanceRail 
+              attendance={state.attendance}
+              roomId={roomId}
+              isHost={isHost}
+              viewAsAttendee={viewAsAttendee}
+            />
+            
+            {/* Third Column: Host Panel (only in host mode) */}
             {isHost && !viewAsAttendee && (
               <HostPanel 
                 state={state}
@@ -943,7 +957,7 @@ export default function StandaloneApp() {
               />
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
