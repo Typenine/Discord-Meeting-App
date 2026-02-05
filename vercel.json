@@ -9,14 +9,15 @@
       "destination": "/api/health"
     },
     {
-      "source": "/proxy/api/(.*)",
-      "destination": "/api/$1"
+      "source": "/proxy/api/:path*",
+      "destination": "/api/:path*"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ],
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "trailingSlash": false
 }
