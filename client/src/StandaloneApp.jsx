@@ -3,7 +3,9 @@ import TopBar from "./components/TopBar.jsx";
 import RoomLayout from "./components/RoomLayout.jsx";
 import HostPanel from "./components/HostPanel.jsx";
 import AttendanceRail from "./components/AttendanceRail.jsx";
+import ShareModal from "./components/ShareModal.jsx";
 import { formatTime } from "./utils/timeFormat.js";
+import { generateViewerLink, generateHostLink, openPopoutWindow, isPopoutMode, isAttendeeViewMode } from "./utils/linkHelpers.js";
 import logo from "./assets/league-meeting-logo.png";
 import "./styles/theme.css";
 import "./styles/layout.css";
@@ -137,6 +139,12 @@ export default function StandaloneApp() {
   // View as attendee toggle
   const [viewAsAttendee, setViewAsAttendee] = useState(false);
   
+  // Share modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  
+  // Detect popout mode from URL
+  const inPopoutMode = isPopoutMode();
+  
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const timePingIntervalRef = useRef(null);
@@ -166,6 +174,12 @@ export default function StandaloneApp() {
     }
     
     const urlHostKey = params.get("hostKey");
+    
+    // Check if URL specifies attendee view mode
+    const forceAttendeeView = isAttendeeViewMode();
+    if (forceAttendeeView) {
+      setViewAsAttendee(true);
+    }
     
     if (urlRoomId) {
       setRoomId(urlRoomId);
@@ -227,10 +241,9 @@ export default function StandaloneApp() {
       setRoomId(data.roomId);
       setHostKey(data.hostKey);
       
-      // Update URLs to use path-based routing
-      const frontendUrl = window.location.origin;
-      const viewer = `${frontendUrl}/${data.roomId}`;
-      const host = `${frontendUrl}/${data.roomId}?hostKey=${data.hostKey}`;
+      // Update URLs using link helpers
+      const viewer = generateViewerLink(data.roomId);
+      const host = generateHostLink(data.roomId, data.hostKey);
       
       setViewerUrl(viewer);
       setHostUrl(host);
@@ -566,7 +579,7 @@ export default function StandaloneApp() {
   };
 
   return (
-    <div className="appShell">
+    <div className={`appShell ${inPopoutMode ? "isPopout" : ""}`}>
       {/* Connection Status Banners - only show when connected mode */}
       {mode === "connected" && connectionStatus === "disconnected" && (
         <div className="banner banner-danger" style={{
@@ -914,6 +927,9 @@ export default function StandaloneApp() {
             onToggleViewAsAttendee={() => setViewAsAttendee(!viewAsAttendee)}
             showViewToggle={isHost}
             uiVersion={UI_VERSION}
+            onShareClick={() => setShowShareModal(true)}
+            onPopoutClick={() => openPopoutWindow(roomId, hostKey)}
+            hidePopoutButton={inPopoutMode}
           />
           
           <div className={`mainContentGrid ${isHost && !viewAsAttendee ? 'withHostPanel' : ''}`}>
@@ -957,6 +973,16 @@ export default function StandaloneApp() {
               />
             )}
           </div>
+          
+          {/* Share Modal */}
+          {showShareModal && (
+            <ShareModal
+              roomId={roomId}
+              hostKey={hostKey}
+              isHost={isHost}
+              onClose={() => setShowShareModal(false)}
+            />
+          )}
         </div>
       )}
     </div>

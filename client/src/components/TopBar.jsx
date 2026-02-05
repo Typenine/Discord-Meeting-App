@@ -8,7 +8,10 @@ export default function TopBar({
   viewAsAttendee, 
   onToggleViewAsAttendee,
   showViewToggle = false,
-  uiVersion = null
+  uiVersion = null,
+  onShareClick = null,
+  onPopoutClick = null,
+  hidePopoutButton = false
 }) {
   const getStatusClass = () => {
     switch (connectionStatus) {
@@ -69,6 +72,28 @@ export default function TopBar({
           <div className={`pill ${isHost && !viewAsAttendee ? 'pill-primary' : 'pill-neutral'}`}>
             {isHost && !viewAsAttendee ? "🔑 HOST" : "👥 ATTENDEE"}
           </div>
+
+          {/* Share Button */}
+          {onShareClick && (
+            <button
+              onClick={onShareClick}
+              className="btn btnGhost btnSmall"
+              title="Share meeting links"
+            >
+              📤 Share
+            </button>
+          )}
+
+          {/* Popout Button */}
+          {onPopoutClick && !hidePopoutButton && (
+            <button
+              onClick={onPopoutClick}
+              className="btn btnGhost btnSmall"
+              title="Open mini-view in popout window"
+            >
+              🪟 Popout
+            </button>
+          )}
 
           {/* View as Attendee Toggle */}
           {showViewToggle && isHost && (

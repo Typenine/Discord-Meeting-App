@@ -609,3 +609,174 @@
     max-height: 350px;
   }
 }
+
+/* =====================================================
+   POPOUT MODE STYLES - COMPACT MINI-VIEW (420x720)
+   ===================================================== */
+
+.isPopout .layoutRoot {
+  /* Remove top bar in popout mode for more space */
+}
+
+.isPopout .topBar {
+  /* Compact top bar */
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.isPopout .topBar-inner {
+  gap: var(--spacing-xs);
+}
+
+.isPopout .brand {
+  display: none; /* Hide logo/branding in compact view */
+}
+
+.isPopout .topBar-left,
+.isPopout .topBar-right {
+  gap: var(--spacing-xs);
+}
+
+.isPopout .pill {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+}
+
+.isPopout .btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+}
+
+/* Hide non-essential elements in popout */
+.isPopout .attendanceRail {
+  display: none;
+}
+
+.isPopout .hostPanel {
+  display: none;
+}
+
+.isPopout .timelinePanel {
+  display: none;
+}
+
+.isPopout .votingSection {
+  display: none;
+}
+
+/* Adjust main content grid for single column */
+.isPopout .mainContentGrid {
+  grid-template-columns: 1fr;
+}
+
+.isPopout .mainColumn {
+  padding: var(--spacing-sm);
+  overflow-y: auto;
+}
+
+/* Compact hero panel for essential info */
+.isPopout .heroPanel {
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.isPopout .heroPanel .sectionHeader {
+  margin-bottom: var(--spacing-sm);
+}
+
+.isPopout .heroPanel .sectionTitle {
+  font-size: var(--font-size-base);
+  letter-spacing: 1px;
+}
+
+.isPopout .agendaItemDisplay {
+  margin-bottom: var(--spacing-md);
+}
+
+.isPopout .agendaItemDisplay .itemTitle {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--spacing-xs);
+}
+
+.isPopout .agendaItemDisplay .itemNotes {
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.isPopout .agendaItemDisplay .itemDuration {
+  margin-top: var(--spacing-sm);
+}
+
+/* Prominent timer display in popout */
+.isPopout .timerDisplay {
+  padding: var(--spacing-lg);
+}
+
+.isPopout .timerDisplay .timerValue {
+  font-size: var(--font-size-4xl);
+}
+
+.isPopout .timerDisplay .timerStatus {
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-xs);
+}
+
+/* Show "Next up" in popout - render next item in timeline */
+.isPopout .timelinePanel {
+  display: block;
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
+.isPopout .timelinePanel .sectionHeader {
+  margin-bottom: var(--spacing-sm);
+}
+
+.isPopout .timelinePanel .sectionTitle {
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.isPopout .agendaTimeline {
+  /* Only show first item (next up) */
+}
+
+.isPopout .timelineItem {
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.isPopout .timelineItem:not(:first-child) {
+  display: none; /* Hide all except first item */
+}
+
+.isPopout .timelineItemTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.isPopout .timelineItemMeta {
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.isPopout .timelineItemNotes {
+  font-size: var(--font-size-xs);
+  margin-top: var(--spacing-xs);
+}
+
+/* Hide empty state messages in popout */
+.isPopout .emptyState {
+  padding: var(--spacing-md);
+}
+
+.isPopout .emptyIcon {
+  font-size: var(--font-size-xl);
+}
+
+.isPopout .emptyText {
+  font-size: var(--font-size-sm);
+}
+
