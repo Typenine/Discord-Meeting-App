@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "outputDirectory": "client/dist",
   "rewrites": [
     {
       "source": "/health",
@@ -13,6 +13,10 @@
     {
       "source": "/proxy/api/(.*)",
       "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

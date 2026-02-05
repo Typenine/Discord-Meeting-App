@@ -88,32 +88,38 @@ export default function RoomLayout({
           </div>
         ) : (
           <ul className="agendaTimeline">
-            {state.agenda.map((item, index) => (
-              <li 
-                key={item.id} 
-                className={`timelineItem ${state.activeAgendaId === item.id ? 'active' : ''}`}
-              >
-                <div className="timelineItemContent">
-                  <div className="timelineItemNumber">{index + 1}</div>
-                  <div className="timelineItemDetails">
-                    <div className="timelineItemTitle">{item.title}</div>
-                    <div className="timelineItemMeta">
-                      <div className="pill pill-accent">
-                        {formatTime(item.durationSec)}
-                      </div>
-                      {state.activeAgendaId === item.id && (
+            {state.agenda.map((item, index) => {
+              // For active item, show live remaining time; otherwise show configured duration
+              const isActive = state.activeAgendaId === item.id;
+              const displayTime = isActive ? localTimer : item.durationSec;
+              
+              return (
+                <li 
+                  key={item.id} 
+                  className={`timelineItem ${isActive ? 'active' : ''}`}
+                >
+                  <div className="timelineItemContent">
+                    <div className="timelineItemNumber">{index + 1}</div>
+                    <div className="timelineItemDetails">
+                      <div className="timelineItemTitle">{item.title}</div>
+                      <div className="timelineItemMeta">
                         <div className="pill pill-accent">
-                          ⭐ ACTIVE NOW
+                          {formatTime(displayTime)}
                         </div>
+                        {isActive && (
+                          <div className="pill pill-accent">
+                            ⭐ ACTIVE NOW
+                          </div>
+                        )}
+                      </div>
+                      {item.notes && (
+                        <div className="timelineItemNotes">{item.notes}</div>
                       )}
                     </div>
-                    {item.notes && (
-                      <div className="timelineItemNotes">{item.notes}</div>
-                    )}
                   </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

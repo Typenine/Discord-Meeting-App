@@ -731,3 +731,132 @@ select:focus {
     padding: 0 var(--spacing-md);
   }
 }
+
+/* =====================================================
+   POPOUT VIEW - COMPACT OVERLAY WINDOW (~420x720)
+   ===================================================== */
+.popoutContainer {
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, var(--color-nearblack) 0%, #0a0a0a 100%);
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  color: var(--color-text);
+}
+
+.popoutLoading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+}
+
+.popoutSection {
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: var(--color-surface-elevated);
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glow-gold);
+}
+
+.popoutSectionSecondary {
+  border-color: var(--color-border-subtle);
+  box-shadow: var(--shadow-md);
+  opacity: 0.85;
+}
+
+.popoutLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--color-accent);
+  margin-bottom: var(--spacing-sm);
+}
+
+.popoutTitle {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+  margin-bottom: var(--spacing-lg);
+  color: var(--color-offwhite);
+}
+
+.popoutTimer {
+  text-align: center;
+  padding: var(--spacing-lg) 0;
+}
+
+.popoutTimerValue {
+  font-size: 5rem;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--color-accent);
+  text-shadow: 0 0 30px rgba(191, 153, 68, 0.5);
+  margin-bottom: var(--spacing-md);
+  transition: color 150ms ease;
+}
+
+.popoutTimerValue.warning {
+  color: var(--color-danger);
+  text-shadow: 0 0 30px rgba(190, 22, 30, 0.5);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.popoutTimerStatus {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.popoutEmptyIcon {
+  font-size: 3rem;
+  text-align: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.popoutEmptyText {
+  font-size: var(--font-size-lg);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.popoutNextTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-offwhite);
+}
+
+.popoutNextDuration {
+  font-size: var(--font-size-base);
+  color: var(--color-accent);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.popoutFooter {
+  margin-top: auto;
+  padding-top: var(--spacing-xl);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.popoutAttendance {
+  font-size: var(--font-size-base);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Hide normal UI when in popout mode */
+.appShell.isPopout .layoutRoot {
+  display: none;
+}
+

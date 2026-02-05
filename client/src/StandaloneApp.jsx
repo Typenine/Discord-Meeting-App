@@ -4,6 +4,7 @@ import RoomLayout from "./components/RoomLayout.jsx";
 import HostPanel from "./components/HostPanel.jsx";
 import AttendanceRail from "./components/AttendanceRail.jsx";
 import ShareModal from "./components/ShareModal.jsx";
+import PopoutView from "./components/PopoutView.jsx";
 import { formatTime } from "./utils/timeFormat.js";
 import { generateViewerLink, generateHostLink, openPopoutWindow, isPopoutMode, isAttendeeViewMode } from "./utils/linkHelpers.js";
 import logo from "./assets/league-meeting-logo.png";
@@ -918,72 +919,84 @@ export default function StandaloneApp() {
       )}
       
       {mode === "connected" && state && (
-        <div className="layoutRoot">
-          <TopBar 
-            roomId={roomId}
-            isHost={isHost}
-            connectionStatus={connectionStatus}
-            viewAsAttendee={viewAsAttendee}
-            onToggleViewAsAttendee={() => setViewAsAttendee(!viewAsAttendee)}
-            showViewToggle={isHost}
-            uiVersion={UI_VERSION}
-            onShareClick={() => setShowShareModal(true)}
-            onPopoutClick={() => openPopoutWindow(roomId, hostKey)}
-            hidePopoutButton={inPopoutMode}
-          />
-          
-          <div className={`mainContentGrid ${isHost && !viewAsAttendee ? 'withHostPanel' : ''}`}>
-            {/* Left Column: Main Content */}
-            <RoomLayout 
+        <>
+          {inPopoutMode ? (
+            /* Popout Mode: Compact overlay window */
+            <PopoutView
               state={state}
-              username={username}
-              clientId={clientId}
               localTimer={localTimer}
               formatTime={formatTime}
-              isHost={isHost}
-              viewAsAttendee={viewAsAttendee}
-              onCastVote={castVote}
             />
-            
-            {/* Right Column: Attendance Rail (always visible) */}
-            <AttendanceRail 
-              attendance={state.attendance}
-              roomId={roomId}
-              isHost={isHost}
-              viewAsAttendee={viewAsAttendee}
-            />
-            
-            {/* Third Column: Host Panel (only in host mode) */}
-            {isHost && !viewAsAttendee && (
-              <HostPanel 
-                state={state}
-                onAddAgenda={addAgenda}
-                onUpdateAgenda={updateAgenda}
-                onDeleteAgenda={deleteAgenda}
-                onSetActiveAgenda={setActiveAgenda}
-                onNextAgendaItem={nextAgendaItem}
-                onPrevAgendaItem={prevAgendaItem}
-                onStartTimer={startTimer}
-                onPauseTimer={pauseTimer}
-                onResumeTimer={resumeTimer}
-                onResetTimer={resetTimer}
-                onExtendTimer={extendTimer}
-                onOpenVote={openVote}
-                onCloseVote={closeVote}
+          ) : (
+            /* Normal Mode: Full meeting UI */
+            <div className="layoutRoot">
+              <TopBar 
+                roomId={roomId}
+                isHost={isHost}
+                connectionStatus={connectionStatus}
+                viewAsAttendee={viewAsAttendee}
+                onToggleViewAsAttendee={() => setViewAsAttendee(!viewAsAttendee)}
+                showViewToggle={isHost}
+                uiVersion={UI_VERSION}
+                onShareClick={() => setShowShareModal(true)}
+                onPopoutClick={() => openPopoutWindow(roomId, hostKey)}
+                hidePopoutButton={inPopoutMode}
               />
-            )}
-          </div>
-          
-          {/* Share Modal */}
-          {showShareModal && (
-            <ShareModal
-              roomId={roomId}
-              hostKey={hostKey}
-              isHost={isHost}
-              onClose={() => setShowShareModal(false)}
-            />
+              
+              <div className={`mainContentGrid ${isHost && !viewAsAttendee ? 'withHostPanel' : ''}`}>
+                {/* Left Column: Main Content */}
+                <RoomLayout 
+                  state={state}
+                  username={username}
+                  clientId={clientId}
+                  localTimer={localTimer}
+                  formatTime={formatTime}
+                  isHost={isHost}
+                  viewAsAttendee={viewAsAttendee}
+                  onCastVote={castVote}
+                />
+                
+                {/* Right Column: Attendance Rail (always visible) */}
+                <AttendanceRail 
+                  attendance={state.attendance}
+                  roomId={roomId}
+                  isHost={isHost}
+                  viewAsAttendee={viewAsAttendee}
+                />
+                
+                {/* Third Column: Host Panel (only in host mode) */}
+                {isHost && !viewAsAttendee && (
+                  <HostPanel 
+                    state={state}
+                    onAddAgenda={addAgenda}
+                    onUpdateAgenda={updateAgenda}
+                    onDeleteAgenda={deleteAgenda}
+                    onSetActiveAgenda={setActiveAgenda}
+                    onNextAgendaItem={nextAgendaItem}
+                    onPrevAgendaItem={prevAgendaItem}
+                    onStartTimer={startTimer}
+                    onPauseTimer={pauseTimer}
+                    onResumeTimer={resumeTimer}
+                    onResetTimer={resetTimer}
+                    onExtendTimer={extendTimer}
+                    onOpenVote={openVote}
+                    onCloseVote={closeVote}
+                  />
+                )}
+              </div>
+              
+              {/* Share Modal */}
+              {showShareModal && (
+                <ShareModal
+                  roomId={roomId}
+                  hostKey={hostKey}
+                  isHost={isHost}
+                  onClose={() => setShowShareModal(false)}
+                />
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
