@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import logo from "./assets/league-meeting-logo.png";
 
-const UI_VERSION = "STYLE-REDO-PROOF-001";
+const UI_VERSION = "WAR-ROOM-001";
 
 // Determine API base for HTTP polling.
 const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
