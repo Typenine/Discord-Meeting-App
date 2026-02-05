@@ -127,7 +127,11 @@ export default function StandaloneApp() {
   const [username, setUsername] = useState(() => {
     // Load persisted username from localStorage if available
     if (typeof window !== "undefined") {
-      return localStorage.getItem("evw_username") || "";
+      const stored = localStorage.getItem("evw_username");
+      // Basic validation: max 100 chars, no control characters
+      if (stored && stored.length <= 100 && !/[\x00-\x1F\x7F]/.test(stored)) {
+        return stored;
+      }
     }
     return "";
   });
@@ -256,6 +260,8 @@ export default function StandaloneApp() {
     // 1. We have roomId and username
     // 2. We're in init mode (not already connecting/connected)
     // 3. Not disconnected due to timeout (user should manually retry)
+    // Note: hostKey is in deps to capture it at connection time, but won't retrigger
+    // since mode will no longer be "init" after first connection attempt
     if (roomId && username.trim() && mode === "init" && !connectionTimeout && connectionStatus === "disconnected") {
       console.log("[AUTO-CONNECT] Initiating connection: roomId=" + roomId + ", username=" + username);
       setMode("joining"); // Set mode to joining to show connecting UI
@@ -265,8 +271,13 @@ export default function StandaloneApp() {
 
   // Persist username to localStorage
   useEffect(() => {
-    if (username && typeof window !== "undefined") {
+    if (typeof window === "undefined") return;
+    
+    if (username && username.trim()) {
       localStorage.setItem("evw_username", username);
+    } else {
+      // Clear localStorage if username is empty
+      localStorage.removeItem("evw_username");
     }
   }, [username]);
 
@@ -428,20 +439,42 @@ export default function StandaloneApp() {
     
     // Set connection timeout (10 seconds)
     connectionTimeoutRef.current = setTimeout(() => {
-      if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN) {
+      // Only trigger timeout if:
+      // 1. WebSocket exists and is not OPEN (readyState 1)
+      // 2. Mode is still "joining" (not already connected)
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN && mode === "joining") {
         console.error("[WS TIMEOUT] Connection failed to establish in 10 seconds");
+        console.error("[WS TIMEOUT] Final readyState:", wsRef.current.readyState, 
+          wsRef.current.readyState === 0 ? "(CONNECTING)" :
+          wsRef.current.readyState === 2 ? "(CLOSING)" :
+          wsRef.current.readyState === 3 ? "(CLOSED)" : "(UNKNOWN)");
         setConnectionTimeout(true);
         setConnectionStatus("disconnected");
+        
+        // Close the websocket if still connecting
+        if (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close();
+        }
         
         // Perform health check
         if (API_BASE) {
           fetch(`${API_BASE}/health`)
-            .then(res => res.json())
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+              }
+              const contentType = res.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                return res.json();
+              } else {
+                return res.text().then(text => ({ raw: text }));
+              }
+            })
             .then(data => {
               console.log("[HEALTH CHECK] Success:", data);
               setConnectionDiagnostics(prev => ({
                 ...prev,
-                healthCheckStatus: 'success',
+                healthCheckStatus: 'success: ' + JSON.stringify(data),
               }));
             })
             .catch(err => {
