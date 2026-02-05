@@ -40,14 +40,16 @@
 /* Scrollable Content Area */
 .hostPanelContent {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: scroll; /* Changed from auto to scroll to ensure scrollbar is always visible */
   overflow-x: hidden;
   padding: var(--spacing-xl);
+  scrollbar-width: thin; /* For Firefox */
+  scrollbar-color: var(--color-border-subtle) rgba(0, 0, 0, 0.3); /* For Firefox */
 }
 
 /* Custom scrollbar for control room aesthetic */
 .hostPanelContent::-webkit-scrollbar {
-  width: 8px;
+  width: 12px; /* Increased from 8px for better visibility */
 }
 
 .hostPanelContent::-webkit-scrollbar-track {
