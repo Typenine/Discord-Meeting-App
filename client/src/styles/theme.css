@@ -71,8 +71,10 @@ body {
   font-family: var(--font-family-base);
   font-size: var(--font-size-base);
   color: var(--color-text);
-  background: var(--color-background);
+  background: linear-gradient(135deg, #fcfcfc 0%, #f5f5f5 50%, #fcfcfc 100%);
+  background-attachment: fixed;
   line-height: 1.5;
+  min-height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6 {

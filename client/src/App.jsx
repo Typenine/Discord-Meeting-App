@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import BrandHeader from "./components/BrandHeader.jsx";
+import logo from "./assets/league-meeting-logo.png";
 
 // Determine API base for HTTP polling.
 const IN_DISCORD = typeof window !== "undefined" && window.location.hostname.endsWith("discordsays.com");
@@ -844,6 +845,12 @@ export default function App() {
           <p>Minutes have been generated and stored.</p>
         </div>
       )}
+      
+      {/* Footer with logo watermark */}
+      <div className="footer">
+        <img src={logo} alt="League Meeting App" className="footerLogo" />
+        <div>East v. West League Meeting</div>
+      </div>
     </div>
   );
 }
