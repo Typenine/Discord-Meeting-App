@@ -11,7 +11,9 @@ export default function TopBar({
   uiVersion = null,
   onShareClick = null,
   onPopoutClick = null,
-  hidePopoutButton = false
+  hidePopoutButton = false,
+  meetingName = null,
+  meetingElapsedSec = 0
 }) {
   const [showDebug, setShowDebug] = useState(false);
   
@@ -33,6 +35,13 @@ export default function TopBar({
     }
   };
 
+  // Format elapsed time for meeting timer display
+  const formatElapsed = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="topBar">
       <div className="topBar-inner">
@@ -45,8 +54,7 @@ export default function TopBar({
               className="brandLogo"
             />
             <div className="brand-text">
-              <div className="brandTitle">East v. West</div>
-              <div className="brandSubtitle">League Meeting</div>
+              <div className="brandTitle">{meetingName || "East v. West League Meeting"}</div>
             </div>
           </div>
           {roomId && (
@@ -56,8 +64,15 @@ export default function TopBar({
           )}
         </div>
 
-        {/* Right: UI Version + Status + Role + Toggle */}
+        {/* Right: UI Version + Meeting Timer + Status + Role + Toggle */}
         <div className="topBar-right">
+          {/* Meeting Elapsed Timer */}
+          {meetingElapsedSec > 0 && (
+            <div className="pill pill-neutral" style={{ fontFamily: "var(--font-family-mono)" }}>
+              ⏱ {formatElapsed(meetingElapsedSec)} elapsed
+            </div>
+          )}
+
           {/* UI Version Badge */}
           {uiVersion && (
             <div className="pill pill-accent">

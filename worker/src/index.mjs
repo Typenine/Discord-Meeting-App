@@ -128,6 +128,12 @@ function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = nul
     hostUserId: null,
     hostKey, // For standalone room mode (null for Discord Activity mode)
     hostKeyFallback, // For Discord Activity mode: optional hostKey for testing without Discord OAuth
+    meetingName: '', // Meeting name configured by host
+    meetingStarted: false, // Track if meeting has been officially started
+    meetingTimer: {
+      running: false,
+      startedAtMs: null, // When meeting timer was started
+    },
     agenda: [],
     activeAgendaId: null,
     timer: {
@@ -150,7 +156,58 @@ function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = nul
 }
 
 function snapshot(session) {
-  return JSON.parse(JSON.stringify(session));
+  const copy = JSON.parse(JSON.stringify(session));
+  // Add computed meeting elapsed time
+  if (copy.meetingTimer?.running && copy.meetingTimer?.startedAtMs) {
+    const elapsedMs = Date.now() - copy.meetingTimer.startedAtMs;
+    copy.meetingTimer.elapsedSec = Math.floor(elapsedMs / 1000);
+  } else {
+    copy.meetingTimer = copy.meetingTimer || {};
+    copy.meetingTimer.elapsedSec = 0;
+  }
+  return copy;
+}
+
+function updateMeetingSetup(session, { meetingName, agenda }) {
+  if (session.meetingStarted) {
+    return { error: 'meeting_started', message: 'Cannot update setup after meeting has started' };
+  }
+  
+  if (meetingName !== undefined) {
+    session.meetingName = String(meetingName);
+  }
+  
+  if (agenda !== undefined && Array.isArray(agenda)) {
+    session.agenda = agenda.map((item) => ({
+      id: item.id || crypto.randomUUID(),
+      title: String(item.title || ''),
+      durationSec: Number(item.durationSec) || 0,
+      notes: String(item.notes || ''),
+    }));
+    
+    if (session.agenda.length > 0 && !session.activeAgendaId) {
+      session.activeAgendaId = session.agenda[0].id;
+    }
+  }
+  
+  return null; // success
+}
+
+function startMeeting(session, { startTimer = true }) {
+  if (!session.meetingStarted) {
+    session.meetingStarted = true;
+    
+    if (startTimer) {
+      session.meetingTimer.running = true;
+      session.meetingTimer.startedAtMs = Date.now();
+    }
+    
+    if (session.agenda.length > 0 && !session.activeAgendaId) {
+      session.activeAgendaId = session.agenda[0].id;
+    }
+  }
+  
+  return null; // success
 }
 
 function getActiveItem(session) {
@@ -846,6 +903,29 @@ export class MeetingRoom {
         case "VOTE_CLOSE":
           closeVote(session);
           this.broadcastState();
+          break;
+        case "SETUP_UPDATE":
+          {
+            const result = updateMeetingSetup(session, { 
+              meetingName: msg.meetingName, 
+              agenda: msg.agenda 
+            });
+            if (result && result.error) {
+              ws.send(JSON.stringify({ type: "ERROR", error: result.error, message: result.message }));
+            } else {
+              this.broadcastState();
+            }
+          }
+          break;
+        case "MEETING_START":
+          {
+            const result = startMeeting(session, { startTimer: msg.startTimer ?? true });
+            if (result && result.error) {
+              ws.send(JSON.stringify({ type: "ERROR", error: result.error, message: result.message }));
+            } else {
+              this.broadcastState();
+            }
+          }
           break;
         default:
           break;

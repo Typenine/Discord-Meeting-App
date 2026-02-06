@@ -1375,6 +1375,8 @@ export default function StandaloneApp() {
                 onShareClick={() => setShowShareModal(true)}
                 onPopoutClick={() => openPopoutWindow(roomId, hostKey)}
                 hidePopoutButton={inPopoutMode}
+                meetingName={state?.meetingName}
+                meetingElapsedSec={state?.meetingTimer?.elapsedSec || 0}
               />
               
               <div className={`mainContentGrid ${isHost && !viewAsAttendee ? 'withHostPanel' : ''}`}>

@@ -11,6 +11,14 @@ export default function PopoutView({
   formatTime
 }) {
   const [showAttendancePanel, setShowAttendancePanel] = useState(false);
+  
+  // Format elapsed time for meeting timer
+  const formatElapsed = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
   if (!state) {
     return (
       <div className="popoutContainer">
@@ -32,9 +40,36 @@ export default function PopoutView({
     : null;
 
   const attendanceCount = state.attendance ? Object.keys(state.attendance).length : 0;
+  const meetingName = state.meetingName || "East v. West League Meeting";
+  const meetingElapsedSec = state.meetingTimer?.elapsedSec || 0;
 
   return (
     <div className="popoutContainer">
+      {/* Meeting Header */}
+      <div className="popoutHeader" style={{
+        padding: "var(--spacing-md)",
+        backgroundColor: "rgba(0, 0, 0, 0.3)",
+        borderBottom: "1px solid var(--color-border-subtle)",
+        textAlign: "center"
+      }}>
+        <div style={{ 
+          fontSize: "var(--font-size-sm)", 
+          fontWeight: "var(--font-weight-semibold)",
+          marginBottom: "var(--spacing-xs)"
+        }}>
+          {meetingName}
+        </div>
+        {meetingElapsedSec > 0 && (
+          <div style={{ 
+            fontSize: "var(--font-size-xs)", 
+            opacity: 0.7,
+            fontFamily: "var(--font-family-mono)"
+          }}>
+            ⏱ {formatElapsed(meetingElapsedSec)} elapsed
+          </div>
+        )}
+      </div>
+      
       {/* Current Agenda Item */}
       {activeItem ? (
         <div className="popoutSection">
