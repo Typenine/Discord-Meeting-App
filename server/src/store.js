@@ -296,23 +296,29 @@ export function addAgenda({ sessionId, userId, title, durationSec }) {
   if (!session) return null;
   if (!validateHostAccess(session, userId)) return null;
   const id = randomUUID();
+  const dur = Number(durationSec) || 0;
   session.agenda.push({ 
     id, 
     title: String(title), 
-    durationSec: Number(durationSec) || 0, 
+    durationSec: dur, 
     notes: '',
     status: 'pending', // 'pending' | 'active' | 'completed'
     startedAt: null,
     completedAt: null,
     timeSpent: 0,
   });
-  // If this is the first agenda item, make it active
+  // If this is the first agenda item, make it active and set timer duration
   if (!session.currentAgendaItemId) {
     session.currentAgendaItemId = id;
     const item = session.agenda.find((a) => a.id === id);
     if (item) {
       item.status = 'active';
       item.startedAt = Date.now();
+      // Set timer to item's duration if not running
+      if (!session.timer.running) {
+        session.timer.remainingSec = dur;
+        session.timer.durationSet = dur;
+      }
     }
   }
   bumpRevision(session);
@@ -628,12 +634,15 @@ export function completeAgendaItem({ sessionId, userId }) {
     return { error: 'no_active_item', message: 'No active agenda item to complete' };
   }
   
-  // If time bank is enabled and timer is running/paused with remaining time, add to bank
+  // If time bank is enabled and timer has remaining time, add to bank
+  // Must compute BEFORE stopping the timer
   if (session.timeBankEnabled) {
     const remainingSec = computeRemainingSec(session);
     if (remainingSec > 0) {
       session.timeBankSec += remainingSec;
       console.log('[store] Added unused time to bank:', { remainingSec, newBank: session.timeBankSec });
+    } else {
+      console.log('[store] No unused time to add to bank (remainingSec:', remainingSec, ')');
     }
   }
   
@@ -647,7 +656,7 @@ export function completeAgendaItem({ sessionId, userId }) {
     }
   }
   
-  // Stop timer
+  // Stop timer AFTER capturing remaining time
   session.timer.running = false;
   session.timer.endsAtMs = null;
   session.timer.remainingSec = 0;
