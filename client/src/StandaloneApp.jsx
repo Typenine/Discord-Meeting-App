@@ -31,9 +31,11 @@ function validateUrl(url, source) {
 // Log configuration at module load time
 const RAW_VITE_WORKER_DOMAIN = import.meta.env.VITE_WORKER_DOMAIN;
 const RAW_VITE_API_BASE = import.meta.env.VITE_API_BASE;
+const RAW_VITE_WS_URL = import.meta.env.VITE_WS_URL;
 console.log("=== StandaloneApp.jsx Configuration ===");
 console.log("CONFIG VITE_API_BASE=" + (RAW_VITE_API_BASE || "(not set)"));
 console.log("CONFIG VITE_WORKER_DOMAIN=" + (RAW_VITE_WORKER_DOMAIN || "(not set)"));
+console.log("CONFIG VITE_WS_URL=" + (RAW_VITE_WS_URL || "(not set)"));
 
 // Compute API_BASE and WS_URL with proper configuration rules
 const CONFIG_ERROR = { message: null, showBanner: false };
@@ -79,7 +81,15 @@ const API_BASE = (() => {
     return devBase;
   }
   
-  // Production without configuration: fail with clear error
+  // In production, try same-origin as safe default
+  if (typeof window !== "undefined" && window.location) {
+    const sameOriginBase = `${window.location.protocol}//${window.location.host}/api`;
+    console.warn("CONFIG Using same-origin fallback:", sameOriginBase);
+    console.warn("CONFIG For production, set VITE_API_BASE or VITE_WORKER_DOMAIN");
+    return sameOriginBase;
+  }
+  
+  // Last resort: fail with clear error
   const errorMsg = "Production deployment requires VITE_API_BASE or VITE_WORKER_DOMAIN environment variable.";
   console.error(errorMsg);
   CONFIG_ERROR.message = errorMsg;
@@ -87,14 +97,23 @@ const API_BASE = (() => {
   return null;
 })();
 
-// Derive WS_URL from API_BASE
+// Derive WS_URL from explicit env or API_BASE
 const WS_URL = (() => {
   if (typeof window === "undefined") return null;
   
+  // Option 1: Check for explicit VITE_WS_URL override
+  const envWsUrl = RAW_VITE_WS_URL && String(RAW_VITE_WS_URL).trim();
+  if (envWsUrl) {
+    const validated = validateUrl(envWsUrl, "VITE_WS_URL");
+    console.log("CONFIG Final wsUrl (explicit)=" + validated);
+    return validated;
+  }
+  
+  // Option 2: Derive from API_BASE
   if (API_BASE) {
     // Derive wsUrl from apiBase by replacing http(s):// with ws(s):// and appending /ws
     const wsUrl = API_BASE.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://") + "/ws";
-    console.log("CONFIG Final wsUrl=" + wsUrl);
+    console.log("CONFIG Final wsUrl (derived)=" + wsUrl);
     return wsUrl;
   }
   
@@ -105,7 +124,18 @@ export default function StandaloneApp() {
   const [mode, setMode] = useState("init"); // 'init', 'creating', 'joining', 'connected'
   const [roomId, setRoomId] = useState("");
   const [hostKey, setHostKey] = useState("");
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(() => {
+    // Load persisted username from localStorage if available
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("evw_username");
+      // Basic validation: max 100 chars, no control chars, no HTML special chars
+      if (stored && stored.length <= 100 && 
+          !/[\x00-\x1F\x7F<>"']/.test(stored)) {
+        return stored;
+      }
+    }
+    return "";
+  });
   const [clientId, setClientId] = useState(() => {
     // Generate and persist clientId in localStorage
     if (typeof window !== "undefined") {
@@ -143,6 +173,19 @@ export default function StandaloneApp() {
   // Share modal state
   const [showShareModal, setShowShareModal] = useState(false);
   
+  // Connection diagnostics state
+  const [connectionDiagnostics, setConnectionDiagnostics] = useState({
+    lastAttemptTime: null,
+    lastWsUrl: null,
+    lastCloseCode: null,
+    lastCloseReason: null,
+    lastError: null,
+    joinSent: false,
+    joinAckReceived: false,
+    healthCheckStatus: null,
+  });
+  const [connectionTimeout, setConnectionTimeout] = useState(false);
+  
   // Detect popout mode from URL
   const inPopoutMode = isPopoutMode();
   
@@ -150,6 +193,7 @@ export default function StandaloneApp() {
   const reconnectTimerRef = useRef(null);
   const timePingIntervalRef = useRef(null);
   const localTimerIntervalRef = useRef(null);
+  const connectionTimeoutRef = useRef(null);
 
   // Parse URL on mount - support multiple URL patterns for flexibility
   useEffect(() => {
@@ -204,12 +248,39 @@ export default function StandaloneApp() {
       setRoomId(urlRoomId);
       if (urlHostKey) {
         setHostKey(urlHostKey);
-        setMode("joining");
-      } else {
-        setMode("joining");
       }
+      // Don't set mode to "joining" yet - wait for username
+      // The auto-connect effect will trigger when username is available
     }
   }, []);
+
+  // Auto-connect when we have roomId + username but haven't started connecting yet
+  // This handles both: URL with ?room=X and manual "Join Room" button click
+  useEffect(() => {
+    // Only auto-connect if:
+    // 1. We have roomId and username
+    // 2. We're in init mode (not already connecting/connected)
+    // 3. Not disconnected due to timeout (user should manually retry)
+    // Note: hostKey is in deps to capture it at connection time, but won't retrigger
+    // since mode will no longer be "init" after first connection attempt
+    if (roomId && username.trim() && mode === "init" && !connectionTimeout && connectionStatus === "disconnected") {
+      console.log("[AUTO-CONNECT] Initiating connection: roomId=" + roomId + ", username=" + username);
+      setMode("joining"); // Set mode to joining to show connecting UI
+      connectToRoom(roomId, hostKey || null);
+    }
+  }, [roomId, username, hostKey, mode, connectionStatus, connectionTimeout]);
+
+  // Persist username to localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    if (username && username.trim()) {
+      localStorage.setItem("evw_username", username);
+    } else {
+      // Clear localStorage if username is empty
+      localStorage.removeItem("evw_username");
+    }
+  }, [username]);
 
   // Track host privileges changes
   useEffect(() => {
@@ -296,6 +367,7 @@ export default function StandaloneApp() {
       return;
     }
     
+    setMode("joining"); // Set mode to show connecting UI
     connectToRoom(roomId, hostKey || null);
   };
 
@@ -308,10 +380,24 @@ export default function StandaloneApp() {
 
   // Connect to WebSocket
   const connectToRoom = (room, key) => {
+    const attemptTime = Date.now();
+    console.group(`[WS CONNECTION ${new Date(attemptTime).toISOString()}]`);
+    console.log("Room:", room);
+    console.log("Has Host Key:", !!key);
+    console.log("Username:", username);
+    console.log("Client ID:", clientId);
+    
     if (!WS_URL) {
+      console.error("[WS] No WS_URL configured");
+      console.groupEnd();
       setError("WebSocket URL not configured. Check VITE_WORKER_DOMAIN environment variable.");
       setMode("init");
       setConnectionStatus("disconnected");
+      setConnectionDiagnostics(prev => ({
+        ...prev,
+        lastAttemptTime: attemptTime,
+        lastError: "No WS_URL configured",
+      }));
       return;
     }
     
@@ -321,35 +407,128 @@ export default function StandaloneApp() {
       reconnectTimerRef.current = null;
     }
     
+    // Clear any existing connection timeout
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+    
     if (wsRef.current) {
       wsRef.current.close();
     }
     
     setError(null);
     setConnectionStatus("reconnecting");
+    setConnectionTimeout(false);
     
     const url = `${WS_URL}?room=${room}`;
-    console.log("[WS] Connecting to", url);
+    console.log("[WS] URL:", url);
+    console.log("[WS] Attempting connection...");
+    console.groupEnd();
+    
+    // Update diagnostics
+    setConnectionDiagnostics(prev => ({
+      ...prev,
+      lastAttemptTime: attemptTime,
+      lastWsUrl: url,
+      joinSent: false,
+      joinAckReceived: false,
+      lastError: null,
+      lastCloseCode: null,
+      lastCloseReason: null,
+    }));
+    
+    // Set connection timeout (10 seconds)
+    connectionTimeoutRef.current = setTimeout(() => {
+      // Only trigger timeout if:
+      // 1. WebSocket exists and is still CONNECTING (readyState 0) or never opened
+      // 2. Mode is still "joining" (not already connected)
+      // Skip if CLOSING (2) or CLOSED (3) as close handler will deal with it
+      if (wsRef.current && mode === "joining") {
+        const state = wsRef.current.readyState;
+        if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
+          console.error("[WS TIMEOUT] Connection failed to establish in 10 seconds");
+          console.error("[WS TIMEOUT] Final readyState:", state, 
+            state === 0 ? "(CONNECTING)" : "(OPEN but no HELLO_ACK)");
+          setConnectionTimeout(true);
+          setConnectionStatus("disconnected");
+          
+          // Close the websocket if still connecting or open but not fully joined
+          wsRef.current.close();
+          
+          // Perform health check
+          if (API_BASE) {
+            fetch(`${API_BASE}/health`)
+              .then(res => {
+                if (!res.ok) {
+                  throw new Error(`HTTP ${res.status}`);
+                }
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                  return res.json();
+                } else {
+                  return res.text().then(text => ({ raw: text }));
+                }
+              })
+              .then(data => {
+                console.log("[HEALTH CHECK] Success:", data);
+                setConnectionDiagnostics(prev => ({
+                  ...prev,
+                  healthCheckStatus: 'success: ' + JSON.stringify(data),
+                }));
+              })
+              .catch(err => {
+                console.error("[HEALTH CHECK] Failed:", err);
+                setConnectionDiagnostics(prev => ({
+                  ...prev,
+                  healthCheckStatus: 'failed: ' + err.message,
+                }));
+              });
+          }
+        }
+      }
+    }, 10000);
     
     const ws = new WebSocket(url);
     wsRef.current = ws;
     
     ws.addEventListener("open", () => {
-      console.log("[WS] Connected");
+      const openTime = Date.now();
+      console.log(`[WS OPEN ${new Date(openTime).toISOString()}] Connected (${openTime - attemptTime}ms)`);
+      
+      // Clear timeout since connection succeeded
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
       
       // Reset reconnection state on successful connection
       setReconnectAttempts(0);
       setReconnectDelay(0);
       setConnectionStatus("connected");
       setShowConnectedBanner(true);
+      setConnectionTimeout(false);
       
-      // Send HELLO message with new structure
-      ws.send(JSON.stringify({
+      // Prepare HELLO message
+      const helloMsg = {
         type: "HELLO",
         roomId: room,
         clientId: clientId,
         hostKey: key || undefined,  // Only include if provided
         displayName: username,
+      };
+      
+      console.log("[WS SEND] HELLO:", {
+        ...helloMsg,
+        hostKey: helloMsg.hostKey ? "***PRESENT***" : undefined
+      });
+      
+      ws.send(JSON.stringify(helloMsg));
+      
+      // Update diagnostics
+      setConnectionDiagnostics(prev => ({
+        ...prev,
+        joinSent: true,
       }));
       
       // Send initial TIME_PING for clock synchronization
@@ -375,10 +554,25 @@ export default function StandaloneApp() {
     ws.addEventListener("message", (event) => {
       try {
         const msg = JSON.parse(event.data);
+        console.log(`[WS RECV] ${msg.type}`, msg);
         
         if (msg.type === "HELLO_ACK") {
+          console.log("[WS] HELLO_ACK received - connection established");
           setIsHost(msg.isHost);
           setMode("connected");
+          
+          // Clear connection timeout on successful join
+          if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current);
+            connectionTimeoutRef.current = null;
+          }
+          setConnectionTimeout(false);
+          
+          // Update diagnostics
+          setConnectionDiagnostics(prev => ({
+            ...prev,
+            joinAckReceived: true,
+          }));
           
           // Calculate initial time offset
           if (msg.serverNow) {
@@ -413,17 +607,30 @@ export default function StandaloneApp() {
       }
     });
     
-    ws.addEventListener("close", () => {
+    ws.addEventListener("close", (event) => {
       // Only update state if this WebSocket is still the current one
       // This prevents stale close events from old connections from overwriting the state
       if (wsRef.current === ws) {
-        console.log("[WS] Disconnected");
+        console.log(`[WS CLOSE] Code: ${event.code}, Reason: ${event.reason || '(none)'}`);
         setConnectionStatus("disconnected");
+        
+        // Update diagnostics
+        setConnectionDiagnostics(prev => ({
+          ...prev,
+          lastCloseCode: event.code,
+          lastCloseReason: event.reason || '(none)',
+        }));
         
         // Clear intervals
         if (timePingIntervalRef.current) {
           clearInterval(timePingIntervalRef.current);
           timePingIntervalRef.current = null;
+        }
+        
+        // Clear connection timeout
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
         }
         
         // Exponential backoff reconnection
@@ -449,8 +656,15 @@ export default function StandaloneApp() {
     ws.addEventListener("error", (err) => {
       // Only update state if this WebSocket is still the current one
       if (wsRef.current === ws) {
-        console.error("[WS] Error:", err);
+        console.error("[WS ERROR]", err);
+        const errorMsg = err.message || "Connection error";
         setError("Connection error. Retrying...");
+        
+        // Update diagnostics
+        setConnectionDiagnostics(prev => ({
+          ...prev,
+          lastError: errorMsg,
+        }));
       }
     });
   };
@@ -522,6 +736,9 @@ export default function StandaloneApp() {
       }
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
+      }
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
       }
       if (timePingIntervalRef.current) {
         clearInterval(timePingIntervalRef.current);
@@ -914,19 +1131,127 @@ export default function StandaloneApp() {
           alignItems: "center",
           justifyContent: "center",
           height: "100vh",
-          gap: "var(--spacing-lg)"
+          gap: "var(--spacing-lg)",
+          padding: "var(--spacing-xl)"
         }}>
-          <div style={{
-            width: "50px",
-            height: "50px",
-            border: "4px solid var(--color-border-muted)",
-            borderTop: "4px solid var(--color-accent)",
-            borderRadius: "50%",
-            animation: "spin 1s linear infinite"
-          }} />
-          <p style={{ fontSize: "var(--font-size-xl)", color: "var(--color-text)" }}>
-            Connecting to room...
-          </p>
+          {!connectionTimeout ? (
+            <>
+              <div style={{
+                width: "50px",
+                height: "50px",
+                border: "4px solid var(--color-border-muted)",
+                borderTop: "4px solid var(--color-accent)",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }} />
+              <p style={{ fontSize: "var(--font-size-xl)", color: "var(--color-text)" }}>
+                Connecting to room...
+              </p>
+            </>
+          ) : (
+            <>
+              <div style={{
+                padding: "var(--spacing-xl)",
+                background: "var(--color-error-bg)",
+                border: "1px solid var(--color-error)",
+                borderRadius: "8px",
+                maxWidth: "600px",
+                width: "100%"
+              }}>
+                <h2 style={{ 
+                  color: "var(--color-error)", 
+                  marginTop: 0,
+                  fontSize: "var(--font-size-xl)"
+                }}>
+                  ⚠️ Connection Timeout
+                </h2>
+                <p style={{ color: "var(--color-text)" }}>
+                  Failed to connect to the meeting room within 10 seconds.
+                </p>
+                
+                <div style={{
+                  marginTop: "var(--spacing-lg)",
+                  padding: "var(--spacing-md)",
+                  background: "rgba(0,0,0,0.2)",
+                  borderRadius: "4px",
+                  fontFamily: "monospace",
+                  fontSize: "var(--font-size-sm)"
+                }}>
+                  <h3 style={{ marginTop: 0, fontSize: "var(--font-size-md)" }}>Connection Diagnostics</h3>
+                  
+                  <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                    <strong>WebSocket URL:</strong><br/>
+                    {connectionDiagnostics.lastWsUrl || "N/A"}
+                  </div>
+                  
+                  <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                    <strong>Last Attempt:</strong><br/>
+                    {connectionDiagnostics.lastAttemptTime 
+                      ? new Date(connectionDiagnostics.lastAttemptTime).toISOString() 
+                      : "N/A"}
+                  </div>
+                  
+                  <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                    <strong>Join Message Sent:</strong> {connectionDiagnostics.joinSent ? "✓ Yes" : "✗ No"}
+                  </div>
+                  
+                  <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                    <strong>Join ACK Received:</strong> {connectionDiagnostics.joinAckReceived ? "✓ Yes" : "✗ No"}
+                  </div>
+                  
+                  {connectionDiagnostics.lastCloseCode && (
+                    <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                      <strong>Last Close Code:</strong> {connectionDiagnostics.lastCloseCode}
+                    </div>
+                  )}
+                  
+                  {connectionDiagnostics.lastCloseReason && (
+                    <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                      <strong>Last Close Reason:</strong> {connectionDiagnostics.lastCloseReason}
+                    </div>
+                  )}
+                  
+                  {connectionDiagnostics.lastError && (
+                    <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                      <strong>Last Error:</strong> {connectionDiagnostics.lastError}
+                    </div>
+                  )}
+                  
+                  {connectionDiagnostics.healthCheckStatus && (
+                    <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                      <strong>API Health Check:</strong> {connectionDiagnostics.healthCheckStatus}
+                    </div>
+                  )}
+                  
+                  <div style={{ marginTop: "var(--spacing-md)" }}>
+                    <strong>Config:</strong><br/>
+                    API Base: {API_BASE || "(not set)"}<br/>
+                    WS URL: {WS_URL || "(not set)"}
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setConnectionTimeout(false);
+                    setMode("init");
+                    setError(null);
+                  }}
+                  style={{
+                    marginTop: "var(--spacing-lg)",
+                    padding: "var(--spacing-md) var(--spacing-lg)",
+                    background: "var(--color-accent)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "var(--font-size-md)"
+                  }}
+                >
+                  ← Back to Home
+                </button>
+              </div>
+            </>
+          )}
           <style>{`
             @keyframes spin {
               0% { transform: rotate(0deg); }
