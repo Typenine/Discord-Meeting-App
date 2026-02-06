@@ -931,6 +931,10 @@ export default function StandaloneApp() {
     sendMessage({ type: "AGENDA_DELETE", agendaId });
   };
 
+  const reorderAgenda = (orderedIds) => {
+    sendMessage({ type: "AGENDA_REORDER", orderedIds });
+  };
+
   const setActiveAgenda = (agendaId) => {
     sendMessage({ type: "AGENDA_SET_ACTIVE", agendaId });
   };
@@ -1675,6 +1679,7 @@ export default function StandaloneApp() {
                     onAddAgenda={addAgenda}
                     onUpdateAgenda={updateAgenda}
                     onDeleteAgenda={deleteAgenda}
+                    onReorderAgenda={reorderAgenda}
                     onSetActiveAgenda={setActiveAgenda}
                     onNextAgendaItem={nextAgendaItem}
                     onPrevAgendaItem={prevAgendaItem}

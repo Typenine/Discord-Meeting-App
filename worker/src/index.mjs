@@ -258,6 +258,30 @@ function prevAgendaItem(session) {
   return false;
 }
 
+function reorderAgendaItems(session, orderedIds) {
+  if (!Array.isArray(orderedIds) || orderedIds.length !== session.agenda.length) {
+    console.warn('[worker] Reorder failed: invalid orderedIds array');
+    return false;
+  }
+  
+  // Validate all IDs exist
+  const currentIds = new Set(session.agenda.map((a) => a.id));
+  for (const id of orderedIds) {
+    if (!currentIds.has(id)) {
+      console.warn('[worker] Reorder failed: unknown agenda ID', id);
+      return false;
+    }
+  }
+  
+  // Create map for quick lookup
+  const itemMap = new Map(session.agenda.map((item) => [item.id, item]));
+  
+  // Reorder agenda array
+  session.agenda = orderedIds.map((id) => itemMap.get(id));
+  
+  return true;
+}
+
 function timerStart(session) {
   if (session.timer.running) return;
   const serverNowMs = Date.now();
@@ -848,6 +872,9 @@ export class MeetingRoom {
           break;
         case "AGENDA_SET_ACTIVE":
           if (setActiveItem(session, msg.agendaId)) this.broadcastState();
+          break;
+        case "AGENDA_REORDER":
+          if (reorderAgendaItems(session, msg.orderedIds)) this.broadcastState();
           break;
         case "AGENDA_NEXT":
           if (nextAgendaItem(session)) this.broadcastState();
