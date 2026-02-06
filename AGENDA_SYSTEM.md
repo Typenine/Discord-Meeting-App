@@ -567,6 +567,50 @@ setActiveItem(session, item2.id);
 - Verify `if (session.agenda.length === 1)` condition
 - Ensure timer.durationSec set correctly
 
+## Features
+
+### Agenda Templates ✨ (Implemented)
+
+The agenda builder includes 5 built-in templates for quick meeting setup:
+
+1. **Quick Standup** - Fast 20-minute daily sync
+   - What did you do yesterday? (5m)
+   - What are you doing today? (10m)
+   - Any blockers? (5m)
+
+2. **Weekly Team Sync** - Standard 30-minute weekly meeting
+   - Opening & Announcements (5m)
+   - Status Updates (15m)
+   - Discussion Topics (10m)
+   - Action Items & Next Steps (5m)
+
+3. **Project Kickoff** - Launch a new project with clarity
+   - Project Overview (10m)
+   - Team Introductions (5m)
+   - Timeline & Milestones (10m)
+   - Discussion & Questions (10m)
+   - Next Steps (5m)
+
+4. **Sprint Retrospective** - Reflect and improve as a team
+   - Set the Stage (5m)
+   - What went well? (10m)
+   - What could be improved? (10m)
+   - Action Items (10m)
+   - Closing (3m)
+
+5. **1-on-1 Meeting** - Manager and direct report sync
+   - Personal Check-in (5m)
+   - Progress & Wins (10m)
+   - Challenges & Support (10m)
+   - Growth & Development (5m)
+   - Action Items (5m)
+
+**How to use:**
+- Click "Browse Templates" on the meeting setup screen
+- Select a template to load it instantly
+- Customize by adding/removing items or switching templates
+- Templates include pre-configured durations and notes
+
 ## Future Enhancements
 
 Possible improvements:
@@ -575,9 +619,10 @@ Possible improvements:
    - Allow host to reorder agenda items
    - Update next/prev navigation accordingly
 
-2. **Agenda templates**
-   - Save/load common agenda structures
-   - Pre-fill durations for recurring meetings
+2. **Custom template creation** (Extension of templates feature)
+   - Save custom agenda structures to localStorage
+   - Export/import templates
+   - Share templates via URL
 
 3. **Agenda export**
    - Export to PDF/text for distribution
@@ -603,6 +648,10 @@ The agenda system provides structured meeting management with:
 ✅ Per-item durations
 ✅ Active item tracking
 ✅ Automatic timer reset on item change
+✅ **Agenda templates** - 5 built-in templates for quick setup
+✅ Edit items inline
+✅ Next/Previous navigation
+✅ Add/delete items dynamically
 ✅ Host editing capabilities
 ✅ Next/Prev navigation
 ✅ Notes support
