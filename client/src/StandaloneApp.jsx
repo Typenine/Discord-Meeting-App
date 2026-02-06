@@ -124,7 +124,12 @@ export default function StandaloneApp() {
   const [mode, setMode] = useState("init"); // 'init', 'creating', 'joining', 'connected'
   const [roomId, setRoomId] = useState("");
   const [hostKey, setHostKey] = useState("");
-  const [username, setUsername] = useState(() => {
+  
+  // Name draft vs confirmed name flow:
+  // - nameDraft: bound to input field, updates on every keystroke
+  // - username: only updates when user confirms (Enter or Join button)
+  // - usernameConfirmed: boolean flag that controls auto-connect
+  const [nameDraft, setNameDraft] = useState(() => {
     // Load persisted username from localStorage if available
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("evw_username");
@@ -135,6 +140,27 @@ export default function StandaloneApp() {
       }
     }
     return "";
+  });
+  const [username, setUsername] = useState(() => {
+    // If we have a persisted username, set it as confirmed immediately
+    // This enables auto-reconnect for hosts who refresh
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("evw_username");
+      if (stored && stored.length <= 100 && 
+          !/[\x00-\x1F\x7F<>"']/.test(stored)) {
+        return stored;
+      }
+    }
+    return "";
+  });
+  const [usernameConfirmed, setUsernameConfirmed] = useState(() => {
+    // If we have a persisted username on load, mark it as confirmed
+    // This allows hosts to auto-reconnect without retyping
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("evw_username");
+      return !!(stored && stored.length <= 100 && !/[\x00-\x1F\x7F<>"']/.test(stored));
+    }
+    return false;
   });
   const [clientId, setClientId] = useState(() => {
     // Generate and persist clientId in localStorage
@@ -254,21 +280,21 @@ export default function StandaloneApp() {
     }
   }, []);
 
-  // Auto-connect when we have roomId + username but haven't started connecting yet
+  // Auto-connect when we have roomId + confirmed username but haven't started connecting yet
   // This handles both: URL with ?room=X and manual "Join Room" button click
   useEffect(() => {
     // Only auto-connect if:
-    // 1. We have roomId and username
+    // 1. We have roomId and confirmed username
     // 2. We're in init mode (not already connecting/connected)
     // 3. Not disconnected due to timeout (user should manually retry)
     // Note: hostKey is in deps to capture it at connection time, but won't retrigger
     // since mode will no longer be "init" after first connection attempt
-    if (roomId && username.trim() && mode === "init" && !connectionTimeout && connectionStatus === "disconnected") {
+    if (roomId && usernameConfirmed && username.trim() && mode === "init" && !connectionTimeout && connectionStatus === "disconnected") {
       console.log("[AUTO-CONNECT] Initiating connection: roomId=" + roomId + ", username=" + username);
       setMode("joining"); // Set mode to joining to show connecting UI
       connectToRoom(roomId, hostKey || null);
     }
-  }, [roomId, username, hostKey, mode, connectionStatus, connectionTimeout]);
+  }, [roomId, usernameConfirmed, username, hostKey, mode, connectionStatus, connectionTimeout]);
 
   // Persist username to localStorage
   useEffect(() => {
@@ -303,10 +329,35 @@ export default function StandaloneApp() {
     }
   }, [showConnectedBanner]);
 
+  // Confirm username - validates and commits nameDraft to username
+  const confirmUsername = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      setError("Please enter your name");
+      return false;
+    }
+    setUsername(trimmed);
+    setUsernameConfirmed(true);
+    setError(null);
+    return true;
+  };
+
+  // Check if join form is ready for submission
+  const canSubmitJoin = () => {
+    return nameDraft.trim() && roomId.trim();
+  };
+
+  // Handle Enter key on join form inputs
+  const handleJoinFormEnter = (e) => {
+    if (e.key === 'Enter' && canSubmitJoin()) {
+      e.preventDefault();
+      joinRoom();
+    }
+  };
+
   // Create new room
   const createRoom = async () => {
-    if (!username.trim()) {
-      setError("Please enter your name");
+    if (!confirmUsername()) {
       return;
     }
     
@@ -357,8 +408,7 @@ export default function StandaloneApp() {
 
   // Join existing room
   const joinRoom = () => {
-    if (!username.trim()) {
-      setError("Please enter your name");
+    if (!confirmUsername()) {
       return;
     }
     
@@ -1048,15 +1098,21 @@ export default function StandaloneApp() {
                 <label className="label">Your Name</label>
                 <input
                   className="input"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      createRoom();
+                    }
+                  }}
                   placeholder="Enter your name"
                 />
                 <button
                   className="btn btnPrimary btnLarge btnFull"
                   style={{ marginTop: "var(--spacing-xl)" }}
                   onClick={createRoom}
-                  disabled={!username}
+                  disabled={!nameDraft.trim()}
                 >
                   Create New Meeting Room
                 </button>
@@ -1072,8 +1128,9 @@ export default function StandaloneApp() {
                 <label className="label">Your Name</label>
                 <input
                   className="input"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={handleJoinFormEnter}
                   placeholder="Enter your name"
                   style={{ marginBottom: "var(--spacing-lg)" }}
                 />
@@ -1082,6 +1139,7 @@ export default function StandaloneApp() {
                   className="input"
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
+                  onKeyDown={handleJoinFormEnter}
                   placeholder="Enter room ID"
                   style={{ marginBottom: "var(--spacing-lg)" }}
                 />
@@ -1090,6 +1148,7 @@ export default function StandaloneApp() {
                   className="input"
                   value={hostKey}
                   onChange={(e) => setHostKey(e.target.value)}
+                  onKeyDown={handleJoinFormEnter}
                   placeholder="Enter host key to control meeting"
                 />
                 <span className="helper">Leave blank to join as attendee</span>
@@ -1097,7 +1156,7 @@ export default function StandaloneApp() {
                   className="btn btnAccent btnLarge btnFull"
                   style={{ marginTop: "var(--spacing-xl)" }}
                   onClick={joinRoom}
-                  disabled={!username || !roomId}
+                  disabled={!nameDraft.trim() || !roomId}
                 >
                   Join Room
                 </button>
