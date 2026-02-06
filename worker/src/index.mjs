@@ -606,7 +606,7 @@ export class MeetingRoom {
         let clientId = msg.clientId;
         let hostKey = msg.hostKey || null;
         // Extract displayName - prefer explicit displayName, fall back to username
-        // Only use "Guest" as last resort if nothing was provided
+        // No default fallback - displayName is required and will be validated below
         let displayName = msg.displayName || msg.username || null;
         let roomId = msg.roomId || msg.sessionId || room;
 
