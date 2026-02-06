@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { formatTime } from "../utils/timeFormat.js";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -136,7 +136,7 @@ export default function HostPanel({
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [inlineEditId]);
+  }, [inlineEditId, saveInlineEdit]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -171,22 +171,7 @@ export default function HostPanel({
   };
 
   // Inline editing functions
-  const startInlineEdit = (item) => {
-    const totalSec = item.durationSec || 0;
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    
-    setInlineEditId(item.id);
-    setInlineEditData({
-      title: item.title,
-      minutes: String(mins),
-      seconds: String(secs),
-      notes: item.notes || ""
-    });
-    setOpenMenuId(null);
-  };
-
-  const saveInlineEdit = () => {
+  const saveInlineEdit = useCallback(() => {
     if (!inlineEditId || !inlineEditData.title.trim()) return;
     
     const mins = parseInt(inlineEditData.minutes) || 0;
@@ -202,6 +187,21 @@ export default function HostPanel({
     
     setInlineEditId(null);
     setInlineEditData({});
+  }, [inlineEditId, inlineEditData, onUpdateAgenda]);
+  
+  const startInlineEdit = (item) => {
+    const totalSec = item.durationSec || 0;
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    
+    setInlineEditId(item.id);
+    setInlineEditData({
+      title: item.title,
+      minutes: String(mins),
+      seconds: String(secs),
+      notes: item.notes || ""
+    });
+    setOpenMenuId(null);
   };
 
   const cancelInlineEdit = () => {
@@ -230,8 +230,8 @@ export default function HostPanel({
   };
 
   const handleInsertAfter = (item) => {
-    // Note: This adds a new item at the end of the agenda list.
-    // For precise positioning, use drag-and-drop to move it after the target item.
+    // Note: Backend API doesn't support position parameter yet.
+    // This adds to end of list - users can drag to desired position.
     onAddAgenda("New Item", 300, "");
     setOpenMenuId(null);
   };
@@ -284,8 +284,8 @@ export default function HostPanel({
   };
 
   const loadTemplate = (template) => {
-    // Clear current agenda first (in real app, would need multi-delete support)
-    // For now, just add template items
+    // Note: This adds template items to the current agenda.
+    // To replace the agenda, first delete unwanted items manually.
     template.items.forEach((item) => {
       onAddAgenda(item.title, item.durationSec, item.notes);
     });
@@ -564,7 +564,7 @@ export default function HostPanel({
                                       className="menuItem"
                                       onClick={() => handleInsertAfter(item)}
                                     >
-                                      ➕ Insert After
+                                      ➕ Add New Item
                                     </button>
                                     <button
                                       className="menuItem"
@@ -705,8 +705,9 @@ export default function HostPanel({
                     <button
                       className="btn btnGhost btnSmall"
                       onClick={() => loadTemplate(template)}
+                      title="Adds template items to current agenda"
                     >
-                      Load
+                      Add Items
                     </button>
                   </div>
                 ))}
@@ -723,8 +724,9 @@ export default function HostPanel({
                         <button
                           className="btn btnGhost btnSmall"
                           onClick={() => loadTemplate(template)}
+                          title="Adds template items to current agenda"
                         >
-                          Load
+                          Add Items
                         </button>
                         <button
                           className="btn btnDanger btnSmall"
