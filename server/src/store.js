@@ -477,32 +477,6 @@ export function startMeeting({ sessionId, userId, startTimer = true }) {
   return snapshotSession(session);
 }
 
-// Pause or resume the meeting timer
-export function toggleMeetingTimer({ sessionId, userId }) {
-  const session = sessions[sessionId];
-  if (!session) return null;
-  if (!validateHostAccess(session, userId)) return null;
-  
-  if (!session.meetingStarted) {
-    console.warn('[store] Cannot control meeting timer before meeting starts:', { sessionId });
-    return { error: 'meeting_not_started', message: 'Meeting has not been started yet' };
-  }
-  
-  if (session.meetingTimer.running) {
-    // Pausing is not supported - meeting timer runs continuously once started
-    console.warn('[store] Meeting timer pause not supported:', { sessionId });
-    return snapshotSession(session);
-  } else {
-    // Start the meeting timer
-    session.meetingTimer.running = true;
-    session.meetingTimer.startedAtMs = Date.now();
-  }
-  
-  bumpRevision(session);
-  saveSessions();
-  return snapshotSession(session);
-}
-
 // Timer controls - Enhanced with validateHostAccess and decimal minute support
 export function startTimer({ sessionId, userId, durationMinutes }) {
   const session = sessions[sessionId];

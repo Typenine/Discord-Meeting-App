@@ -810,7 +810,6 @@ export default function App() {
               // Then start the meeting
               await startMeetingAfterSetup();
             }}
-            disabled={setupAgenda.length === 0}
           >
             🚀 Start Meeting
           </button>
@@ -822,7 +821,7 @@ export default function App() {
               opacity: 0.7,
               marginTop: "var(--spacing-md)"
             }}>
-              Add at least one agenda item to start the meeting
+              Tip: Add agenda items to help structure your meeting
             </p>
           )}
         </div>

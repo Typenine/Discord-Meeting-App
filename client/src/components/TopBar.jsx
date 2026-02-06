@@ -55,7 +55,6 @@ export default function TopBar({
             />
             <div className="brand-text">
               <div className="brandTitle">{meetingName || "East v. West League Meeting"}</div>
-              <div className="brandSubtitle">League Meeting</div>
             </div>
           </div>
           {roomId && (
