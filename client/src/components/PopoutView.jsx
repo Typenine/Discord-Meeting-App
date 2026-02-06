@@ -12,6 +12,10 @@ export default function PopoutView({
 }) {
   const [showAttendancePanel, setShowAttendancePanel] = useState(false);
   
+  // Status label constants
+  const STATUS_CURRENT = "(current)";
+  const STATUS_COMPLETE = "(complete)";
+  
   // Format elapsed time for meeting timer
   const formatElapsed = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -106,7 +110,7 @@ export default function PopoutView({
           <div className="popoutLabel">FULL AGENDA</div>
           <div style={{
             overflowY: "auto",
-            maxHeight: "300px",
+            maxHeight: "var(--popout-agenda-max-height)",
             paddingRight: "var(--spacing-sm)"
           }}>
             {state.agenda.map((item, index) => {
@@ -164,8 +168,8 @@ export default function PopoutView({
                       fontWeight: "var(--font-weight-medium)"
                     }}>
                       {formatTime(item.durationSec)}
-                      {isActive && " (current)"}
-                      {isPast && " (complete)"}
+                      {isActive && ` ${STATUS_CURRENT}`}
+                      {isPast && ` ${STATUS_COMPLETE}`}
                     </div>
                   </div>
                 </div>
