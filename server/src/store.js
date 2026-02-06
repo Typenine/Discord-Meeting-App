@@ -139,6 +139,14 @@ function computeRemainingSec(session) {
   return Math.ceil(remainingMs / 1000);
 }
 
+// Compute the current elapsed time for the meeting timer in seconds
+function computeMeetingElapsedSec(session) {
+  const { meetingTimer } = session;
+  if (!meetingTimer.running || meetingTimer.startedAtMs == null) return 0;
+  const elapsedMs = Date.now() - meetingTimer.startedAtMs;
+  return Math.floor(elapsedMs / 1000);
+}
+
 // Return a snapshot of the session with computed remaining seconds and
 // without exposing internal revision counters or minutes text.  This is
 // what gets sent to clients.  The caller can append revision and
@@ -146,6 +154,10 @@ function computeRemainingSec(session) {
 function snapshotSession(session) {
   const copy = clone(session);
   copy.timer = { ...copy.timer, remainingSec: computeRemainingSec(session) };
+  copy.meetingTimer = { 
+    ...copy.meetingTimer, 
+    elapsedSec: computeMeetingElapsedSec(session) 
+  };
   return copy;
 }
 
@@ -177,6 +189,13 @@ export function createSession({ userId, username, sessionId, channelId, guildId 
     // Discord context for channel-specific meetings
     channelId: channelId ? String(channelId) : null,
     guildId: guildId ? String(guildId) : null,
+    // Meeting setup and configuration
+    meetingName: '',
+    meetingStarted: false, // Track if meeting has been officially started
+    meetingTimer: {
+      running: false,
+      startedAtMs: null, // When meeting timer was started
+    },
     attendance: {
       [userId]: {
         userId: String(userId),
@@ -376,6 +395,109 @@ export function setActiveAgenda({ sessionId, userId, agendaId }) {
     session.timer.endsAtMs = null;
     session.timer.durationSet = sec;
   }
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
+// Update meeting setup (name and agenda before meeting starts)
+export function updateMeetingSetup({ sessionId, userId, meetingName, agenda }) {
+  const session = sessions[sessionId];
+  if (!session) return null;
+  if (!validateHostAccess(session, userId)) return null;
+  
+  // Can only update setup before meeting is started
+  if (session.meetingStarted) {
+    console.warn('[store] Cannot update setup after meeting has started:', { sessionId });
+    return { error: 'meeting_started', message: 'Cannot update setup after meeting has started' };
+  }
+  
+  if (meetingName !== undefined) {
+    session.meetingName = String(meetingName);
+  }
+  
+  if (agenda !== undefined && Array.isArray(agenda)) {
+    // Replace entire agenda with new one
+    session.agenda = agenda.map((item) => ({
+      id: item.id || randomUUID(),
+      title: String(item.title || ''),
+      durationSec: Number(item.durationSec) || 0,
+      notes: String(item.notes || ''),
+      status: 'pending',
+      startedAt: null,
+      completedAt: null,
+      timeSpent: 0,
+    }));
+    
+    // Set first agenda item as active if agenda is not empty
+    if (session.agenda.length > 0 && !session.currentAgendaItemId) {
+      session.currentAgendaItemId = session.agenda[0].id;
+    }
+  }
+  
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
+// Start the meeting (host only) - can optionally start meeting timer
+export function startMeeting({ sessionId, userId, startTimer = true }) {
+  const session = sessions[sessionId];
+  if (!session) return null;
+  if (!validateHostAccess(session, userId)) return null;
+  
+  // Mark meeting as started
+  if (!session.meetingStarted) {
+    session.meetingStarted = true;
+    
+    // Start meeting timer if requested
+    if (startTimer) {
+      session.meetingTimer.running = true;
+      session.meetingTimer.startedAtMs = Date.now();
+    }
+    
+    // Mark first agenda item as active if not already set
+    if (session.agenda.length > 0 && !session.currentAgendaItemId) {
+      const firstItem = session.agenda[0];
+      session.currentAgendaItemId = firstItem.id;
+      firstItem.status = 'active';
+      firstItem.startedAt = Date.now();
+    }
+    
+    console.log('[store] Meeting started:', { 
+      sessionId, 
+      meetingName: session.meetingName,
+      agendaItems: session.agenda.length,
+      timerStarted: startTimer,
+    });
+  }
+  
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
+// Pause or resume the meeting timer
+export function toggleMeetingTimer({ sessionId, userId }) {
+  const session = sessions[sessionId];
+  if (!session) return null;
+  if (!validateHostAccess(session, userId)) return null;
+  
+  if (!session.meetingStarted) {
+    console.warn('[store] Cannot control meeting timer before meeting starts:', { sessionId });
+    return { error: 'meeting_not_started', message: 'Meeting has not been started yet' };
+  }
+  
+  if (session.meetingTimer.running) {
+    // Pausing is not supported - meeting timer runs continuously once started
+    console.warn('[store] Meeting timer pause not supported:', { sessionId });
+    return snapshotSession(session);
+  } else {
+    // Start the meeting timer
+    session.meetingTimer.running = true;
+    session.meetingTimer.startedAtMs = Date.now();
+  }
+  
   bumpRevision(session);
   saveSessions();
   return snapshotSession(session);

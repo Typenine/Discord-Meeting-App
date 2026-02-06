@@ -111,7 +111,7 @@ export default function App() {
   const [sessionId, setSessionId] = useState("");
   const [state, setState] = useState(null);
   const [revision, setRevision] = useState(null);
-  const [status, setStatus] = useState("init"); // 'init', 'joined', 'ended'
+  const [status, setStatus] = useState("init"); // 'init', 'setup', 'joined', 'ended'
   const [healthStatus, setHealthStatus] = useState(null);
   const [error, setError] = useState(null);
   const isHost = state && state.hostUserId === String(userId);
@@ -177,7 +177,7 @@ export default function App() {
     };
   }, [status]);
 
-  // Polling effect: fetch session state every second
+  // Polling effect: fetch session state every second (only when status is 'joined')
   useEffect(() => {
     if (status !== "joined" || !sessionId) return;
     let stopped = false;
@@ -241,7 +241,7 @@ export default function App() {
         setSessionId(data.sessionId);
         setState(data.state);
         setRevision(data.revision);
-        setStatus("joined");
+        setStatus("setup"); // Go to setup screen instead of directly to joined
         
         // Save to localStorage for auto-rejoin
         const sessionInfo = {
@@ -280,13 +280,19 @@ export default function App() {
         setSessionId(targetId);
         setState(data.state);
         setRevision(data.revision);
-        setStatus("joined");
+        // If meeting has started, go to joined state; otherwise go to setup (only for host)
+        const isHost = data.state.hostUserId === String(userId);
+        if (data.state.meetingStarted || !isHost) {
+          setStatus("joined");
+        } else {
+          setStatus("setup");
+        }
         
         // Save to localStorage for auto-rejoin
         const sessionInfo = {
           sessionId: targetId,
           joinedAt: Date.now(),
-          isHost: data.state.hostUserId === String(userId),
+          isHost: isHost,
         };
         localStorage.setItem("lastActiveSession", JSON.stringify(sessionInfo));
         setLastSession(sessionInfo);
@@ -308,6 +314,25 @@ export default function App() {
     setShowRejoinPrompt(false);
     localStorage.removeItem("lastActiveSession");
     setLastSession(null);
+  };
+
+  // Update meeting setup (name and agenda)
+  const updateSetup = async (meetingName, agenda) => {
+    const data = await post(`/session/${sessionId}/setup`, { userId, meetingName, agenda });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+    }
+  };
+
+  // Start the meeting (after setup)
+  const startMeetingAfterSetup = async () => {
+    const data = await post(`/session/${sessionId}/start-meeting`, { userId, startTimer: true });
+    if (data && data.state) {
+      setState(data.state);
+      setRevision(data.revision);
+      setStatus("joined"); // Now move to joined state
+    }
   };
 
   // Helper functions for HTTP actions with error handling
@@ -485,6 +510,14 @@ export default function App() {
   const [newAgendaDuration, setNewAgendaDuration] = useState("");
   const [voteQuestion, setVoteQuestion] = useState("");
   const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
+  
+  // Setup form states
+  const [setupMeetingName, setSetupMeetingName] = useState("East v. West League Meeting");
+  const [setupAgenda, setSetupAgenda] = useState([]);
+  const [setupAgendaTitle, setSetupAgendaTitle] = useState("");
+  const [setupAgendaMinutes, setSetupAgendaMinutes] = useState("");
+  const [setupAgendaSeconds, setSetupAgendaSeconds] = useState("");
+  const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
 
   return (
     <div className="appShell">
@@ -615,6 +648,186 @@ export default function App() {
           </div>
         </div>
       )}
+      
+      {/* Setup Screen - Host configures meeting before starting */}
+      {status === "setup" && state && isHost && (
+        <div className="container container-narrow" style={{ paddingTop: "var(--spacing-2xl)", paddingBottom: "var(--spacing-4xl)" }}>
+          <div className="brandHeader">
+            <h1 className="brandTitle">Meeting Setup</h1>
+            <div className="brandSubtitle">Configure your meeting before starting</div>
+          </div>
+          
+          <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+            <div className="cardHeader">
+              <h3 className="cardTitle">Meeting Name</h3>
+            </div>
+            <div className="cardBody">
+              <input 
+                className="input"
+                value={setupMeetingName}
+                onChange={(e) => setSetupMeetingName(e.target.value)}
+                placeholder="Enter meeting name"
+              />
+            </div>
+          </div>
+          
+          <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+            <div className="cardHeader">
+              <h3 className="cardTitle">Agenda Builder</h3>
+              <p style={{ fontSize: "var(--font-size-sm)", opacity: 0.8, marginTop: "var(--spacing-xs)" }}>
+                Add items to your meeting agenda
+              </p>
+            </div>
+            <div className="cardBody">
+              {/* Existing Agenda Items */}
+              {setupAgenda.length > 0 && (
+                <div style={{ marginBottom: "var(--spacing-lg)" }}>
+                  {setupAgenda.map((item, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        display: "flex", 
+                        gap: "var(--spacing-md)", 
+                        alignItems: "start",
+                        marginBottom: "var(--spacing-md)",
+                        padding: "var(--spacing-md)",
+                        backgroundColor: "var(--color-bg-secondary)",
+                        borderRadius: "var(--radius-md)"
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: "var(--font-weight-semibold)" }}>{item.title}</div>
+                        <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.7 }}>
+                          Duration: {Math.floor(item.durationSec / 60)}m {item.durationSec % 60}s
+                        </div>
+                        {item.notes && (
+                          <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.7, marginTop: "var(--spacing-xs)" }}>
+                            {item.notes}
+                          </div>
+                        )}
+                      </div>
+                      <button 
+                        className="btn btnSmall btnDanger"
+                        onClick={() => {
+                          setSetupAgenda(setupAgenda.filter((_, i) => i !== idx));
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add New Agenda Item Form */}
+              <div style={{ 
+                padding: "var(--spacing-md)", 
+                backgroundColor: "var(--color-bg-tertiary)",
+                borderRadius: "var(--radius-md)"
+              }}>
+                <label className="label">Item Title</label>
+                <input 
+                  className="input"
+                  value={setupAgendaTitle}
+                  onChange={(e) => setSetupAgendaTitle(e.target.value)}
+                  placeholder="e.g., Opening remarks"
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                />
+                
+                <label className="label">Duration</label>
+                <div style={{ display: "flex", gap: "var(--spacing-md)", marginBottom: "var(--spacing-md)" }}>
+                  <div style={{ flex: 1 }}>
+                    <input 
+                      type="number"
+                      className="input"
+                      value={setupAgendaMinutes}
+                      onChange={(e) => setSetupAgendaMinutes(e.target.value)}
+                      placeholder="Minutes"
+                      min="0"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <input 
+                      type="number"
+                      className="input"
+                      value={setupAgendaSeconds}
+                      onChange={(e) => setSetupAgendaSeconds(e.target.value)}
+                      placeholder="Seconds"
+                      min="0"
+                      max="59"
+                    />
+                  </div>
+                </div>
+                
+                <label className="label">Notes (optional)</label>
+                <textarea 
+                  className="input"
+                  value={setupAgendaNotes}
+                  onChange={(e) => setSetupAgendaNotes(e.target.value)}
+                  placeholder="Additional notes or context"
+                  rows="2"
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                />
+                
+                <button 
+                  className="btn btnSecondary btnFull"
+                  onClick={() => {
+                    if (!setupAgendaTitle) return;
+                    const mins = parseInt(setupAgendaMinutes) || 0;
+                    const secs = parseInt(setupAgendaSeconds) || 0;
+                    const validSecs = Math.max(0, Math.min(59, secs));
+                    const totalSeconds = mins * 60 + validSecs;
+                    
+                    setSetupAgenda([
+                      ...setupAgenda,
+                      {
+                        title: setupAgendaTitle,
+                        durationSec: totalSeconds,
+                        notes: setupAgendaNotes
+                      }
+                    ]);
+                    
+                    // Clear form
+                    setSetupAgendaTitle("");
+                    setSetupAgendaMinutes("");
+                    setSetupAgendaSeconds("");
+                    setSetupAgendaNotes("");
+                  }}
+                  disabled={!setupAgendaTitle}
+                >
+                  + Add to Agenda
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Start Meeting Button */}
+          <button 
+            className="btn btnPrimary btnLarge btnFull"
+            onClick={async () => {
+              // First update the setup
+              await updateSetup(setupMeetingName, setupAgenda);
+              // Then start the meeting
+              await startMeetingAfterSetup();
+            }}
+            disabled={setupAgenda.length === 0}
+          >
+            🚀 Start Meeting
+          </button>
+          
+          {setupAgenda.length === 0 && (
+            <p style={{ 
+              textAlign: "center", 
+              fontSize: "var(--font-size-sm)", 
+              opacity: 0.7,
+              marginTop: "var(--spacing-md)"
+            }}>
+              Add at least one agenda item to start the meeting
+            </p>
+          )}
+        </div>
+      )}
+      
       {status === "joined" && state && (
         <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-4xl)" }}>
           {/* Channel Context */}

@@ -179,6 +179,45 @@ export function createApp(config = {}) {
     return res.json({ state: snapshot, revision: session.revision, serverNow: Date.now() });
   });
 
+  // Update meeting setup (name and agenda before meeting starts)
+  apiRouter.post('/session/:id/setup', (req, res) => {
+    const sessionId = req.params.id;
+    const { userId, meetingName, agenda } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'missing_userId' });
+    const state = store.updateMeetingSetup({ sessionId, userId, meetingName, agenda });
+    if (!state) {
+      console.warn('[Authorization] User attempted setup update without host access:', {
+        sessionId,
+        userId,
+        operation: 'updateMeetingSetup',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    if (state.error) {
+      return res.status(400).json(state);
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
+  // Start the meeting
+  apiRouter.post('/session/:id/start-meeting', (req, res) => {
+    const sessionId = req.params.id;
+    const { userId, startTimer } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'missing_userId' });
+    const state = store.startMeeting({ sessionId, userId, startTimer });
+    if (!state) {
+      console.warn('[Authorization] User attempted to start meeting without host access:', {
+        sessionId,
+        userId,
+        operation: 'startMeeting',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
   // Add a new agenda item
   apiRouter.post('/session/:id/agenda', (req, res) => {
     const sessionId = req.params.id;
