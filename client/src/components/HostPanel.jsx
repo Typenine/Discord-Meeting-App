@@ -577,9 +577,9 @@ export default function HostPanel({
                           console.error('Failed to apply time bank:', err);
                         }
                       }}
-                      disabled={state.timeBankSec < 30}
+                      disabled={state.timeBankSec <= 0}
                     >
-                      Apply +30s
+                      Apply +{Math.min(30, state.timeBankSec)}s
                     </button>
                     <button
                       className="btn btnSuccess btnSmall"
@@ -602,7 +602,7 @@ export default function HostPanel({
                           console.error('Failed to apply time bank:', err);
                         }
                       }}
-                      disabled={state.timeBankSec < 60}
+                      disabled={state.timeBankSec <= 0}
                     >
                       Apply +1:00
                     </button>
