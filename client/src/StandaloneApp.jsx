@@ -896,9 +896,10 @@ export default function StandaloneApp() {
     
     if (state.timer.running && state.timer.endsAtMs) {
       // Timer is running - calculate remaining time using endsAtMs and server offset
+      // Allow negative values for overtime display
       const updateTimer = () => {
         const serverNow = Date.now() + serverTimeOffset;
-        const remaining = Math.max(0, Math.ceil((state.timer.endsAtMs - serverNow) / 1000));
+        const remaining = Math.ceil((state.timer.endsAtMs - serverNow) / 1000);
         setLocalTimer(remaining);
       };
       

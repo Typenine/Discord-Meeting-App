@@ -45,12 +45,13 @@ export default function RoomLayout({
               </div>
               
               {/* Timer Display */}
-              <div className={`timerDisplay ${state.timer.running ? 'running' : ''}`}>
-                <div className={`timerValue ${state.timer.running && localTimer < 10 ? 'warning' : ''}`}>
+              <div className={`timerDisplay ${state.timer.running ? 'running' : ''} ${localTimer < 0 ? 'overtime' : ''}`}>
+                <div className={`timerValue ${state.timer.running && localTimer < 10 && localTimer >= 0 ? 'warning' : ''} ${localTimer < 0 ? 'overtime' : ''}`}>
                   {formatTime(localTimer)}
                 </div>
                 <div className="timerStatus">
-                  {state.timer.running ? '▶️ Running' : 
+                  {localTimer < 0 ? '⏱️ Overtime' :
+                   state.timer.running ? '▶️ Running' : 
                    state.timer.pausedRemainingSec !== null ? '⏸ Paused' : 
                    '⏹ Stopped'}
                 </div>

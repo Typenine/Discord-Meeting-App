@@ -845,6 +845,12 @@ select:focus {
   animation: pulse 1s ease-in-out infinite;
 }
 
+.popoutTimerValue.overtime {
+  color: #ff6b35;
+  text-shadow: 0 0 30px rgba(255, 107, 53, 0.5);
+  animation: overtimePulse 2s ease-in-out infinite;
+}
+
 .popoutTimerStatus {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);

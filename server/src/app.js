@@ -366,6 +366,65 @@ export function createApp(config = {}) {
     return res.json({ state, revision: raw.revision, serverNow: Date.now() });
   });
 
+  // Time bank controls
+  apiRouter.post('/session/:id/timebank/toggle', (req, res) => {
+    const sessionId = req.params.id;
+    const { userId, enabled } = req.body || {};
+    if (!userId || enabled == null) return res.status(400).json({ error: 'missing_fields' });
+    const state = store.toggleTimeBank({ sessionId, userId, enabled });
+    if (!state) {
+      console.warn('[Authorization] User attempted time bank toggle without host access:', {
+        sessionId,
+        userId,
+        operation: 'toggleTimeBank',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
+  apiRouter.post('/session/:id/timebank/apply', (req, res) => {
+    const sessionId = req.params.id;
+    const { userId, seconds } = req.body || {};
+    if (!userId || seconds == null) return res.status(400).json({ error: 'missing_fields' });
+    const state = store.applyTimeBank({ sessionId, userId, seconds });
+    if (!state) {
+      console.warn('[Authorization] User attempted time bank apply without host access:', {
+        sessionId,
+        userId,
+        operation: 'applyTimeBank',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    if (state.error) {
+      return res.status(400).json(state);
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
+  apiRouter.post('/session/:id/agenda/complete', (req, res) => {
+    const sessionId = req.params.id;
+    const { userId } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'missing_userId' });
+    const state = store.completeAgendaItem({ sessionId, userId });
+    if (!state) {
+      console.warn('[Authorization] User attempted complete agenda without host access:', {
+        sessionId,
+        userId,
+        operation: 'completeAgendaItem',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    if (state.error) {
+      return res.status(400).json(state);
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
+
   // Voting
   apiRouter.post('/session/:id/vote/open', (req, res) => {
     const sessionId = req.params.id;

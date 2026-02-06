@@ -130,13 +130,14 @@ function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-// Compute the current remaining seconds based on endsAtMs and now.  We
-// ceil to the nearest second to avoid showing zero before time runs out.
+// Compute the current remaining seconds based on endsAtMs and now.
+// Allow negative values for overtime display (timer continues past 0).
 function computeRemainingSec(session) {
   const { timer } = session;
   if (!timer.running || timer.endsAtMs == null) return timer.remainingSec;
-  const remainingMs = Math.max(0, timer.endsAtMs - Date.now());
-  return Math.ceil(remainingMs / 1000);
+  const remainingMs = timer.endsAtMs - Date.now();
+  // Use Math.ceil for positive, Math.floor for negative to handle overtime correctly
+  return remainingMs >= 0 ? Math.ceil(remainingMs / 1000) : Math.floor(remainingMs / 1000);
 }
 
 // Compute the current elapsed time for the meeting timer in seconds
@@ -213,6 +214,9 @@ export function createSession({ userId, username, sessionId, channelId, guildId 
       remainingSec: 0,
       durationSet: 0, // Track original duration for validation
     },
+    // Time bank feature
+    timeBankEnabled: false,
+    timeBankSec: 0,
     vote: {
       open: false,
       question: '',
@@ -292,23 +296,29 @@ export function addAgenda({ sessionId, userId, title, durationSec }) {
   if (!session) return null;
   if (!validateHostAccess(session, userId)) return null;
   const id = randomUUID();
+  const dur = Number(durationSec) || 0;
   session.agenda.push({ 
     id, 
     title: String(title), 
-    durationSec: Number(durationSec) || 0, 
+    durationSec: dur, 
     notes: '',
     status: 'pending', // 'pending' | 'active' | 'completed'
     startedAt: null,
     completedAt: null,
     timeSpent: 0,
   });
-  // If this is the first agenda item, make it active
+  // If this is the first agenda item, make it active and set timer duration
   if (!session.currentAgendaItemId) {
     session.currentAgendaItemId = id;
     const item = session.agenda.find((a) => a.id === id);
     if (item) {
       item.status = 'active';
       item.startedAt = Date.now();
+      // Set timer to item's duration if not running
+      if (!session.timer.running) {
+        session.timer.remainingSec = dur;
+        session.timer.durationSet = dur;
+      }
     }
   }
   bumpRevision(session);
@@ -575,6 +585,101 @@ export function extendTimer({ sessionId, userId, seconds }) {
   saveSessions();
   return snapshotSession(session);
 }
+
+// Time bank controls - Enhanced for host-only access
+export function toggleTimeBank({ sessionId, userId, enabled }) {
+  const session = sessions[sessionId];
+  if (!session) return null;
+  if (!validateHostAccess(session, userId)) return null;
+  session.timeBankEnabled = Boolean(enabled);
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
+export function applyTimeBank({ sessionId, userId, seconds }) {
+  const session = sessions[sessionId];
+  if (!session) return null;
+  if (!validateHostAccess(session, userId)) return null;
+  if (!session.timeBankEnabled) {
+    return { error: 'time_bank_disabled', message: 'Time bank is not enabled' };
+  }
+  
+  const applyAmount = Number(seconds) || 0;
+  if (applyAmount <= 0 || applyAmount > session.timeBankSec) {
+    return { error: 'invalid_amount', message: 'Invalid time bank amount' };
+  }
+  
+  // Apply time to current timer
+  if (session.timer.running && session.timer.endsAtMs != null) {
+    session.timer.endsAtMs += applyAmount * 1000;
+  } else {
+    session.timer.remainingSec += applyAmount;
+  }
+  
+  // Deduct from time bank
+  session.timeBankSec -= applyAmount;
+  
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
+export function completeAgendaItem({ sessionId, userId }) {
+  const session = sessions[sessionId];
+  if (!session) return null;
+  if (!validateHostAccess(session, userId)) return null;
+  
+  if (!session.currentAgendaItemId) {
+    return { error: 'no_active_item', message: 'No active agenda item to complete' };
+  }
+  
+  // If time bank is enabled and timer has remaining time, add to bank
+  // Must compute BEFORE stopping the timer
+  if (session.timeBankEnabled) {
+    const remainingSec = computeRemainingSec(session);
+    if (remainingSec > 0) {
+      session.timeBankSec += remainingSec;
+      console.log('[store] Added unused time to bank:', { remainingSec, newBank: session.timeBankSec });
+    } else {
+      console.log('[store] No unused time to add to bank (remainingSec:', remainingSec, ')');
+    }
+  }
+  
+  // Mark current item as completed
+  const currentItem = session.agenda.find((a) => a.id === session.currentAgendaItemId);
+  if (currentItem && currentItem.status === 'active') {
+    currentItem.status = 'completed';
+    currentItem.completedAt = Date.now();
+    if (currentItem.startedAt) {
+      currentItem.timeSpent = currentItem.completedAt - currentItem.startedAt;
+    }
+  }
+  
+  // Stop timer AFTER capturing remaining time
+  session.timer.running = false;
+  session.timer.endsAtMs = null;
+  session.timer.remainingSec = 0;
+  
+  // Find next pending item and make it active
+  const nextItem = session.agenda.find((a) => a.status === 'pending');
+  if (nextItem) {
+    nextItem.status = 'active';
+    nextItem.startedAt = Date.now();
+    session.currentAgendaItemId = nextItem.id;
+    // Set timer to next item's duration
+    session.timer.remainingSec = nextItem.durationSec || 0;
+    session.timer.durationSet = nextItem.durationSec || 0;
+  } else {
+    // No more items
+    session.currentAgendaItemId = null;
+  }
+  
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
 
 // Voting - Enhanced with validateHostAccess and duplicate prevention
 export function openVote({ sessionId, userId, question, options }) {
