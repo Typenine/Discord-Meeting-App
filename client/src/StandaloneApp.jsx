@@ -1284,8 +1284,13 @@ export default function StandaloneApp() {
                       value={setupAgendaSeconds}
                       onChange={(e) => {
                         const val = e.target.value;
-                        if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 59)) {
+                        if (val === "") {
                           setSetupAgendaSeconds(val);
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 0 && num <= 59) {
+                            setSetupAgendaSeconds(val);
+                          }
                         }
                       }}
                       placeholder="Seconds"
@@ -1311,6 +1316,7 @@ export default function StandaloneApp() {
                     if (!setupAgendaTitle) return;
                     const mins = parseInt(setupAgendaMinutes) || 0;
                     const secs = parseInt(setupAgendaSeconds) || 0;
+                    // Safety clamp (redundant with input validation but defensive)
                     const validSecs = Math.max(0, Math.min(59, secs));
                     const totalSeconds = mins * 60 + validSecs;
                     
