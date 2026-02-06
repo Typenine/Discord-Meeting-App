@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import AttendancePanel from "./AttendancePanel.jsx";
 
 /**
  * PopoutView - Compact overlay window optimized for ~420x720px
@@ -9,6 +10,7 @@ export default function PopoutView({
   localTimer,
   formatTime
 }) {
+  const [showAttendancePanel, setShowAttendancePanel] = useState(false);
   if (!state) {
     return (
       <div className="popoutContainer">
@@ -69,12 +71,24 @@ export default function PopoutView({
         </div>
       )}
       
-      {/* Attendance Count */}
+      {/* Attendance Count - Clickable */}
       <div className="popoutFooter">
-        <div className="popoutAttendance">
+        <button
+          className="popoutAttendance popoutAttendanceClickable"
+          onClick={() => setShowAttendancePanel(true)}
+          title="View participant list"
+        >
           👥 {attendanceCount} {attendanceCount === 1 ? 'participant' : 'participants'}
-        </div>
+        </button>
       </div>
+
+      {/* Attendance Panel Overlay */}
+      {showAttendancePanel && (
+        <AttendancePanel
+          attendance={state.attendance}
+          onClose={() => setShowAttendancePanel(false)}
+        />
+      )}
     </div>
   );
 }
