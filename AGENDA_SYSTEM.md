@@ -571,39 +571,33 @@ setActiveItem(session, item2.id);
 
 ### Agenda Templates ✨ (Implemented)
 
-The agenda builder includes 5 built-in templates for quick meeting setup:
+The agenda builder includes 3 league-specific templates for quick meeting setup:
 
-1. **Quick Standup** - Fast 20-minute daily sync
-   - What did you do yesterday? (5m)
-   - What are you doing today? (10m)
-   - Any blockers? (5m)
+1. **Annual League Meeting** - Full season review and planning (90 minutes)
+   - Call to Order & Roll Call (5m)
+   - Review of Last Season (15m)
+   - Financial Report (10m)
+   - Rule Changes Discussion (20m)
+   - Schedule & Key Dates (10m)
+   - Commissioner Report (10m)
+   - Open Forum (15m)
+   - Closing Remarks (5m)
 
-2. **Weekly Team Sync** - Standard 30-minute weekly meeting
-   - Opening & Announcements (5m)
-   - Status Updates (15m)
-   - Discussion Topics (10m)
-   - Action Items & Next Steps (5m)
+2. **Draft Lottery** - Determine draft order for upcoming season (35 minutes)
+   - Opening & Rules Overview (5m)
+   - Verify Eligible Teams (5m)
+   - Lottery Drawing (10m)
+   - Announce Draft Order (5m)
+   - Draft Date Confirmation (5m)
+   - Q&A (5m)
 
-3. **Project Kickoff** - Launch a new project with clarity
-   - Project Overview (10m)
-   - Team Introductions (5m)
-   - Timeline & Milestones (10m)
-   - Discussion & Questions (10m)
-   - Next Steps (5m)
-
-4. **Sprint Retrospective** - Reflect and improve as a team
-   - Set the Stage (5m)
-   - What went well? (10m)
-   - What could be improved? (10m)
-   - Action Items (10m)
-   - Closing (3m)
-
-5. **1-on-1 Meeting** - Manager and direct report sync
-   - Personal Check-in (5m)
-   - Progress & Wins (10m)
-   - Challenges & Support (10m)
-   - Growth & Development (5m)
-   - Action Items (5m)
+3. **Trade Summit** - Facilitate trades and roster discussions (63 minutes)
+   - Trade Deadline Reminder (3m)
+   - Active Trade Proposals (15m)
+   - Trade Block Announcements (10m)
+   - Open Negotiation Period (20m)
+   - Trade Processing (10m)
+   - Wrap-up (5m)
 
 **How to use:**
 - Click "Browse Templates" on the meeting setup screen
@@ -648,7 +642,7 @@ The agenda system provides structured meeting management with:
 ✅ Per-item durations
 ✅ Active item tracking
 ✅ Automatic timer reset on item change
-✅ **Agenda templates** - 5 built-in templates for quick setup
+✅ **Agenda templates** - 3 league-specific templates for quick setup
 ✅ Edit items inline
 ✅ Next/Previous navigation
 ✅ Add/delete items dynamically

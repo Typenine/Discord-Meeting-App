@@ -134,63 +134,47 @@ export default function StandaloneApp() {
   const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   
-  // Agenda Templates - Built-in templates for quick start
+  // Agenda Templates - League-specific templates for quick start
   const agendaTemplates = [
     {
-      id: "quick-standup",
-      name: "Quick Standup",
-      description: "Fast 20-minute daily sync",
+      id: "annual-league-meeting",
+      name: "Annual League Meeting",
+      description: "Full season review and planning",
       agenda: [
-        { title: "What did you do yesterday?", durationSec: 300, notes: "Quick round-robin updates" },
-        { title: "What are you doing today?", durationSec: 600, notes: "Share today's focus and priorities" },
-        { title: "Any blockers?", durationSec: 300, notes: "Identify obstacles and get help" }
+        { title: "Call to Order & Roll Call", durationSec: 300, notes: "Welcome owners and confirm quorum" },
+        { title: "Review of Last Season", durationSec: 900, notes: "Stats, standings, and highlights" },
+        { title: "Financial Report", durationSec: 600, notes: "League finances and dues status" },
+        { title: "Rule Changes Discussion", durationSec: 1200, notes: "Proposed amendments and voting" },
+        { title: "Schedule & Key Dates", durationSec: 600, notes: "Draft date, playoffs, championship" },
+        { title: "Commissioner Report", durationSec: 600, notes: "League updates and announcements" },
+        { title: "Open Forum", durationSec: 900, notes: "Owner concerns and suggestions" },
+        { title: "Closing Remarks", durationSec: 300, notes: "Next steps and adjournment" }
       ]
     },
     {
-      id: "weekly-sync",
-      name: "Weekly Team Sync",
-      description: "Standard 30-minute weekly meeting",
+      id: "draft-lottery",
+      name: "Draft Lottery",
+      description: "Determine draft order for upcoming season",
       agenda: [
-        { title: "Opening & Announcements", durationSec: 300, notes: "Welcome and important updates" },
-        { title: "Status Updates", durationSec: 900, notes: "Each team member shares progress" },
-        { title: "Discussion Topics", durationSec: 600, notes: "Address key issues and decisions" },
-        { title: "Action Items & Next Steps", durationSec: 300, notes: "Assign follow-ups and close" }
+        { title: "Opening & Rules Overview", durationSec: 300, notes: "Explain lottery process and rules" },
+        { title: "Verify Eligible Teams", durationSec: 300, notes: "Confirm teams in lottery pool" },
+        { title: "Lottery Drawing", durationSec: 600, notes: "Conduct random drawing for draft positions" },
+        { title: "Announce Draft Order", durationSec: 300, notes: "Reveal complete draft order" },
+        { title: "Draft Date Confirmation", durationSec: 300, notes: "Finalize draft date and time" },
+        { title: "Q&A", durationSec: 300, notes: "Address questions about draft process" }
       ]
     },
     {
-      id: "project-kickoff",
-      name: "Project Kickoff",
-      description: "Launch a new project with clarity",
+      id: "trade-summit",
+      name: "Trade Summit",
+      description: "Facilitate trades and roster discussions",
       agenda: [
-        { title: "Project Overview", durationSec: 600, notes: "Goals, scope, and context" },
-        { title: "Team Introductions", durationSec: 300, notes: "Roles and responsibilities" },
-        { title: "Timeline & Milestones", durationSec: 600, notes: "Key dates and deliverables" },
-        { title: "Discussion & Questions", durationSec: 600, notes: "Open floor for clarifications" },
-        { title: "Next Steps", durationSec: 300, notes: "Immediate action items" }
-      ]
-    },
-    {
-      id: "retrospective",
-      name: "Sprint Retrospective",
-      description: "Reflect and improve as a team",
-      agenda: [
-        { title: "Set the Stage", durationSec: 300, notes: "Review goals and create safe space" },
-        { title: "What went well?", durationSec: 600, notes: "Celebrate successes" },
-        { title: "What could be improved?", durationSec: 600, notes: "Identify challenges" },
-        { title: "Action Items", durationSec: 600, notes: "Concrete improvements to implement" },
-        { title: "Closing", durationSec: 180, notes: "Summarize and thank team" }
-      ]
-    },
-    {
-      id: "1-on-1",
-      name: "1-on-1 Meeting",
-      description: "Manager and direct report sync",
-      agenda: [
-        { title: "Personal Check-in", durationSec: 300, notes: "How are things going?" },
-        { title: "Progress & Wins", durationSec: 600, notes: "Discuss recent accomplishments" },
-        { title: "Challenges & Support", durationSec: 600, notes: "Address obstacles and provide help" },
-        { title: "Growth & Development", durationSec: 300, notes: "Career goals and feedback" },
-        { title: "Action Items", durationSec: 300, notes: "Next steps and commitments" }
+        { title: "Trade Deadline Reminder", durationSec: 180, notes: "Review deadline and rules" },
+        { title: "Active Trade Proposals", durationSec: 900, notes: "Review and discuss pending trades" },
+        { title: "Trade Block Announcements", durationSec: 600, notes: "Owners share available players" },
+        { title: "Open Negotiation Period", durationSec: 1200, notes: "Free-form trade discussions" },
+        { title: "Trade Processing", durationSec: 600, notes: "Commissioner reviews and approves trades" },
+        { title: "Wrap-up", durationSec: 300, notes: "Final reminders and next steps" }
       ]
     }
   ];
