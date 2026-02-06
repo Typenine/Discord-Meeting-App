@@ -86,6 +86,7 @@ export default function PopoutView({
       {showAttendancePanel && (
         <AttendancePanel
           attendance={state.attendance}
+          hostUserId={state.hostUserId}
           onClose={() => setShowAttendancePanel(false)}
         />
       )}

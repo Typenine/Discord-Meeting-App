@@ -3,14 +3,24 @@ import React from "react";
 /**
  * AttendancePanel - Overlay panel showing list of current attendees
  * Optimized for small popout dimensions (~420x720px)
- * Shows displayName and role (if available) for each attendee
+ * Shows displayName and role for each attendee
  */
 export default function AttendancePanel({ 
   attendance, 
+  hostUserId,
   onClose 
 }) {
   const attendees = Object.values(attendance || {});
   const attendeeCount = attendees.length;
+
+  // Determine role for each attendee
+  const getRole = (attendee) => {
+    if (attendee.userId === hostUserId) {
+      return "host";
+    }
+    // Can add more role logic here if needed
+    return "attendee";
+  };
 
   return (
     <div className="attendanceOverlay" onClick={onClose}>
@@ -38,24 +48,24 @@ export default function AttendancePanel({
             </div>
           ) : (
             <div className="attendancePanelList">
-              {attendees.map((attendee) => (
-                <div key={attendee.userId} className="attendancePanelItem">
-                  <div className="attendancePanelItemIcon">
-                    {attendee.role === "host" ? "🔑" : "👤"}
-                  </div>
-                  <div className="attendancePanelItemContent">
-                    <div className="attendancePanelItemName">
-                      {attendee.displayName || attendee.userId}
+              {attendees.map((attendee) => {
+                const role = getRole(attendee);
+                return (
+                  <div key={attendee.userId} className="attendancePanelItem">
+                    <div className="attendancePanelItemIcon">
+                      {role === "host" ? "🔑" : "👤"}
                     </div>
-                    {attendee.role && (
-                      <div className="attendancePanelItemRole">
-                        {attendee.role === "host" ? "Host" : 
-                         attendee.role === "viewer" ? "Viewer" : "Attendee"}
+                    <div className="attendancePanelItemContent">
+                      <div className="attendancePanelItemName">
+                        {attendee.displayName || attendee.userId}
                       </div>
-                    )}
+                      <div className="attendancePanelItemRole">
+                        {role === "host" ? "Host" : "Attendee"}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
