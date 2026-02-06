@@ -296,6 +296,24 @@ export function createApp(config = {}) {
     return res.json({ state, revision: raw.revision, serverNow: Date.now() });
   });
 
+  // Reorder agenda items
+  apiRouter.put('/session/:id/agenda/reorder', (req, res) => {
+    const sessionId = req.params.id;
+    const { userId, orderedIds } = req.body || {};
+    if (!userId || !Array.isArray(orderedIds)) return res.status(400).json({ error: 'missing_fields' });
+    const state = store.reorderAgenda({ sessionId, userId, orderedIds });
+    if (!state) {
+      console.warn('[Authorization] User attempted agenda reorder without host access:', {
+        sessionId,
+        userId,
+        operation: 'reorderAgenda',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
   // Timer controls
   apiRouter.post('/session/:id/timer/start', (req, res) => {
     const sessionId = req.params.id;

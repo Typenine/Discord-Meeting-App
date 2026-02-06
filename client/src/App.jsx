@@ -114,6 +114,7 @@ export default function App() {
   const [status, setStatus] = useState("init"); // 'init', 'setup', 'joined', 'ended'
   const [healthStatus, setHealthStatus] = useState(null);
   const [error, setError] = useState(null);
+  const [isStarting, setIsStarting] = useState(false); // Loading state for start meeting
   const isHost = state && state.hostUserId === String(userId);
 
   // Check for rejoin opportunity on mount
@@ -332,6 +333,12 @@ export default function App() {
       setState(data.state);
       setRevision(data.revision);
       setStatus("joined"); // Now move to joined state
+    } else {
+      // If post returned null, it means the API call failed
+      // The post() function already set an error message
+      // So we just need to make sure we don't leave the UI in a broken state
+      console.error('Failed to start meeting - post() returned null');
+      throw new Error('Failed to start meeting');
     }
   };
 
@@ -804,14 +811,25 @@ export default function App() {
           {/* Start Meeting Button */}
           <button 
             className="btn btnPrimary btnLarge btnFull"
+            disabled={isStarting}
             onClick={async () => {
-              // First update the setup
-              await updateSetup(setupMeetingName, setupAgenda);
-              // Then start the meeting
-              await startMeetingAfterSetup();
+              setIsStarting(true);
+              setError(null);
+              try {
+                // First update the setup
+                await updateSetup(setupMeetingName, setupAgenda);
+                // Then start the meeting
+                await startMeetingAfterSetup();
+              } catch (err) {
+                console.error('Failed to start meeting:', err);
+                // Error message already set by post() function
+                // Just make sure we don't leave UI in broken state
+              } finally {
+                setIsStarting(false);
+              }
             }}
           >
-            🚀 Start Meeting
+            {isStarting ? '⏳ Starting...' : '🚀 Start Meeting'}
           </button>
           
           {setupAgenda.length === 0 && (

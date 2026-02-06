@@ -400,6 +400,38 @@ export function setActiveAgenda({ sessionId, userId, agendaId }) {
   return snapshotSession(session);
 }
 
+export function reorderAgenda({ sessionId, userId, orderedIds }) {
+  const session = sessions[sessionId];
+  if (!session) return null;
+  if (!validateHostAccess(session, userId)) return null;
+  
+  // Validate that orderedIds contains all and only current agenda IDs
+  const currentIds = new Set(session.agenda.map((a) => a.id));
+  const newIds = new Set(orderedIds);
+  
+  if (currentIds.size !== newIds.size) {
+    console.warn('[store] Reorder failed: ID count mismatch');
+    return null;
+  }
+  
+  for (const id of orderedIds) {
+    if (!currentIds.has(id)) {
+      console.warn('[store] Reorder failed: unknown agenda ID', { id });
+      return null;
+    }
+  }
+  
+  // Create map for quick lookup
+  const itemMap = new Map(session.agenda.map((item) => [item.id, item]));
+  
+  // Reorder agenda array
+  session.agenda = orderedIds.map((id) => itemMap.get(id));
+  
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
 // Update meeting setup (name and agenda before meeting starts)
 export function updateMeetingSetup({ sessionId, userId, meetingName, agenda }) {
   const session = sessions[sessionId];
