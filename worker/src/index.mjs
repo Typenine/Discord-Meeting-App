@@ -259,16 +259,8 @@ function prevAgendaItem(session) {
 }
 
 function reorderAgendaItems(session, orderedIds) {
-  console.log('[worker] reorderAgendaItems called');
-  console.log('[worker] orderedIds:', orderedIds);
-  console.log('[worker] session.agenda length:', session.agenda.length);
-  console.log('[worker] session.agenda IDs:', session.agenda.map(a => a.id));
-  
   if (!Array.isArray(orderedIds) || orderedIds.length !== session.agenda.length) {
     console.warn('[worker] Reorder failed: invalid orderedIds array');
-    console.warn('[worker] orderedIds is array:', Array.isArray(orderedIds));
-    console.warn('[worker] orderedIds.length:', orderedIds?.length);
-    console.warn('[worker] session.agenda.length:', session.agenda.length);
     return false;
   }
   
@@ -287,7 +279,6 @@ function reorderAgendaItems(session, orderedIds) {
   // Reorder agenda array
   session.agenda = orderedIds.map((id) => itemMap.get(id));
   
-  console.log('[worker] Reorder successful! New order:', session.agenda.map(a => a.id));
   return true;
 }
 
