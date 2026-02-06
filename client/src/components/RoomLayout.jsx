@@ -33,7 +33,7 @@ export default function RoomLayout({
         {state.activeAgendaId ? (() => {
           const activeItem = state.agenda.find(item => item.id === state.activeAgendaId);
           return activeItem ? (
-            <div>
+            <div key={activeItem.id}>
               <div className="agendaItemDisplay">
                 <div className="itemTitle">{activeItem.title}</div>
                 {activeItem.notes && (
