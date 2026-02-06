@@ -416,14 +416,22 @@ export default function HostPanel({
               <button
                 className="btn btnSuccess btnSmall btnFull"
                 style={{ marginTop: "var(--spacing-sm)" }}
-                onClick={() => {
-                  fetch(`/api/session/${state.id}/agenda/complete`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                      userId: localStorage.getItem('userId')
-                    }),
-                  }).catch(err => console.error('Failed to complete agenda item:', err));
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/session/${state.id}/agenda/complete`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        userId: localStorage.getItem('userId')
+                      }),
+                    });
+                    if (!res.ok) {
+                      const data = await res.json();
+                      console.error('Failed to complete agenda item:', res.status, data);
+                    }
+                  } catch (err) {
+                    console.error('Failed to complete agenda item:', err);
+                  }
                 }}
               >
                 ✓ Complete & Next
@@ -497,15 +505,23 @@ export default function HostPanel({
                 <input
                   type="checkbox"
                   checked={state.timeBankEnabled || false}
-                  onChange={(e) => {
-                    fetch(`/api/session/${state.id}/timebank/toggle`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ 
-                        userId: localStorage.getItem('userId'), 
-                        enabled: e.target.checked 
-                      }),
-                    }).catch(err => console.error('Failed to toggle time bank:', err));
+                  onChange={async (e) => {
+                    try {
+                      const res = await fetch(`/api/session/${state.id}/timebank/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          userId: localStorage.getItem('userId'), 
+                          enabled: e.target.checked 
+                        }),
+                      });
+                      if (!res.ok) {
+                        const data = await res.json();
+                        console.error('Failed to toggle time bank:', res.status, data);
+                      }
+                    } catch (err) {
+                      console.error('Failed to toggle time bank:', err);
+                    }
                   }}
                 />
                 <span style={{ marginLeft: "var(--spacing-sm)" }}>Enable Time Bank</span>
@@ -542,16 +558,24 @@ export default function HostPanel({
                   <div style={{ display: "flex", gap: "var(--spacing-xs)" }}>
                     <button
                       className="btn btnSuccess btnSmall"
-                      onClick={() => {
+                      onClick={async () => {
                         const amount = Math.min(30, state.timeBankSec);
-                        fetch(`/api/session/${state.id}/timebank/apply`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            userId: localStorage.getItem('userId'), 
-                            seconds: amount 
-                          }),
-                        }).catch(err => console.error('Failed to apply time bank:', err));
+                        try {
+                          const res = await fetch(`/api/session/${state.id}/timebank/apply`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                              userId: localStorage.getItem('userId'), 
+                              seconds: amount 
+                            }),
+                          });
+                          if (!res.ok) {
+                            const data = await res.json();
+                            console.error('Failed to apply time bank:', res.status, data);
+                          }
+                        } catch (err) {
+                          console.error('Failed to apply time bank:', err);
+                        }
                       }}
                       disabled={state.timeBankSec < 30}
                     >
@@ -559,16 +583,24 @@ export default function HostPanel({
                     </button>
                     <button
                       className="btn btnSuccess btnSmall"
-                      onClick={() => {
+                      onClick={async () => {
                         const amount = Math.min(60, state.timeBankSec);
-                        fetch(`/api/session/${state.id}/timebank/apply`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            userId: localStorage.getItem('userId'), 
-                            seconds: amount 
-                          }),
-                        }).catch(err => console.error('Failed to apply time bank:', err));
+                        try {
+                          const res = await fetch(`/api/session/${state.id}/timebank/apply`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                              userId: localStorage.getItem('userId'), 
+                              seconds: amount 
+                            }),
+                          });
+                          if (!res.ok) {
+                            const data = await res.json();
+                            console.error('Failed to apply time bank:', res.status, data);
+                          }
+                        } catch (err) {
+                          console.error('Failed to apply time bank:', err);
+                        }
                       }}
                       disabled={state.timeBankSec < 60}
                     >
