@@ -307,12 +307,15 @@ select:focus {
 /* Prominent logo in TopBar - Enhanced */
 .topBar .brandLogo {
   height: 64px; /* Increased from 56px */
-  filter: drop-shadow(0 0 16px rgba(191, 153, 68, 0.5));
+  /* Enhanced multi-layer glow */
+  filter: drop-shadow(0 0 16px rgba(191, 153, 68, 0.6))
+          drop-shadow(0 0 32px rgba(191, 153, 68, 0.3));
   transition: all var(--transition-base);
 }
 
 .topBar .brandLogo:hover {
-  filter: drop-shadow(0 0 24px rgba(191, 153, 68, 0.7));
+  filter: drop-shadow(0 0 20px rgba(191, 153, 68, 0.8))
+          drop-shadow(0 0 40px rgba(191, 153, 68, 0.5));
   transform: scale(1.05);
 }
 
@@ -352,23 +355,40 @@ select:focus {
   height: 128px; /* Increased from 96px */
   margin: 0 auto var(--spacing-2xl); /* Increased margin */
   display: block;
-  box-shadow: var(--shadow-glow-gold), var(--shadow-lg);
+  /* Enhanced multi-layer glow for maximum visibility */
+  box-shadow: 
+    0 0 30px rgba(191, 153, 68, 0.8),
+    0 0 60px rgba(191, 153, 68, 0.5),
+    0 0 90px rgba(191, 153, 68, 0.3),
+    0 4px 20px rgba(0, 0, 0, 0.5);
   animation: logoGlow 3s ease-in-out infinite;
   will-change: box-shadow, transform;
   transition: transform var(--transition-base);
   border-radius: var(--radius-lg);
+  /* Add subtle border to make logo pop */
+  outline: 2px solid rgba(191, 153, 68, 0.3);
+  outline-offset: 4px;
 }
 
 .brandHeader .brandLogo:hover {
   transform: scale(1.08);
+  outline-color: rgba(191, 153, 68, 0.6);
 }
 
 @keyframes logoGlow {
   0%, 100% {
-    box-shadow: 0 0 24px rgba(191, 153, 68, 0.4), var(--shadow-lg);
+    box-shadow: 
+      0 0 30px rgba(191, 153, 68, 0.8),
+      0 0 60px rgba(191, 153, 68, 0.5),
+      0 0 90px rgba(191, 153, 68, 0.3),
+      0 4px 20px rgba(0, 0, 0, 0.5);
   }
   50% {
-    box-shadow: 0 0 40px rgba(191, 153, 68, 0.6), var(--shadow-xl);
+    box-shadow: 
+      0 0 40px rgba(191, 153, 68, 1),
+      0 0 80px rgba(191, 153, 68, 0.7),
+      0 0 120px rgba(191, 153, 68, 0.4),
+      0 6px 30px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -376,17 +396,30 @@ select:focus {
   font-size: var(--font-size-5xl); /* Using new 5xl size */
   margin-bottom: var(--spacing-md);
   animation: slideUp 600ms var(--easing-smooth) 200ms both;
-  background: linear-gradient(135deg, var(--color-text) 0%, var(--color-accent) 100%);
+  /* Enhanced gradient with more vibrant colors */
+  background: linear-gradient(135deg, 
+    var(--color-accent) 0%, 
+    var(--color-text) 30%, 
+    var(--color-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  /* Add glow effect to text */
+  filter: drop-shadow(0 0 20px rgba(191, 153, 68, 0.5));
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .brandHeader .brandSubtitle {
   font-size: var(--font-size-2xl); /* Increased from xl */
-  opacity: 0.85;
+  opacity: 0.95; /* Increased from 0.85 for better visibility */
   animation: slideUp 600ms var(--easing-smooth) 400ms both;
   letter-spacing: 0.02em;
+  /* Add brand color accent */
+  color: var(--color-accent);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* =====================================================
@@ -394,7 +427,8 @@ select:focus {
    ===================================================== */
 .card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
+  /* Enhanced border with brand color */
+  border: 2px solid rgba(191, 153, 68, 0.3);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(10px);
@@ -402,11 +436,18 @@ select:focus {
   overflow: hidden;
   transition: all var(--transition-base);
   animation: cardEntrance 600ms var(--easing-smooth) both;
+  /* Add subtle brand color glow */
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(191, 153, 68, 0.15);
 }
 
 .card:hover {
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-lg), var(--shadow-glow-gold);
+  /* More prominent brand color on hover */
+  border-color: rgba(191, 153, 68, 0.6);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(191, 153, 68, 0.4);
   transform: translateY(-4px);
 }
 
@@ -416,7 +457,7 @@ select:focus {
 
 .cardHeader {
   padding: var(--spacing-xl);
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 2px solid rgba(191, 153, 68, 0.3); /* Enhanced with brand color */
   background: var(--color-glass);
 }
 
@@ -425,6 +466,8 @@ select:focus {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   margin: 0;
+  /* Add subtle brand color accent */
+  text-shadow: 0 0 20px rgba(191, 153, 68, 0.3);
 }
 
 .cardBody {
@@ -530,13 +573,19 @@ select:focus {
 .btnPrimary {
   background: var(--color-primary);
   color: var(--color-text);
-  box-shadow: var(--shadow-sm);
+  /* Enhanced shadow with brand glow */
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(11, 95, 152, 0.4);
+  font-weight: var(--font-weight-semibold);
 }
 
 .btnPrimary:hover:not(:disabled) {
   background: #0d6faa;
-  box-shadow: var(--shadow-md), var(--shadow-glow-blue);
-  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(11, 95, 152, 0.6);
+  transform: translateY(-2px);
 }
 
 .btnPrimary:active:not(:disabled) {
@@ -546,13 +595,19 @@ select:focus {
 .btnAccent {
   background: var(--color-accent);
   color: var(--color-bg);
-  box-shadow: var(--shadow-sm);
+  /* Enhanced shadow with brand glow */
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(191, 153, 68, 0.5);
+  font-weight: var(--font-weight-semibold);
 }
 
 .btnAccent:hover:not(:disabled) {
   background: #d4a84f;
-  box-shadow: var(--shadow-md), var(--shadow-glow-gold);
-  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(191, 153, 68, 0.8);
+  transform: translateY(-2px);
 }
 
 .btnDanger {
@@ -632,9 +687,12 @@ select:focus {
 }
 
 .pill-accent {
-  background: rgba(191, 153, 68, 0.2);
+  background: rgba(191, 153, 68, 0.25); /* Increased opacity */
   color: var(--color-accent);
-  border: 1px solid var(--color-accent);
+  border: 2px solid var(--color-accent); /* Thicker border */
+  /* Add glow effect */
+  box-shadow: 0 0 15px rgba(191, 153, 68, 0.3);
+  font-weight: var(--font-weight-semibold);
 }
 
 .pill-danger {
