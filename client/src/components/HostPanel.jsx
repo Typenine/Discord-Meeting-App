@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { formatTime } from "../utils/timeFormat.js";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -131,12 +131,27 @@ export default function HostPanel({
       }
       // Save inline edit when clicking outside the edit area
       if (inlineEditRef.current && !inlineEditRef.current.contains(e.target) && inlineEditId) {
-        saveInlineEdit();
+        // Call save function directly without useCallback to avoid circular dependency
+        if (inlineEditId && inlineEditData.title && inlineEditData.title.trim()) {
+          const mins = parseInt(inlineEditData.minutes) || 0;
+          const secs = parseInt(inlineEditData.seconds) || 0;
+          const validSecs = Math.max(0, Math.min(59, secs));
+          const totalSeconds = mins * 60 + validSecs;
+          
+          onUpdateAgenda(inlineEditId, {
+            title: inlineEditData.title,
+            durationSec: totalSeconds,
+            notes: inlineEditData.notes
+          });
+          
+          setInlineEditId(null);
+          setInlineEditData({});
+        }
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [inlineEditId, saveInlineEdit]);
+  }, [inlineEditId, inlineEditData, onUpdateAgenda]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -171,7 +186,7 @@ export default function HostPanel({
   };
 
   // Inline editing functions
-  const saveInlineEdit = useCallback(() => {
+  const saveInlineEdit = () => {
     if (!inlineEditId || !inlineEditData.title.trim()) return;
     
     const mins = parseInt(inlineEditData.minutes) || 0;
@@ -187,7 +202,7 @@ export default function HostPanel({
     
     setInlineEditId(null);
     setInlineEditData({});
-  }, [inlineEditId, inlineEditData, onUpdateAgenda]);
+  };
   
   const startInlineEdit = (item) => {
     const totalSec = item.durationSec || 0;
