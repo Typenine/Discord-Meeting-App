@@ -3,7 +3,7 @@ import AttendancePanel from "./AttendancePanel.jsx";
 
 /**
  * PopoutView - Compact overlay window optimized for ~420x720px
- * Shows: current agenda item, timer, next item (optional), attendance count
+ * Shows: current agenda item, timer, full numbered agenda list, attendance count
  */
 export default function PopoutView({ 
   state, 
@@ -11,6 +11,10 @@ export default function PopoutView({
   formatTime
 }) {
   const [showAttendancePanel, setShowAttendancePanel] = useState(false);
+  
+  // Status label constants
+  const STATUS_CURRENT = "(current)";
+  const STATUS_COMPLETE = "(complete)";
   
   // Format elapsed time for meeting timer
   const formatElapsed = (seconds) => {
@@ -95,13 +99,82 @@ export default function PopoutView({
         </div>
       )}
       
-      {/* Next Item (if available) */}
-      {nextItem && (
-        <div className="popoutSection popoutSectionSecondary">
-          <div className="popoutLabel">UP NEXT</div>
-          <div className="popoutNextTitle">{nextItem.title}</div>
-          <div className="popoutNextDuration">
-            {formatTime(nextItem.durationSec)}
+      {/* Full Agenda List */}
+      {state.agenda && state.agenda.length > 0 && (
+        <div className="popoutSection popoutSectionSecondary" style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0
+        }}>
+          <div className="popoutLabel">FULL AGENDA</div>
+          <div style={{
+            overflowY: "auto",
+            maxHeight: "var(--popout-agenda-max-height)",
+            paddingRight: "var(--spacing-sm)"
+          }}>
+            {state.agenda.map((item, index) => {
+              const isActive = state.activeAgendaId === item.id;
+              const isPast = activeIndex >= 0 && index < activeIndex;
+              
+              return (
+                <div 
+                  key={item.id}
+                  style={{
+                    padding: "var(--spacing-md)",
+                    marginBottom: "var(--spacing-sm)",
+                    backgroundColor: isActive 
+                      ? "rgba(191, 153, 68, 0.2)" 
+                      : isPast 
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(255, 255, 255, 0.08)",
+                    border: isActive 
+                      ? "2px solid var(--color-accent)" 
+                      : "1px solid var(--color-border-subtle)",
+                    borderRadius: "var(--radius-md)",
+                    display: "flex",
+                    gap: "var(--spacing-md)",
+                    alignItems: "flex-start",
+                    transition: "all var(--transition-fast)",
+                    opacity: isPast ? 0.6 : 1
+                  }}
+                >
+                  {/* Item Number */}
+                  <div style={{
+                    fontSize: "var(--font-size-lg)",
+                    fontWeight: "var(--font-weight-bold)",
+                    color: isActive ? "var(--color-accent)" : "var(--color-text-muted)",
+                    minWidth: "24px",
+                    flexShrink: 0
+                  }}>
+                    {index + 1}.
+                  </div>
+                  
+                  {/* Item Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: "var(--font-size-base)",
+                      fontWeight: isActive ? "var(--font-weight-semibold)" : "var(--font-weight-medium)",
+                      color: isActive ? "var(--color-offwhite)" : "var(--color-text)",
+                      marginBottom: "var(--spacing-xs)",
+                      wordBreak: "break-word"
+                    }}>
+                      {item.title}
+                    </div>
+                    <div style={{
+                      fontSize: "var(--font-size-xs)",
+                      color: isActive ? "var(--color-accent)" : "var(--color-text-muted)",
+                      fontFamily: "var(--font-family-mono)",
+                      fontWeight: "var(--font-weight-medium)"
+                    }}>
+                      {formatTime(item.durationSec)}
+                      {isActive && ` ${STATUS_CURRENT}`}
+                      {isPast && ` ${STATUS_COMPLETE}`}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

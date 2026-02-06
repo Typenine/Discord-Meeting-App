@@ -89,6 +89,7 @@
   --topbar-height: 72px;
   --max-width-container: 1400px;
   --max-width-content: 900px;
+  --popout-agenda-max-height: 300px;
   
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -1026,6 +1027,26 @@ select:focus {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Popout scrollbar styling */
+.popoutContainer ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.popoutContainer ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.popoutContainer ::-webkit-scrollbar-thumb {
+  background: rgba(191, 153, 68, 0.3);
+  border-radius: 4px;
+  transition: background var(--transition-fast);
+}
+
+.popoutContainer ::-webkit-scrollbar-thumb:hover {
+  background: rgba(191, 153, 68, 0.5);
 }
 
 /* Hide normal UI when in popout mode */
