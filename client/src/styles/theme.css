@@ -91,10 +91,18 @@
   --max-width-content: 900px;
   --popout-agenda-max-height: 300px;
   
-  /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-base: 250ms ease;
-  --transition-slow: 350ms ease;
+  /* Transitions & Easing */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --easing-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+  --easing-spring: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* Subtle Background Texture (Data URI for minimal load) */
+  --texture-subtle: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23bf9944' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --texture-grid: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v1H0V0zm0 39h40v1H0v-1z' fill='%23bf9944' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E");
 }
 
 /* =====================================================
@@ -123,8 +131,9 @@ body {
   background: var(--color-bg);
   min-height: 100vh;
   
-  /* Subtle vignette gradient background */
+  /* War Room texture + subtle vignette gradient background */
   background-image: 
+    var(--texture-subtle),
     radial-gradient(ellipse at top, rgba(11, 95, 152, 0.1) 0%, transparent 50%),
     radial-gradient(ellipse at bottom, rgba(191, 153, 68, 0.05) 0%, transparent 50%),
     linear-gradient(180deg, #050505 0%, #0a0a0a 50%, #050505 100%);
@@ -281,6 +290,18 @@ select:focus {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   object-fit: contain;
+  transition: all var(--transition-base);
+}
+
+.brandLogo:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-glow-gold);
+}
+
+/* Prominent logo in TopBar */
+.topBar .brandLogo {
+  height: 56px;
+  filter: drop-shadow(0 0 12px rgba(191, 153, 68, 0.4));
 }
 
 .brand-text {
@@ -310,23 +331,37 @@ select:focus {
 .brandHeader {
   text-align: center;
   padding: var(--spacing-3xl) 0;
+  animation: fadeIn 600ms var(--easing-smooth);
 }
 
 .brandHeader .brandLogo {
-  height: 80px;
+  height: 96px;
   margin: 0 auto var(--spacing-xl);
   display: block;
-  box-shadow: var(--shadow-glow-gold);
+  box-shadow: var(--shadow-glow-gold), var(--shadow-lg);
+  animation: logoGlow 3s ease-in-out infinite;
+  will-change: box-shadow;
+}
+
+@keyframes logoGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(191, 153, 68, 0.3), var(--shadow-lg);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(191, 153, 68, 0.5), var(--shadow-xl);
+  }
 }
 
 .brandHeader .brandTitle {
   font-size: var(--font-size-4xl);
   margin-bottom: var(--spacing-sm);
+  animation: slideUp 600ms var(--easing-smooth) 200ms both;
 }
 
 .brandHeader .brandSubtitle {
   font-size: var(--font-size-xl);
   opacity: 0.8;
+  animation: slideUp 600ms var(--easing-smooth) 400ms both;
 }
 
 /* =====================================================
@@ -1026,6 +1061,50 @@ select:focus {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes timerPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes agendaSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes timerChange {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  20% {
+    transform: scale(1.1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 

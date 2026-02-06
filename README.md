@@ -9,6 +9,7 @@ A real-time collaborative meeting application that works both as a standalone we
   - Discord Activity integration (Discord OAuth)
 
 - 📋 **Agenda Management**
+  - **Agenda templates** - 5 built-in templates for quick setup
   - Per-item durations
   - Edit agenda items inline
   - Next/Previous navigation

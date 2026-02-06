@@ -567,6 +567,44 @@ setActiveItem(session, item2.id);
 - Verify `if (session.agenda.length === 1)` condition
 - Ensure timer.durationSec set correctly
 
+## Features
+
+### Agenda Templates ✨ (Implemented)
+
+The agenda builder includes 3 league-specific templates for quick meeting setup:
+
+1. **Annual League Meeting** - Full season review and planning (90 minutes)
+   - Call to Order & Roll Call (5m)
+   - Review of Last Season (15m)
+   - Financial Report (10m)
+   - Rule Changes Discussion (20m)
+   - Schedule & Key Dates (10m)
+   - Commissioner Report (10m)
+   - Open Forum (15m)
+   - Closing Remarks (5m)
+
+2. **Draft Lottery** - Determine draft order for upcoming season (35 minutes)
+   - Opening & Rules Overview (5m)
+   - Verify Eligible Teams (5m)
+   - Lottery Drawing (10m)
+   - Announce Draft Order (5m)
+   - Draft Date Confirmation (5m)
+   - Q&A (5m)
+
+3. **Trade Summit** - Facilitate trades and roster discussions (63 minutes)
+   - Trade Deadline Reminder (3m)
+   - Active Trade Proposals (15m)
+   - Trade Block Announcements (10m)
+   - Open Negotiation Period (20m)
+   - Trade Processing (10m)
+   - Wrap-up (5m)
+
+**How to use:**
+- Click "Browse Templates" on the meeting setup screen
+- Select a template to load it instantly
+- Customize by adding/removing items or switching templates
+- Templates include pre-configured durations and notes
+
 ## Future Enhancements
 
 Possible improvements:
@@ -575,9 +613,10 @@ Possible improvements:
    - Allow host to reorder agenda items
    - Update next/prev navigation accordingly
 
-2. **Agenda templates**
-   - Save/load common agenda structures
-   - Pre-fill durations for recurring meetings
+2. **Custom template creation** (Extension of templates feature)
+   - Save custom agenda structures to localStorage
+   - Export/import templates
+   - Share templates via URL
 
 3. **Agenda export**
    - Export to PDF/text for distribution
@@ -603,6 +642,10 @@ The agenda system provides structured meeting management with:
 ✅ Per-item durations
 ✅ Active item tracking
 ✅ Automatic timer reset on item change
+✅ **Agenda templates** - 3 league-specific templates for quick setup
+✅ Edit items inline
+✅ Next/Previous navigation
+✅ Add/delete items dynamically
 ✅ Host editing capabilities
 ✅ Next/Prev navigation
 ✅ Notes support

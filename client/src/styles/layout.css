@@ -62,6 +62,12 @@
     inset 0 1px 0 rgba(191, 153, 68, 0.3);
   position: relative;
   overflow: hidden;
+  
+  /* Add subtle background texture */
+  background-image: 
+    var(--texture-grid),
+    linear-gradient(135deg, rgba(20, 20, 20, 0.85) 0%, rgba(15, 15, 15, 0.85) 100%);
+  background-blend-mode: overlay;
 }
 
 /* Decorative glow effect */
@@ -97,6 +103,7 @@
 
 .agendaItemDisplay {
   margin-bottom: var(--spacing-xl);
+  animation: fadeIn 400ms var(--easing-smooth);
 }
 
 .agendaItemDisplay .itemTitle {
@@ -105,6 +112,7 @@
   color: var(--color-text);
   line-height: var(--line-height-tight);
   margin-bottom: var(--spacing-md);
+  animation: slideUp 500ms var(--easing-smooth);
 }
 
 .agendaItemDisplay .itemNotes {
@@ -127,6 +135,7 @@
   padding: var(--spacing-2xl);
   text-align: center;
   transition: all var(--transition-base);
+  animation: fadeIn 600ms var(--easing-smooth) 200ms both;
 }
 
 .timerDisplay.running {
@@ -146,6 +155,7 @@
   line-height: 1;
   margin-bottom: var(--spacing-md);
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: all var(--transition-fast);
 }
 
 .timerDisplay .timerValue.warning {
@@ -237,8 +247,22 @@
   position: relative;
   padding-left: var(--spacing-3xl);
   margin-bottom: var(--spacing-xl);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
+  animation: agendaSlideIn 400ms var(--easing-smooth) both;
 }
+
+/* Staggered animation delays for timeline items */
+.timelineItem:nth-child(1) { animation-delay: 0ms; }
+.timelineItem:nth-child(2) { animation-delay: 50ms; }
+.timelineItem:nth-child(3) { animation-delay: 100ms; }
+.timelineItem:nth-child(4) { animation-delay: 150ms; }
+.timelineItem:nth-child(5) { animation-delay: 200ms; }
+.timelineItem:nth-child(6) { animation-delay: 250ms; }
+.timelineItem:nth-child(7) { animation-delay: 300ms; }
+.timelineItem:nth-child(8) { animation-delay: 350ms; }
+.timelineItem:nth-child(9) { animation-delay: 400ms; }
+.timelineItem:nth-child(10) { animation-delay: 450ms; }
+/* Items beyond 10 will still animate but without stagger */
 
 .timelineItem:last-child {
   margin-bottom: 0;
@@ -278,6 +302,7 @@
   padding-right: var(--spacing-lg);
   padding-top: var(--spacing-md);
   padding-bottom: var(--spacing-md);
+  animation: fadeIn 600ms var(--easing-smooth);
 }
 
 .timelineItemContent {

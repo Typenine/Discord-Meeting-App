@@ -132,6 +132,61 @@ export default function StandaloneApp() {
   const [setupAgendaMinutes, setSetupAgendaMinutes] = useState("");
   const [setupAgendaSeconds, setSetupAgendaSeconds] = useState("");
   const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  
+  // Agenda Templates - League-specific templates for quick start
+  const agendaTemplates = [
+    {
+      id: "annual-league-meeting",
+      name: "Annual League Meeting",
+      description: "Full season review and planning",
+      agenda: [
+        { title: "Call to Order & Roll Call", durationSec: 300, notes: "Welcome owners and confirm quorum" },
+        { title: "Review of Last Season", durationSec: 900, notes: "Stats, standings, and highlights" },
+        { title: "Financial Report", durationSec: 600, notes: "League finances and dues status" },
+        { title: "Rule Changes Discussion", durationSec: 1200, notes: "Proposed amendments and voting" },
+        { title: "Schedule & Key Dates", durationSec: 600, notes: "Draft date, playoffs, championship" },
+        { title: "Commissioner Report", durationSec: 600, notes: "League updates and announcements" },
+        { title: "Open Forum", durationSec: 900, notes: "Owner concerns and suggestions" },
+        { title: "Closing Remarks", durationSec: 300, notes: "Next steps and adjournment" }
+      ]
+    },
+    {
+      id: "draft-lottery",
+      name: "Draft Lottery",
+      description: "Determine draft order for upcoming season",
+      agenda: [
+        { title: "Opening & Rules Overview", durationSec: 300, notes: "Explain lottery process and rules" },
+        { title: "Verify Eligible Teams", durationSec: 300, notes: "Confirm teams in lottery pool" },
+        { title: "Lottery Drawing", durationSec: 600, notes: "Conduct random drawing for draft positions" },
+        { title: "Announce Draft Order", durationSec: 300, notes: "Reveal complete draft order" },
+        { title: "Draft Date Confirmation", durationSec: 300, notes: "Finalize draft date and time" },
+        { title: "Q&A", durationSec: 300, notes: "Address questions about draft process" }
+      ]
+    },
+    {
+      id: "trade-summit",
+      name: "Trade Summit",
+      description: "Facilitate trades and roster discussions",
+      agenda: [
+        { title: "Trade Deadline Reminder", durationSec: 180, notes: "Review deadline and rules" },
+        { title: "Active Trade Proposals", durationSec: 900, notes: "Review and discuss pending trades" },
+        { title: "Trade Block Announcements", durationSec: 600, notes: "Owners share available players" },
+        { title: "Open Negotiation Period", durationSec: 1200, notes: "Free-form trade discussions" },
+        { title: "Trade Processing", durationSec: 600, notes: "Commissioner reviews and approves trades" },
+        { title: "Wrap-up", durationSec: 300, notes: "Final reminders and next steps" }
+      ]
+    }
+  ];
+  
+  const loadTemplate = (template) => {
+    setSetupAgenda(template.agenda.map(item => ({
+      // Use crypto.randomUUID if available, otherwise fallback to timestamp-based ID
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `a${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      ...item
+    })));
+    setShowTemplateSelector(false);
+  };
   
   // Name draft vs confirmed name flow:
   // - nameDraft: bound to input field, updates on every keystroke
@@ -1218,12 +1273,110 @@ export default function StandaloneApp() {
               </p>
             </div>
             <div className="cardBody">
+              {/* Template Selector */}
+              {setupAgenda.length === 0 && (
+                <div style={{ 
+                  marginBottom: "var(--spacing-xl)",
+                  padding: "var(--spacing-lg)",
+                  backgroundColor: "rgba(191, 153, 68, 0.1)",
+                  border: "1px solid var(--color-border-subtle)",
+                  borderRadius: "var(--radius-md)"
+                }}>
+                  <div style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "var(--spacing-md)"
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: "var(--font-weight-semibold)", marginBottom: "var(--spacing-xs)" }}>
+                        📋 Quick Start with Templates
+                      </div>
+                      <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.8 }}>
+                        Choose a pre-made agenda to get started quickly
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    className="btn btnAccent btnFull"
+                    onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                  >
+                    {showTemplateSelector ? "Hide Templates" : "Browse Templates"}
+                  </button>
+                </div>
+              )}
+              
+              {/* Template Grid */}
+              {showTemplateSelector && (
+                <div style={{ 
+                  marginBottom: "var(--spacing-xl)",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "var(--spacing-md)"
+                }}>
+                  {agendaTemplates.map(template => (
+                    <div 
+                      key={template.id}
+                      className="card card-compact"
+                      style={{ 
+                        cursor: "pointer",
+                        transition: "all var(--transition-fast)"
+                      }}
+                      onClick={() => loadTemplate(template)}
+                    >
+                      <div className="cardHeader">
+                        <div style={{ fontWeight: "var(--font-weight-bold)", fontSize: "var(--font-size-base)" }}>
+                          {template.name}
+                        </div>
+                      </div>
+                      <div className="cardBody">
+                        <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.8, marginBottom: "var(--spacing-sm)" }}>
+                          {template.description}
+                        </div>
+                        <div style={{ fontSize: "var(--font-size-xs)", opacity: 0.6 }}>
+                          {template.agenda.length} items • {Math.ceil(template.agenda.reduce((sum, item) => sum + item.durationSec, 0) / 60)} minutes
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               {/* Existing Agenda Items */}
               {setupAgenda.length > 0 && (
                 <div style={{ marginBottom: "var(--spacing-lg)" }}>
-                  {setupAgenda.map((item, idx) => (
+                  <div style={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "center",
+                    marginBottom: "var(--spacing-md)"
+                  }}>
+                    <div style={{ fontSize: "var(--font-size-sm)", fontWeight: "var(--font-weight-semibold)", opacity: 0.8 }}>
+                      {setupAgenda.length} {setupAgenda.length === 1 ? 'item' : 'items'} • {Math.ceil(setupAgenda.reduce((sum, item) => sum + item.durationSec, 0) / 60)} minutes total
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+                      <button 
+                        className="btn btnGhost btnSmall"
+                        onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                        title="Load a template (replaces current agenda)"
+                      >
+                        📋 Templates
+                      </button>
+                      <button 
+                        className="btn btnGhost btnSmall"
+                        onClick={() => {
+                          if (confirm("Clear all agenda items?")) {
+                            setSetupAgenda([]);
+                          }
+                        }}
+                      >
+                        🗑 Clear All
+                      </button>
+                    </div>
+                  </div>
+                  {setupAgenda.map((item) => (
                     <div 
-                      key={idx} 
+                      key={item.id} 
                       style={{ 
                         display: "flex", 
                         gap: "var(--spacing-md)", 
@@ -1248,7 +1401,7 @@ export default function StandaloneApp() {
                       <button 
                         className="btn btnSmall btnDanger"
                         onClick={() => {
-                          setSetupAgenda(setupAgenda.filter((_, i) => i !== idx));
+                          setSetupAgenda(setupAgenda.filter((a) => a.id !== item.id));
                         }}
                       >
                         Remove
@@ -1331,7 +1484,7 @@ export default function StandaloneApp() {
                     setSetupAgenda([
                       ...setupAgenda,
                       {
-                        id: crypto.randomUUID(),
+                        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `a${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         title: setupAgendaTitle,
                         durationSec: totalSeconds,
                         notes: setupAgendaNotes
