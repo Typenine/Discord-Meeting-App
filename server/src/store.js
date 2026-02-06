@@ -187,6 +187,7 @@ export function createSession({ userId, username, sessionId, channelId, guildId 
     updatedAt: now,
     hostUserId: String(userId),
     hostAuthorized: true, // Track that host was validated
+    hostLastSeenMs: now, // Track host presence for disconnect detection
     // Discord context for channel-specific meetings
     channelId: channelId ? String(channelId) : null,
     guildId: guildId ? String(guildId) : null,
@@ -251,12 +252,17 @@ export function joinSession({ sessionId, userId, username }) {
 }
 
 // Mark that a user has been seen (poll).  Updates lastSeenAt but
-// doesn't bump revision.
+// doesn't bump revision. Also updates hostLastSeenMs if user is the host.
 export function markSeen({ sessionId, userId }) {
   const session = sessions[sessionId];
   if (!session) return null;
+  const now = Date.now();
   const attendee = session.attendance[String(userId)];
-  if (attendee) attendee.lastSeenAt = Date.now();
+  if (attendee) attendee.lastSeenAt = now;
+  // Update host presence if this user is the host
+  if (session.hostUserId === String(userId)) {
+    session.hostLastSeenMs = now;
+  }
   saveSessions();
   return snapshotSession(session);
 }
@@ -801,6 +807,121 @@ export function endMeeting({ sessionId, userId }) {
 export function getSnapshot(sessionId) {
   const session = sessions[sessionId];
   return session ? snapshotSession(session) : null;
+}
+
+// ==================== HOST HANDOFF FUNCTIONS ====================
+// Host handoff: Allow another client with valid hostKey to claim host role
+// if current host is disconnected or has released the role.
+
+// Release host privileges - allows current host to voluntarily give up host role
+// This does NOT assign a new host - just clears the current host.
+// A client with hostKey can then claim host via claimHost().
+export function releaseHost({ sessionId, userId }) {
+  const session = sessions[sessionId];
+  if (!session) return { error: 'session_not_found', message: 'Session not found' };
+  
+  // Only current host can release
+  if (!validateHostAccess(session, userId)) {
+    return { error: 'unauthorized', message: 'Only current host can release host privileges' };
+  }
+  
+  console.log('[store] Host released privileges:', { sessionId, userId });
+  
+  // Clear host but keep them in attendance
+  session.hostUserId = null;
+  session.hostLastSeenMs = null;
+  
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
+// Claim host privileges - allows a client with hostKey to become host
+// Rules:
+// 1. Must have valid hostKey (validated by caller - API layer)
+// 2. Current host must be either null OR disconnected (lastSeenMs > 30 seconds ago)
+// 3. User must be authorized via global allowlist
+export function claimHost({ sessionId, userId, username, hostKey }) {
+  const session = sessions[sessionId];
+  if (!session) return { error: 'session_not_found', message: 'Session not found' };
+  
+  // Check if user is globally authorized to be a host
+  if (!isAuthorizedHost(userId)) {
+    console.warn('[store] Unauthorized host claim attempt:', { sessionId, userId });
+    return { error: 'unauthorized_host', message: 'User not authorized to be host' };
+  }
+  
+  const now = Date.now();
+  
+  // Check if current host is present (lastSeenMs within 30 seconds)
+  if (session.hostUserId && session.hostLastSeenMs) {
+    const timeSinceHostSeen = now - session.hostLastSeenMs;
+    const hostDisconnectThreshold = 30000; // 30 seconds
+    
+    if (timeSinceHostSeen < hostDisconnectThreshold) {
+      return { 
+        error: 'host_present', 
+        message: 'Current host is still connected. Wait for disconnect or ask them to release host.',
+        hostUserId: session.hostUserId,
+        timeSinceHostSeen,
+      };
+    }
+    
+    console.log('[store] Current host appears disconnected, allowing claim:', {
+      sessionId,
+      oldHostUserId: session.hostUserId,
+      newHostUserId: userId,
+      timeSinceHostSeen,
+    });
+  }
+  
+  // Update host
+  const oldHostUserId = session.hostUserId;
+  session.hostUserId = String(userId);
+  session.hostLastSeenMs = now;
+  session.hostAuthorized = true;
+  
+  // Ensure claiming user is in attendance
+  const key = String(userId);
+  if (!session.attendance[key]) {
+    session.attendance[key] = {
+      userId: key,
+      displayName: username || '',
+      joinedAt: now,
+      lastSeenAt: now,
+    };
+  }
+  session.attendance[key].lastSeenAt = now;
+  
+  console.log('[store] Host claimed:', {
+    sessionId,
+    oldHostUserId,
+    newHostUserId: userId,
+  });
+  
+  bumpRevision(session);
+  saveSessions();
+  return snapshotSession(session);
+}
+
+// Check if host is connected (lastSeenMs within threshold)
+// Returns { connected: boolean, lastSeenMs: number|null, timeSinceLastSeen: number|null }
+export function getHostPresence({ sessionId }) {
+  const session = sessions[sessionId];
+  if (!session || !session.hostUserId) {
+    return { connected: false, lastSeenMs: null, timeSinceLastSeen: null };
+  }
+  
+  const now = Date.now();
+  const lastSeenMs = session.hostLastSeenMs;
+  const timeSinceLastSeen = lastSeenMs ? now - lastSeenMs : null;
+  const hostDisconnectThreshold = 30000; // 30 seconds
+  
+  return {
+    connected: timeSinceLastSeen !== null && timeSinceLastSeen < hostDisconnectThreshold,
+    lastSeenMs,
+    timeSinceLastSeen,
+  };
 }
 
 // Get comprehensive store diagnostics for health checks and debugging

@@ -126,6 +126,7 @@ function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = nul
   return {
     sessionId,
     hostUserId: null,
+    hostLastSeenMs: null, // Track host presence for disconnect detection
     hostKey, // For standalone room mode (null for Discord Activity mode)
     hostKeyFallback, // For Discord Activity mode: optional hostKey for testing without Discord OAuth
     meetingName: '', // Meeting name configured by host
@@ -150,7 +151,7 @@ function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = nul
       votesByClientId: {}, // { [clientId]: optionId }
       closedResults: [], // history
     },
-    attendance: {}, // { [userId]: { displayName, joinedAt } }
+    attendance: {}, // { [clientId]: { displayName, joinedAt, lastSeenAt } }
     log: [],
   };
 }
@@ -675,6 +676,7 @@ export class MeetingRoom {
       }
 
       // Handle TIME_PING for clock offset calibration
+      // Also update presence tracking (lastSeenAt)
       if (msg && msg.type === "TIME_PING") {
         const serverNow = Date.now();
         ws.send(JSON.stringify({ 
@@ -682,6 +684,20 @@ export class MeetingRoom {
           clientSentAt: msg.clientSentAt,
           serverNow,
         }));
+        
+        // Update presence tracking for this client
+        const meta = this.metadata.get(ws);
+        if (meta && this.session) {
+          const session = this.session;
+          if (session.attendance[meta.clientId]) {
+            session.attendance[meta.clientId].lastSeenAt = serverNow;
+          }
+          // Update host lastSeenMs if this client is the host
+          if (session.hostUserId === meta.clientId) {
+            session.hostLastSeenMs = serverNow;
+          }
+        }
+        
         return;
       }
 
@@ -744,12 +760,14 @@ export class MeetingRoom {
             // Standalone mode: host is whoever has the hostKey
             if (hostKey === session.hostKey) {
               session.hostUserId = identifier;
+              session.hostLastSeenMs = Date.now();
               session.log.push({ ts: Date.now(), type: "HOST_SET", clientId: identifier, mode: "standalone" });
               console.log("[HOST_SET] standalone mode", { sessionId: roomId, hostUserId: session.hostUserId });
             }
           } else if (allowed && discordUserId) {
             // Discord Activity mode: host is first allowed user (via allowlist)
             session.hostUserId = discordUserId;
+            session.hostLastSeenMs = Date.now();
             session.log.push({ ts: Date.now(), type: "HOST_SET", userId: discordUserId, mode: "discord_allowlist" });
             console.log("[HOST_SET] discord mode via allowlist", { sessionId: roomId, hostUserId: session.hostUserId });
           } else if (!allowed && hostKeyFallback) {
@@ -758,20 +776,31 @@ export class MeetingRoom {
             if (!session.hostKeyFallback) {
               session.hostKeyFallback = hostKeyFallback;
               session.hostUserId = identifier;
+              session.hostLastSeenMs = Date.now();
               session.log.push({ ts: Date.now(), type: "HOST_SET", clientId: identifier, mode: "discord_hostkey_fallback" });
               console.log("[HOST_SET] discord mode via hostKey fallback", { sessionId: roomId, hostUserId: session.hostUserId });
             }
           }
         }
 
-        // Add to attendance using clientId
+        // Add to attendance using clientId with lastSeenAt tracking
+        const now = Date.now();
         if (!session.attendance[identifier]) {
           session.attendance[identifier] = {
             clientId: identifier,
             userId: discordUserId, // Keep discordUserId for backward compatibility
             displayName,
-            joinedAt: Date.now(),
+            joinedAt: now,
+            lastSeenAt: now,
           };
+        } else {
+          // Update lastSeenAt for existing attendee
+          session.attendance[identifier].lastSeenAt = now;
+        }
+        
+        // Update hostLastSeenMs if this user is the host
+        if (session.hostUserId === identifier) {
+          session.hostLastSeenMs = now;
         }
 
         // Determine isHost: check standalone hostKey, Discord Activity userId, or hostKeyFallback
@@ -811,6 +840,88 @@ export class MeetingRoom {
 
       const session = this.getOrCreateSession(meta.sessionId);
       const isHost = this.validateHostAccess(meta.clientId, meta.hostKey);
+
+      // Host handoff: CLAIM_HOST can be called by anyone with valid hostKey
+      // This is special-cased before host validation since it changes who the host is
+      if (msg.type === "CLAIM_HOST") {
+        // Validate that claimer has hostKey
+        if (!meta.hostKey) {
+          ws.send(JSON.stringify({ 
+            type: "ERROR", 
+            error: "missing_hostkey", 
+            message: "hostKey required to claim host privileges" 
+          }));
+          return;
+        }
+        
+        // Check if hostKey matches session hostKey
+        const hasValidHostKey = session.hostKey 
+          ? (meta.hostKey === session.hostKey)
+          : (meta.hostKey === session.hostKeyFallback);
+        
+        if (!hasValidHostKey) {
+          ws.send(JSON.stringify({ 
+            type: "ERROR", 
+            error: "invalid_hostkey", 
+            message: "Invalid hostKey" 
+          }));
+          return;
+        }
+        
+        // Check if current host is present (lastSeenMs within 30 seconds)
+        const now = Date.now();
+        if (session.hostUserId && session.hostLastSeenMs) {
+          const timeSinceHostSeen = now - session.hostLastSeenMs;
+          const hostDisconnectThreshold = 30000; // 30 seconds
+          
+          if (timeSinceHostSeen < hostDisconnectThreshold) {
+            ws.send(JSON.stringify({ 
+              type: "ERROR", 
+              error: "host_present", 
+              message: "Current host is still connected",
+              timeSinceHostSeen,
+            }));
+            return;
+          }
+          
+          console.log("[CLAIM_HOST] Current host appears disconnected, allowing claim", {
+            oldHostUserId: session.hostUserId,
+            newHostUserId: meta.clientId,
+            timeSinceHostSeen,
+          });
+        }
+        
+        // Update host
+        const oldHostUserId = session.hostUserId;
+        session.hostUserId = meta.clientId;
+        session.hostLastSeenMs = now;
+        
+        // Update attendance
+        if (session.attendance[meta.clientId]) {
+          session.attendance[meta.clientId].lastSeenAt = now;
+        }
+        
+        session.log.push({ 
+          ts: now, 
+          type: "HOST_CLAIMED", 
+          oldHostUserId, 
+          newHostUserId: meta.clientId 
+        });
+        
+        console.log("[CLAIM_HOST] Success", { 
+          sessionId: meta.sessionId,
+          oldHostUserId, 
+          newHostUserId: meta.clientId 
+        });
+        
+        ws.send(JSON.stringify({ 
+          type: "CLAIM_HOST_ACK", 
+          success: true,
+        }));
+        
+        this.broadcastState();
+        return;
+      }
 
       // Non-host actions
       if (!isHost) {
@@ -958,6 +1069,16 @@ export class MeetingRoom {
             } else {
               this.broadcastState();
             }
+          }
+          break;
+        case "RELEASE_HOST":
+          {
+            // Host releases privileges - clears host, allows another client to claim
+            console.log("[RELEASE_HOST] Host releasing privileges", { clientId: meta.clientId });
+            session.hostUserId = null;
+            session.hostLastSeenMs = null;
+            session.log.push({ ts: Date.now(), type: "HOST_RELEASED", clientId: meta.clientId });
+            this.broadcastState();
           }
           break;
         default:
