@@ -298,6 +298,12 @@ select:focus {
   box-shadow: var(--shadow-glow-gold);
 }
 
+/* Prominent logo in TopBar */
+.topBar .brandLogo {
+  height: 56px;
+  filter: drop-shadow(0 0 12px rgba(191, 153, 68, 0.4));
+}
+
 .brand-text {
   display: flex;
   flex-direction: column;
@@ -334,6 +340,7 @@ select:focus {
   display: block;
   box-shadow: var(--shadow-glow-gold), var(--shadow-lg);
   animation: logoGlow 3s ease-in-out infinite;
+  will-change: box-shadow;
 }
 
 @keyframes logoGlow {

@@ -52,11 +52,6 @@ export default function TopBar({
               src={logo} 
               alt="League Meeting App" 
               className="brandLogo"
-              style={{ 
-                height: '56px',
-                transition: 'all var(--transition-base)',
-                filter: 'drop-shadow(0 0 12px rgba(191, 153, 68, 0.4))'
-              }}
             />
             <div className="brand-text">
               <div className="brandTitle">{meetingName || "East v. West League Meeting"}</div>
