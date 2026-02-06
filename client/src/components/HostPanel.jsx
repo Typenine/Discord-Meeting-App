@@ -252,19 +252,43 @@ export default function HostPanel({
   };
 
   const handleMoveToTop = (item) => {
+    console.log('[HostPanel] handleMoveToTop CALLED - item:', item);
+    console.log('[HostPanel] state.agenda:', state.agenda);
+    console.log('[HostPanel] onReorderAgenda exists?', !!onReorderAgenda);
+    
     const newOrder = [item, ...state.agenda.filter((a) => a.id !== item.id)];
     const orderedIds = newOrder.map((a) => a.id);
+    
+    console.log('[HostPanel] newOrder:', newOrder);
+    console.log('[HostPanel] orderedIds:', orderedIds);
+    
     if (onReorderAgenda) {
+      console.log('[HostPanel] Calling onReorderAgenda with:', orderedIds);
       onReorderAgenda(orderedIds);
+      console.log('[HostPanel] onReorderAgenda called successfully');
+    } else {
+      console.error('[HostPanel] ERROR: onReorderAgenda is undefined!');
     }
     setOpenMenuId(null);
   };
 
   const handleMoveToBottom = (item) => {
+    console.log('[HostPanel] handleMoveToBottom CALLED - item:', item);
+    console.log('[HostPanel] state.agenda:', state.agenda);
+    console.log('[HostPanel] onReorderAgenda exists?', !!onReorderAgenda);
+    
     const newOrder = [...state.agenda.filter((a) => a.id !== item.id), item];
     const orderedIds = newOrder.map((a) => a.id);
+    
+    console.log('[HostPanel] newOrder:', newOrder);
+    console.log('[HostPanel] orderedIds:', orderedIds);
+    
     if (onReorderAgenda) {
+      console.log('[HostPanel] Calling onReorderAgenda with:', orderedIds);
       onReorderAgenda(orderedIds);
+      console.log('[HostPanel] onReorderAgenda called successfully');
+    } else {
+      console.error('[HostPanel] ERROR: onReorderAgenda is undefined!');
     }
     setOpenMenuId(null);
   };
@@ -591,6 +615,7 @@ export default function HostPanel({
                                     <button
                                       className="menuItem"
                                       onClick={(e) => {
+                                        console.log('[HostPanel] Move to Top button CLICKED');
                                         e.stopPropagation();
                                         handleMoveToTop(item);
                                       }}
@@ -600,6 +625,7 @@ export default function HostPanel({
                                     <button
                                       className="menuItem"
                                       onClick={(e) => {
+                                        console.log('[HostPanel] Move to Bottom button CLICKED');
                                         e.stopPropagation();
                                         handleMoveToBottom(item);
                                       }}
