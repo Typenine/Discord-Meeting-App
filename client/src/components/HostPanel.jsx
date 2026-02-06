@@ -561,7 +561,8 @@ export default function HostPanel({
                                     {state.activeAgendaId !== item.id && (
                                       <button
                                         className="menuItem"
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           onSetActiveAgenda(item.id);
                                           setOpenMenuId(null);
                                         }}
@@ -571,31 +572,46 @@ export default function HostPanel({
                                     )}
                                     <button
                                       className="menuItem"
-                                      onClick={() => handleDuplicate(item)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDuplicate(item);
+                                      }}
                                     >
                                       📋 Duplicate
                                     </button>
                                     <button
                                       className="menuItem"
-                                      onClick={() => handleInsertAfter(item)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleInsertAfter(item);
+                                      }}
                                     >
                                       ➕ Add New Item
                                     </button>
                                     <button
                                       className="menuItem"
-                                      onClick={() => handleMoveToTop(item)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMoveToTop(item);
+                                      }}
                                     >
                                       ⬆️ Move to Top
                                     </button>
                                     <button
                                       className="menuItem"
-                                      onClick={() => handleMoveToBottom(item)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMoveToBottom(item);
+                                      }}
                                     >
                                       ⬇️ Move to Bottom
                                     </button>
                                     <button
                                       className="menuItem menuItemDanger"
-                                      onClick={() => handleDeleteWithConfirm(item.id)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteWithConfirm(item.id);
+                                      }}
                                     >
                                       {deleteConfirmId === item.id ? "⚠️ Confirm Delete?" : "🗑️ Delete"}
                                     </button>
