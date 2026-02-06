@@ -121,9 +121,17 @@ const WS_URL = (() => {
 })();
 
 export default function StandaloneApp() {
-  const [mode, setMode] = useState("init"); // 'init', 'creating', 'joining', 'connected'
+  const [mode, setMode] = useState("init"); // 'init', 'setup', 'creating', 'joining', 'connected'
   const [roomId, setRoomId] = useState("");
   const [hostKey, setHostKey] = useState("");
+  
+  // Setup state
+  const [setupMeetingName, setSetupMeetingName] = useState("East v. West League Meeting");
+  const [setupAgenda, setSetupAgenda] = useState([]);
+  const [setupAgendaTitle, setSetupAgendaTitle] = useState("");
+  const [setupAgendaMinutes, setSetupAgendaMinutes] = useState("");
+  const [setupAgendaSeconds, setSetupAgendaSeconds] = useState("");
+  const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
   
   // Name draft vs confirmed name flow:
   // - nameDraft: bound to input field, updates on every keystroke
@@ -406,6 +414,73 @@ export default function StandaloneApp() {
     connectToRoom(roomId, hostKey);
   };
 
+  // Start meeting with setup configuration
+  const startMeetingWithSetup = async () => {
+    if (!confirmUsername()) {
+      return;
+    }
+    
+    setMode("creating");
+    setError(null);
+    
+    try {
+      // Use the global API_BASE configuration
+      if (!API_BASE) {
+        throw new Error("API base URL not configured");
+      }
+      
+      // Create room first
+      const res = await fetch(`${API_BASE}/room/create`, { method: "POST" });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setError(data.error || "Failed to create room");
+        setMode("setup");
+        return;
+      }
+      
+      setRoomId(data.roomId);
+      setHostKey(data.hostKey);
+      
+      // Update URLs using link helpers
+      const viewer = generateViewerLink(data.roomId);
+      const host = generateHostLink(data.roomId, data.hostKey);
+      
+      setViewerUrl(viewer);
+      setHostUrl(host);
+      
+      // Connect to room and send setup + start
+      const newUrl = `${window.location.origin}/?room=${data.roomId}&hostKey=${data.hostKey}&mode=host`;
+      window.history.pushState({}, '', newUrl);
+      
+      // Connect and wait for websocket to be ready
+      connectToRoom(data.roomId, data.hostKey, {
+        onConnected: (ws) => {
+          // Send setup update (IDs already assigned when items were created)
+          ws.send(JSON.stringify({
+            type: "SETUP_UPDATE",
+            meetingName: setupMeetingName,
+            agenda: setupAgenda
+          }));
+          
+          // Send meeting start
+          ws.send(JSON.stringify({
+            type: "MEETING_START",
+            startTimer: true
+          }));
+          
+          // Show share links modal
+          setShowLinks(true);
+        }
+      });
+      
+    } catch (err) {
+      console.error("Failed to create room:", err);
+      setError(err.message || "Network error. Please try again.");
+      setMode("setup");
+    }
+  };
+
   // Join existing room
   const joinRoom = () => {
     if (!confirmUsername()) {
@@ -429,7 +504,7 @@ export default function StandaloneApp() {
   };
 
   // Connect to WebSocket
-  const connectToRoom = (room, key) => {
+  const connectToRoom = (room, key, options = {}) => {
     const attemptTime = Date.now();
     console.group(`[WS CONNECTION ${new Date(attemptTime).toISOString()}]`);
     console.log("Room:", room);
@@ -612,6 +687,11 @@ export default function StandaloneApp() {
         ...prev,
         joinSent: true,
       }));
+      
+      // Call onConnected callback if provided
+      if (options.onConnected) {
+        options.onConnected(ws);
+      }
       
       // Send initial TIME_PING for clock synchronization
       ws.send(JSON.stringify({
@@ -1101,6 +1181,190 @@ export default function StandaloneApp() {
         </div>
       )}
       
+      {mode === "setup" && (
+        <div className="container container-narrow" style={{ paddingTop: "var(--spacing-2xl)", paddingBottom: "var(--spacing-4xl)" }}>
+          <div className="brandHeader">
+            <h1 className="brandTitle">Meeting Setup</h1>
+            <div className="brandSubtitle">Configure your meeting before starting</div>
+          </div>
+          
+          <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+            <div className="cardHeader">
+              <h3 className="cardTitle">Meeting Name</h3>
+            </div>
+            <div className="cardBody">
+              <input 
+                className="input"
+                value={setupMeetingName}
+                onChange={(e) => setSetupMeetingName(e.target.value)}
+                placeholder="Enter meeting name"
+              />
+            </div>
+          </div>
+          
+          <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+            <div className="cardHeader">
+              <h3 className="cardTitle">Agenda Builder</h3>
+              <p style={{ fontSize: "var(--font-size-sm)", opacity: 0.8, marginTop: "var(--spacing-xs)" }}>
+                Add items to your meeting agenda
+              </p>
+            </div>
+            <div className="cardBody">
+              {/* Existing Agenda Items */}
+              {setupAgenda.length > 0 && (
+                <div style={{ marginBottom: "var(--spacing-lg)" }}>
+                  {setupAgenda.map((item, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        display: "flex", 
+                        gap: "var(--spacing-md)", 
+                        alignItems: "start",
+                        marginBottom: "var(--spacing-md)",
+                        padding: "var(--spacing-md)",
+                        backgroundColor: "var(--color-bg-secondary)",
+                        borderRadius: "var(--radius-md)"
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: "var(--font-weight-semibold)" }}>{item.title}</div>
+                        <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.7 }}>
+                          Duration: {Math.floor(item.durationSec / 60)}m {item.durationSec % 60}s
+                        </div>
+                        {item.notes && (
+                          <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.7, marginTop: "var(--spacing-xs)" }}>
+                            {item.notes}
+                          </div>
+                        )}
+                      </div>
+                      <button 
+                        className="btn btnSmall btnDanger"
+                        onClick={() => {
+                          setSetupAgenda(setupAgenda.filter((_, i) => i !== idx));
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add New Agenda Item Form */}
+              <div style={{ 
+                padding: "var(--spacing-md)", 
+                backgroundColor: "var(--color-bg-tertiary)",
+                borderRadius: "var(--radius-md)"
+              }}>
+                <label className="label">Item Title</label>
+                <input 
+                  className="input"
+                  value={setupAgendaTitle}
+                  onChange={(e) => setSetupAgendaTitle(e.target.value)}
+                  placeholder="e.g., Opening remarks"
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                />
+                
+                <label className="label">Duration</label>
+                <div style={{ display: "flex", gap: "var(--spacing-md)", marginBottom: "var(--spacing-md)" }}>
+                  <div style={{ flex: 1 }}>
+                    <input 
+                      type="number"
+                      className="input"
+                      value={setupAgendaMinutes}
+                      onChange={(e) => setSetupAgendaMinutes(e.target.value)}
+                      placeholder="Minutes"
+                      min="0"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <input 
+                      type="number"
+                      className="input"
+                      value={setupAgendaSeconds}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "") {
+                          setSetupAgendaSeconds(val);
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 0 && num <= 59) {
+                            setSetupAgendaSeconds(val);
+                          }
+                        }
+                      }}
+                      placeholder="Seconds"
+                      min="0"
+                      max="59"
+                    />
+                  </div>
+                </div>
+                
+                <label className="label">Notes (optional)</label>
+                <textarea 
+                  className="input"
+                  value={setupAgendaNotes}
+                  onChange={(e) => setSetupAgendaNotes(e.target.value)}
+                  placeholder="Additional notes or context"
+                  rows="2"
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                />
+                
+                <button 
+                  className="btn btnSecondary btnFull"
+                  onClick={() => {
+                    if (!setupAgendaTitle) return;
+                    const mins = parseInt(setupAgendaMinutes) || 0;
+                    const secs = parseInt(setupAgendaSeconds) || 0;
+                    // Safety clamp (redundant with input validation but defensive)
+                    const validSecs = Math.max(0, Math.min(59, secs));
+                    const totalSeconds = mins * 60 + validSecs;
+                    
+                    setSetupAgenda([
+                      ...setupAgenda,
+                      {
+                        id: crypto.randomUUID(),
+                        title: setupAgendaTitle,
+                        durationSec: totalSeconds,
+                        notes: setupAgendaNotes
+                      }
+                    ]);
+                    
+                    // Clear form
+                    setSetupAgendaTitle("");
+                    setSetupAgendaMinutes("");
+                    setSetupAgendaSeconds("");
+                    setSetupAgendaNotes("");
+                  }}
+                  disabled={!setupAgendaTitle}
+                >
+                  + Add to Agenda
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Start Meeting Button */}
+          <button 
+            className="btn btnPrimary btnLarge btnFull"
+            onClick={startMeetingWithSetup}
+          >
+            🚀 Start Meeting
+          </button>
+          
+          {setupAgenda.length === 0 && (
+            <p style={{ 
+              textAlign: "center", 
+              fontSize: "var(--font-size-sm)", 
+              opacity: 0.7,
+              marginTop: "var(--spacing-md)"
+            }}>
+              Tip: Add agenda items to help structure your meeting
+            </p>
+          )}
+        </div>
+      )}
+      
       {mode === "init" && (
         <div className="container container-narrow" style={{ 
           padding: "var(--spacing-2xl) var(--spacing-xl)",
@@ -1143,7 +1407,11 @@ export default function StandaloneApp() {
                 <button
                   className="btn btnPrimary btnLarge btnFull"
                   style={{ marginTop: "var(--spacing-xl)" }}
-                  onClick={createRoom}
+                  onClick={() => {
+                    if (confirmUsername()) {
+                      setMode("setup");
+                    }
+                  }}
                   disabled={!nameDraft.trim()}
                 >
                   Create New Meeting Room
