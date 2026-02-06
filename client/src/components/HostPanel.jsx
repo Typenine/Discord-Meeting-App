@@ -412,6 +412,23 @@ export default function HostPanel({
                 Next ▶
               </button>
             </div>
+            {state.timeBankEnabled && state.currentAgendaItemId && (
+              <button
+                className="btn btnSuccess btnSmall btnFull"
+                style={{ marginTop: "var(--spacing-sm)" }}
+                onClick={() => {
+                  fetch(`/api/session/${state.id}/agenda/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                      userId: localStorage.getItem('userId')
+                    }),
+                  }).catch(err => console.error('Failed to complete agenda item:', err));
+                }}
+              >
+                ✓ Complete & Next
+              </button>
+            )}
           </div>
         )}
 
@@ -466,6 +483,101 @@ export default function HostPanel({
                 -30s
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Time Bank Controls */}
+        <div className="card card-compact mb-lg">
+          <div className="cardHeader">
+            <h4 className="cardTitle">Time Bank</h4>
+          </div>
+          <div className="cardBody">
+            <div style={{ marginBottom: "var(--spacing-md)" }}>
+              <label className="checkboxLabel">
+                <input
+                  type="checkbox"
+                  checked={state.timeBankEnabled || false}
+                  onChange={(e) => {
+                    fetch(`/api/session/${state.id}/timebank/toggle`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        userId: localStorage.getItem('userId'), 
+                        enabled: e.target.checked 
+                      }),
+                    }).catch(err => console.error('Failed to toggle time bank:', err));
+                  }}
+                />
+                <span style={{ marginLeft: "var(--spacing-sm)" }}>Enable Time Bank</span>
+              </label>
+            </div>
+            
+            {state.timeBankEnabled && (
+              <div>
+                <div style={{ 
+                  padding: "var(--spacing-md)",
+                  background: "rgba(0, 0, 0, 0.3)",
+                  borderRadius: "var(--radius-md)",
+                  marginBottom: "var(--spacing-md)",
+                  textAlign: "center"
+                }}>
+                  <div style={{ 
+                    fontSize: "var(--font-size-sm)",
+                    color: "var(--color-text-muted)",
+                    marginBottom: "var(--spacing-xs)"
+                  }}>
+                    Available Bank Time
+                  </div>
+                  <div style={{ 
+                    fontSize: "var(--font-size-xl)",
+                    fontFamily: "var(--font-family-mono)",
+                    fontWeight: "var(--font-weight-bold)",
+                    color: "var(--color-primary)"
+                  }}>
+                    {formatTime(state.timeBankSec || 0)}
+                  </div>
+                </div>
+                
+                {state.timeBankSec > 0 && (
+                  <div style={{ display: "flex", gap: "var(--spacing-xs)" }}>
+                    <button
+                      className="btn btnSuccess btnSmall"
+                      onClick={() => {
+                        const amount = Math.min(30, state.timeBankSec);
+                        fetch(`/api/session/${state.id}/timebank/apply`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            userId: localStorage.getItem('userId'), 
+                            seconds: amount 
+                          }),
+                        }).catch(err => console.error('Failed to apply time bank:', err));
+                      }}
+                      disabled={state.timeBankSec < 30}
+                    >
+                      Apply +30s
+                    </button>
+                    <button
+                      className="btn btnSuccess btnSmall"
+                      onClick={() => {
+                        const amount = Math.min(60, state.timeBankSec);
+                        fetch(`/api/session/${state.id}/timebank/apply`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            userId: localStorage.getItem('userId'), 
+                            seconds: amount 
+                          }),
+                        }).catch(err => console.error('Failed to apply time bank:', err));
+                      }}
+                      disabled={state.timeBankSec < 60}
+                    >
+                      Apply +1:00
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
