@@ -132,6 +132,77 @@ export default function StandaloneApp() {
   const [setupAgendaMinutes, setSetupAgendaMinutes] = useState("");
   const [setupAgendaSeconds, setSetupAgendaSeconds] = useState("");
   const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  
+  // Agenda Templates - Built-in templates for quick start
+  const agendaTemplates = [
+    {
+      id: "quick-standup",
+      name: "Quick Standup",
+      description: "Fast 20-minute daily sync",
+      agenda: [
+        { title: "What did you do yesterday?", durationSec: 300, notes: "Quick round-robin updates" },
+        { title: "What are you doing today?", durationSec: 600, notes: "Share today's focus and priorities" },
+        { title: "Any blockers?", durationSec: 300, notes: "Identify obstacles and get help" }
+      ]
+    },
+    {
+      id: "weekly-sync",
+      name: "Weekly Team Sync",
+      description: "Standard 30-minute weekly meeting",
+      agenda: [
+        { title: "Opening & Announcements", durationSec: 300, notes: "Welcome and important updates" },
+        { title: "Status Updates", durationSec: 900, notes: "Each team member shares progress" },
+        { title: "Discussion Topics", durationSec: 600, notes: "Address key issues and decisions" },
+        { title: "Action Items & Next Steps", durationSec: 300, notes: "Assign follow-ups and close" }
+      ]
+    },
+    {
+      id: "project-kickoff",
+      name: "Project Kickoff",
+      description: "Launch a new project with clarity",
+      agenda: [
+        { title: "Project Overview", durationSec: 600, notes: "Goals, scope, and context" },
+        { title: "Team Introductions", durationSec: 300, notes: "Roles and responsibilities" },
+        { title: "Timeline & Milestones", durationSec: 600, notes: "Key dates and deliverables" },
+        { title: "Discussion & Questions", durationSec: 600, notes: "Open floor for clarifications" },
+        { title: "Next Steps", durationSec: 300, notes: "Immediate action items" }
+      ]
+    },
+    {
+      id: "retrospective",
+      name: "Sprint Retrospective",
+      description: "Reflect and improve as a team",
+      agenda: [
+        { title: "Set the Stage", durationSec: 300, notes: "Review goals and create safe space" },
+        { title: "What went well?", durationSec: 600, notes: "Celebrate successes" },
+        { title: "What could be improved?", durationSec: 600, notes: "Identify challenges" },
+        { title: "Action Items", durationSec: 600, notes: "Concrete improvements to implement" },
+        { title: "Closing", durationSec: 180, notes: "Summarize and thank team" }
+      ]
+    },
+    {
+      id: "1-on-1",
+      name: "1-on-1 Meeting",
+      description: "Manager and direct report sync",
+      agenda: [
+        { title: "Personal Check-in", durationSec: 300, notes: "How are things going?" },
+        { title: "Progress & Wins", durationSec: 600, notes: "Discuss recent accomplishments" },
+        { title: "Challenges & Support", durationSec: 600, notes: "Address obstacles and provide help" },
+        { title: "Growth & Development", durationSec: 300, notes: "Career goals and feedback" },
+        { title: "Action Items", durationSec: 300, notes: "Next steps and commitments" }
+      ]
+    }
+  ];
+  
+  const loadTemplate = (template) => {
+    setSetupAgenda(template.agenda.map(item => ({
+      // Use crypto.randomUUID if available, otherwise fallback to timestamp-based ID
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `a${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      ...item
+    })));
+    setShowTemplateSelector(false);
+  };
   
   // Name draft vs confirmed name flow:
   // - nameDraft: bound to input field, updates on every keystroke
@@ -1210,12 +1281,110 @@ export default function StandaloneApp() {
               </p>
             </div>
             <div className="cardBody">
+              {/* Template Selector */}
+              {setupAgenda.length === 0 && (
+                <div style={{ 
+                  marginBottom: "var(--spacing-xl)",
+                  padding: "var(--spacing-lg)",
+                  backgroundColor: "rgba(191, 153, 68, 0.1)",
+                  border: "1px solid var(--color-border-subtle)",
+                  borderRadius: "var(--radius-md)"
+                }}>
+                  <div style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "var(--spacing-md)"
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: "var(--font-weight-semibold)", marginBottom: "var(--spacing-xs)" }}>
+                        📋 Quick Start with Templates
+                      </div>
+                      <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.8 }}>
+                        Choose a pre-made agenda to get started quickly
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    className="btn btnAccent btnFull"
+                    onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                  >
+                    {showTemplateSelector ? "Hide Templates" : "Browse Templates"}
+                  </button>
+                </div>
+              )}
+              
+              {/* Template Grid */}
+              {showTemplateSelector && (
+                <div style={{ 
+                  marginBottom: "var(--spacing-xl)",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "var(--spacing-md)"
+                }}>
+                  {agendaTemplates.map(template => (
+                    <div 
+                      key={template.id}
+                      className="card card-compact"
+                      style={{ 
+                        cursor: "pointer",
+                        transition: "all var(--transition-fast)"
+                      }}
+                      onClick={() => loadTemplate(template)}
+                    >
+                      <div className="cardHeader">
+                        <div style={{ fontWeight: "var(--font-weight-bold)", fontSize: "var(--font-size-base)" }}>
+                          {template.name}
+                        </div>
+                      </div>
+                      <div className="cardBody">
+                        <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.8, marginBottom: "var(--spacing-sm)" }}>
+                          {template.description}
+                        </div>
+                        <div style={{ fontSize: "var(--font-size-xs)", opacity: 0.6 }}>
+                          {template.agenda.length} items • {Math.ceil(template.agenda.reduce((sum, item) => sum + item.durationSec, 0) / 60)} minutes
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               {/* Existing Agenda Items */}
               {setupAgenda.length > 0 && (
                 <div style={{ marginBottom: "var(--spacing-lg)" }}>
-                  {setupAgenda.map((item, idx) => (
+                  <div style={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "center",
+                    marginBottom: "var(--spacing-md)"
+                  }}>
+                    <div style={{ fontSize: "var(--font-size-sm)", fontWeight: "var(--font-weight-semibold)", opacity: 0.8 }}>
+                      {setupAgenda.length} {setupAgenda.length === 1 ? 'item' : 'items'} • {Math.ceil(setupAgenda.reduce((sum, item) => sum + item.durationSec, 0) / 60)} minutes total
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+                      <button 
+                        className="btn btnGhost btnSmall"
+                        onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                        title="Load a template (replaces current agenda)"
+                      >
+                        📋 Templates
+                      </button>
+                      <button 
+                        className="btn btnGhost btnSmall"
+                        onClick={() => {
+                          if (confirm("Clear all agenda items?")) {
+                            setSetupAgenda([]);
+                          }
+                        }}
+                      >
+                        🗑 Clear All
+                      </button>
+                    </div>
+                  </div>
+                  {setupAgenda.map((item) => (
                     <div 
-                      key={idx} 
+                      key={item.id} 
                       style={{ 
                         display: "flex", 
                         gap: "var(--spacing-md)", 
@@ -1240,7 +1409,7 @@ export default function StandaloneApp() {
                       <button 
                         className="btn btnSmall btnDanger"
                         onClick={() => {
-                          setSetupAgenda(setupAgenda.filter((_, i) => i !== idx));
+                          setSetupAgenda(setupAgenda.filter((a) => a.id !== item.id));
                         }}
                       >
                         Remove
@@ -1323,7 +1492,7 @@ export default function StandaloneApp() {
                     setSetupAgenda([
                       ...setupAgenda,
                       {
-                        id: crypto.randomUUID(),
+                        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `a${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         title: setupAgendaTitle,
                         durationSec: totalSeconds,
                         notes: setupAgendaNotes
