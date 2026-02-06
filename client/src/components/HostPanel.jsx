@@ -101,6 +101,7 @@ export default function HostPanel({
   
   const menuRef = useRef(null);
   const inlineTitleRef = useRef(null);
+  const inlineEditRef = useRef(null);
 
   // Load saved templates from localStorage on mount
   useEffect(() => {
@@ -128,10 +129,14 @@ export default function HostPanel({
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setOpenMenuId(null);
       }
+      // Save inline edit when clicking outside the edit area
+      if (inlineEditRef.current && !inlineEditRef.current.contains(e.target) && inlineEditId) {
+        saveInlineEdit();
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [inlineEditId]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -225,6 +230,8 @@ export default function HostPanel({
   };
 
   const handleInsertAfter = (item) => {
+    // Note: This adds a new item at the end of the agenda list.
+    // For precise positioning, use drag-and-drop to move it after the target item.
     onAddAgenda("New Item", 300, "");
     setOpenMenuId(null);
   };
@@ -448,13 +455,12 @@ export default function HostPanel({
                     {({ attributes, listeners, isDragging }) => (
                       <>
                         {inlineEditId === item.id ? (
-                          <div className="agendaItemInlineEdit mb-sm">
+                          <div className="agendaItemInlineEdit mb-sm" ref={inlineEditRef}>
                             <input
                               ref={inlineTitleRef}
                               className="inlineEditTitle"
                               value={inlineEditData.title}
                               onChange={(e) => setInlineEditData({ ...inlineEditData, title: e.target.value })}
-                              onBlur={saveInlineEdit}
                               onKeyDown={handleInlineKeyDown}
                               placeholder="Title"
                             />
@@ -465,7 +471,6 @@ export default function HostPanel({
                                 min="0"
                                 value={inlineEditData.minutes}
                                 onChange={(e) => setInlineEditData({ ...inlineEditData, minutes: e.target.value })}
-                                onBlur={saveInlineEdit}
                                 onKeyDown={handleInlineKeyDown}
                                 placeholder="Min"
                               />
@@ -482,7 +487,6 @@ export default function HostPanel({
                                     setInlineEditData({ ...inlineEditData, seconds: e.target.value });
                                   }
                                 }}
-                                onBlur={saveInlineEdit}
                                 onKeyDown={handleInlineKeyDown}
                                 placeholder="Sec"
                               />
@@ -491,7 +495,14 @@ export default function HostPanel({
                               className="inlineEditNotes"
                               value={inlineEditData.notes}
                               onChange={(e) => setInlineEditData({ ...inlineEditData, notes: e.target.value })}
-                              onBlur={saveInlineEdit}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  saveInlineEdit();
+                                } else if (e.key === "Escape") {
+                                  cancelInlineEdit();
+                                }
+                              }}
                               placeholder="Notes (optional)"
                               rows="2"
                             />
