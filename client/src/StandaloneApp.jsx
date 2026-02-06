@@ -342,6 +342,19 @@ export default function StandaloneApp() {
     return true;
   };
 
+  // Check if join form is ready for submission
+  const canSubmitJoin = () => {
+    return nameDraft.trim() && roomId.trim();
+  };
+
+  // Handle Enter key on join form inputs
+  const handleJoinFormEnter = (e) => {
+    if (e.key === 'Enter' && canSubmitJoin()) {
+      e.preventDefault();
+      joinRoom();
+    }
+  };
+
   // Create new room
   const createRoom = async () => {
     if (!confirmUsername()) {
@@ -1117,12 +1130,7 @@ export default function StandaloneApp() {
                   className="input"
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && nameDraft.trim() && roomId.trim()) {
-                      e.preventDefault();
-                      joinRoom();
-                    }
-                  }}
+                  onKeyDown={handleJoinFormEnter}
                   placeholder="Enter your name"
                   style={{ marginBottom: "var(--spacing-lg)" }}
                 />
@@ -1131,12 +1139,7 @@ export default function StandaloneApp() {
                   className="input"
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && nameDraft.trim() && roomId.trim()) {
-                      e.preventDefault();
-                      joinRoom();
-                    }
-                  }}
+                  onKeyDown={handleJoinFormEnter}
                   placeholder="Enter room ID"
                   style={{ marginBottom: "var(--spacing-lg)" }}
                 />
@@ -1145,12 +1148,7 @@ export default function StandaloneApp() {
                   className="input"
                   value={hostKey}
                   onChange={(e) => setHostKey(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && nameDraft.trim() && roomId.trim()) {
-                      e.preventDefault();
-                      joinRoom();
-                    }
-                  }}
+                  onKeyDown={handleJoinFormEnter}
                   placeholder="Enter host key to control meeting"
                 />
                 <span className="helper">Leave blank to join as attendee</span>
