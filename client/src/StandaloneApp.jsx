@@ -275,6 +275,22 @@ export default function StandaloneApp() {
   });
   const [connectionTimeout, setConnectionTimeout] = useState(false);
   
+  // Last session tracking for rejoin prompt
+  const [lastSession, setLastSession] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("evw_last_session");
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+    return null;
+  });
+  const [showRejoinPrompt, setShowRejoinPrompt] = useState(false);
+  
   // Detect popout mode from URL
   const inPopoutMode = isPopoutMode();
   
@@ -370,6 +386,33 @@ export default function StandaloneApp() {
       localStorage.removeItem("evw_username");
     }
   }, [username]);
+
+  // Save last active session when connected (for rejoin prompt)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    if (mode === "connected" && roomId && username) {
+      const sessionInfo = {
+        roomId,
+        hostKey, // Store hostKey to preserve role on rejoin
+        username,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem("evw_last_session", JSON.stringify(sessionInfo));
+      setLastSession(sessionInfo);
+    }
+  }, [mode, roomId, hostKey, username]);
+
+  // Check for rejoin opportunity on mount (root URL without room param)
+  useEffect(() => {
+    // Only show rejoin prompt if:
+    // 1. We have a stored last session
+    // 2. We're not already on a room URL
+    // 3. We're in init mode
+    if (lastSession && !roomId && mode === "init") {
+      setShowRejoinPrompt(true);
+    }
+  }, []); // Run only once on mount
 
   // Track host privileges changes
   useEffect(() => {
@@ -549,6 +592,32 @@ export default function StandaloneApp() {
     
     setMode("joining"); // Set mode to show connecting UI
     connectToRoom(roomId, hostKey || null);
+  };
+
+  // Rejoin last session (from rejoin prompt)
+  const rejoinLastSession = () => {
+    if (!lastSession) return;
+    
+    console.log("[REJOIN] Rejoining last session:", lastSession.roomId);
+    
+    // Set state from last session
+    setRoomId(lastSession.roomId);
+    setHostKey(lastSession.hostKey || null);
+    setUsername(lastSession.username);
+    setUsernameConfirmed(true);
+    setShowRejoinPrompt(false);
+    
+    // Auto-connect effect will trigger since we now have roomId + confirmed username
+  };
+
+  // Dismiss rejoin prompt
+  const dismissRejoinPrompt = () => {
+    setShowRejoinPrompt(false);
+    // Clear last session from storage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("evw_last_session");
+    }
+    setLastSession(null);
   };
 
   // Calculate exponential backoff delay
@@ -815,9 +884,23 @@ export default function StandaloneApp() {
             const offset = msg.serverNow - Date.now();
             setServerTimeOffset(offset);
           }
+          
+          // Update isHost based on current state (handles host changes)
+          if (msg.state && msg.state.hostUserId) {
+            const nowHost = msg.state.hostUserId === clientId;
+            if (nowHost !== isHost) {
+              console.log("[HOST STATUS CHANGE]", { wasHost: isHost, nowHost });
+              setIsHost(nowHost);
+            }
+          }
+        } else if (msg.type === "CLAIM_HOST_ACK") {
+          console.log("[CLAIM_HOST] Success - now host");
+          setIsHost(true);
+          setError(null);
         } else if (msg.type === "ERROR") {
           console.error("[WS] Error:", msg.error);
-          setError(`Server error: ${msg.error}`);
+          const errorMsg = msg.message || msg.error;
+          setError(`Server error: ${errorMsg}`);
         }
       } catch (err) {
         console.error("[WS] Failed to parse message:", err);
@@ -1038,6 +1121,23 @@ export default function StandaloneApp() {
   // Attendee actions
   const castVote = (optionId) => {
     sendMessage({ type: "VOTE_CAST", optionId });
+  };
+
+  // Host handoff actions
+  const releaseHost = () => {
+    if (!isHost) return;
+    if (confirm("Release host privileges? Another user with the host key can then claim host.")) {
+      sendMessage({ type: "RELEASE_HOST" });
+    }
+  };
+
+  const claimHost = () => {
+    if (isHost) return; // Already host
+    if (!hostKey) {
+      setError("Host key required to claim host privileges");
+      return;
+    }
+    sendMessage({ type: "CLAIM_HOST" });
   };
 
   return (
@@ -1546,6 +1646,54 @@ export default function StandaloneApp() {
             </div>
           )}
           
+          {/* Rejoin Last Meeting Prompt */}
+          {showRejoinPrompt && lastSession && (
+            <div style={{
+              marginTop: "var(--spacing-xl)",
+              padding: "var(--spacing-lg)",
+              backgroundColor: "var(--color-accent)",
+              color: "var(--color-bg)",
+              borderRadius: "var(--radius-lg)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "var(--spacing-lg)"
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "var(--font-weight-bold)", marginBottom: "var(--spacing-xs)" }}>
+                  Rejoin Last Meeting?
+                </div>
+                <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.9 }}>
+                  Room: <strong>{lastSession.roomId}</strong> • Name: <strong>{lastSession.username}</strong>
+                  {lastSession.hostKey && " • You were the host"}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "var(--spacing-md)" }}>
+                <button
+                  className="btn btnGhost"
+                  onClick={dismissRejoinPrompt}
+                  style={{ 
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    color: "var(--color-bg)",
+                    border: "none"
+                  }}
+                >
+                  Dismiss
+                </button>
+                <button
+                  className="btn btnPrimary"
+                  onClick={rejoinLastSession}
+                  style={{ 
+                    backgroundColor: "var(--color-bg)",
+                    color: "var(--color-accent)"
+                  }}
+                >
+                  Rejoin
+                </button>
+              </div>
+            </div>
+          )}
+          
           <div className="grid2" style={{ marginTop: "var(--spacing-2xl)" }}>
             {/* Card 1: Create Meeting */}
             <div className="card">
@@ -1808,6 +1956,70 @@ export default function StandaloneApp() {
                 meetingName={state?.meetingName}
                 meetingElapsedSec={state?.meetingTimer?.elapsedSec || 0}
               />
+              
+              {/* Host Status Banner */}
+              <div style={{
+                padding: "var(--spacing-md) var(--spacing-lg)",
+                backgroundColor: "var(--color-bg-secondary)",
+                borderBottom: "1px solid var(--color-border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "var(--spacing-md)",
+                flexWrap: "wrap"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-md)" }}>
+                  <span style={{ fontSize: "var(--font-size-sm)", opacity: 0.7 }}>
+                    Current Host:
+                  </span>
+                  <span style={{ fontWeight: "var(--font-weight-semibold)" }}>
+                    {state.hostUserId 
+                      ? (state.attendance[state.hostUserId]?.displayName || state.hostUserId)
+                      : "No host"}
+                  </span>
+                  {isHost && (
+                    <span style={{
+                      padding: "2px 8px",
+                      backgroundColor: "var(--color-accent)",
+                      color: "var(--color-bg)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "var(--font-size-xs)",
+                      fontWeight: "var(--font-weight-bold)"
+                    }}>
+                      You
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "var(--spacing-md)" }}>
+                  {isHost && (
+                    <button
+                      className="btn btnSmall btnGhost"
+                      onClick={releaseHost}
+                      title="Release host privileges to allow another user to claim"
+                    >
+                      Release Host
+                    </button>
+                  )}
+                  {!isHost && hostKey && state.hostUserId && (
+                    <button
+                      className="btn btnSmall btnAccent"
+                      onClick={claimHost}
+                      title="Claim host privileges (requires current host to be disconnected)"
+                    >
+                      Claim Host
+                    </button>
+                  )}
+                  {!isHost && hostKey && !state.hostUserId && (
+                    <button
+                      className="btn btnSmall btnPrimary"
+                      onClick={claimHost}
+                      title="Claim vacant host role"
+                    >
+                      Claim Host
+                    </button>
+                  )}
+                </div>
+              </div>
               
               <div className={`mainContentGrid ${isHost && !viewAsAttendee ? 'withHostPanel' : ''}`}>
                 {/* Left Column: Main Content */}
