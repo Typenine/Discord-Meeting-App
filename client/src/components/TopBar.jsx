@@ -73,8 +73,8 @@ export default function TopBar({
             </div>
           )}
 
-          {/* UI Version Badge */}
-          {uiVersion && (
+          {/* UI Version Badge - Dev Mode Only */}
+          {uiVersion && import.meta.env.DEV && (
             <div className="pill pill-accent">
               UI: {uiVersion}
             </div>
