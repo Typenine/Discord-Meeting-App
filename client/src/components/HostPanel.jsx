@@ -252,19 +252,31 @@ export default function HostPanel({
   };
 
   const handleMoveToTop = (item) => {
+    console.log('[HostPanel] handleMoveToTop called with item:', item);
+    console.log('[HostPanel] current agenda:', state.agenda);
     const newOrder = [item, ...state.agenda.filter((a) => a.id !== item.id)];
     const orderedIds = newOrder.map((a) => a.id);
+    console.log('[HostPanel] new orderedIds:', orderedIds);
     if (onReorderAgenda) {
+      console.log('[HostPanel] calling onReorderAgenda with:', orderedIds);
       onReorderAgenda(orderedIds);
+    } else {
+      console.error('[HostPanel] onReorderAgenda is not defined!');
     }
     setOpenMenuId(null);
   };
 
   const handleMoveToBottom = (item) => {
+    console.log('[HostPanel] handleMoveToBottom called with item:', item);
+    console.log('[HostPanel] current agenda:', state.agenda);
     const newOrder = [...state.agenda.filter((a) => a.id !== item.id), item];
     const orderedIds = newOrder.map((a) => a.id);
+    console.log('[HostPanel] new orderedIds:', orderedIds);
     if (onReorderAgenda) {
+      console.log('[HostPanel] calling onReorderAgenda with:', orderedIds);
       onReorderAgenda(orderedIds);
+    } else {
+      console.error('[HostPanel] onReorderAgenda is not defined!');
     }
     setOpenMenuId(null);
   };

@@ -932,6 +932,7 @@ export default function StandaloneApp() {
   };
 
   const reorderAgenda = (orderedIds) => {
+    console.log('[StandaloneApp] reorderAgenda called with:', orderedIds);
     sendMessage({ type: "AGENDA_REORDER", orderedIds });
   };
 
