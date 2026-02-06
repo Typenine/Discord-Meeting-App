@@ -3,7 +3,7 @@ import AttendancePanel from "./AttendancePanel.jsx";
 
 /**
  * PopoutView - Compact overlay window optimized for ~420x720px
- * Shows: current agenda item, timer, next item (optional), attendance count
+ * Shows: current agenda item, timer, full numbered agenda list, attendance count
  */
 export default function PopoutView({ 
   state, 
