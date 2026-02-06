@@ -456,16 +456,11 @@ export default function StandaloneApp() {
       // Connect and wait for websocket to be ready
       connectToRoom(data.roomId, data.hostKey, {
         onConnected: (ws) => {
-          // Send setup update
-          const agendaWithIds = setupAgenda.map(item => ({
-            ...item,
-            id: item.id || crypto.randomUUID()
-          }));
-          
+          // Send setup update (IDs already assigned when items were created)
           ws.send(JSON.stringify({
             type: "SETUP_UPDATE",
             meetingName: setupMeetingName,
-            agenda: agendaWithIds
+            agenda: setupAgenda
           }));
           
           // Send meeting start
@@ -1287,7 +1282,12 @@ export default function StandaloneApp() {
                       type="number"
                       className="input"
                       value={setupAgendaSeconds}
-                      onChange={(e) => setSetupAgendaSeconds(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || (parseInt(val) >= 0 && parseInt(val) <= 59)) {
+                          setSetupAgendaSeconds(val);
+                        }
+                      }}
                       placeholder="Seconds"
                       min="0"
                       max="59"
@@ -1317,6 +1317,7 @@ export default function StandaloneApp() {
                     setSetupAgenda([
                       ...setupAgenda,
                       {
+                        id: crypto.randomUUID(),
                         title: setupAgendaTitle,
                         durationSec: totalSeconds,
                         notes: setupAgendaNotes
