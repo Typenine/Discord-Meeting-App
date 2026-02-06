@@ -434,6 +434,30 @@ export default function StandaloneApp() {
     console.group(`[WS CONNECTION ${new Date(attemptTime).toISOString()}]`);
     console.log("Room:", room);
     console.log("Has Host Key:", !!key);
+    
+    // Instrumentation: log username state before connection
+    console.log("[USERNAME STATE]", {
+      nameDraft: nameDraft,
+      username: username,
+      usernameConfirmed: usernameConfirmed,
+      trimmed: username.trim(),
+    });
+    
+    // Block connection if username is empty
+    if (!username || !username.trim()) {
+      console.error("[WS] Cannot connect: username is empty");
+      console.groupEnd();
+      setError("Please enter your name before joining");
+      setMode("init");
+      setConnectionStatus("disconnected");
+      setConnectionDiagnostics(prev => ({
+        ...prev,
+        lastAttemptTime: attemptTime,
+        lastError: "Username is empty",
+      }));
+      return;
+    }
+    
     console.log("Username:", username);
     console.log("Client ID:", clientId);
     
@@ -559,6 +583,13 @@ export default function StandaloneApp() {
       setShowConnectedBanner(true);
       setConnectionTimeout(false);
       
+      // Instrumentation: log username state right before sending HELLO
+      console.log("[HELLO PREP - USERNAME STATE]", {
+        nameDraft: nameDraft,
+        username: username,
+        usernameConfirmed: usernameConfirmed,
+      });
+      
       // Prepare HELLO message
       const helloMsg = {
         type: "HELLO",
@@ -568,9 +599,10 @@ export default function StandaloneApp() {
         displayName: username,
       };
       
+      // Instrumentation: log HELLO payload (redact hostKey)
       console.log("[WS SEND] HELLO:", {
         ...helloMsg,
-        hostKey: helloMsg.hostKey ? "***PRESENT***" : undefined
+        hostKey: helloMsg.hostKey ? "***REDACTED***" : undefined
       });
       
       ws.send(JSON.stringify(helloMsg));

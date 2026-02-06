@@ -605,7 +605,9 @@ export class MeetingRoom {
         // Also support old structure for Discord Activity mode
         let clientId = msg.clientId;
         let hostKey = msg.hostKey || null;
-        let displayName = msg.displayName || msg.username || "Guest";
+        // Extract displayName - prefer explicit displayName, fall back to username
+        // No default fallback - displayName is required and will be validated below
+        let displayName = msg.displayName || msg.username || null;
         let roomId = msg.roomId || msg.sessionId || room;
 
         // Discord Activity mode: extract userId from SDK payload (for backward compatibility)
@@ -625,6 +627,20 @@ export class MeetingRoom {
           console.warn("[WS HELLO] missing clientId/userId or roomId", { clientId, discordUserId, roomId });
           return;
         }
+        
+        // Validate displayName is present - reject connection if empty
+        if (!displayName || !displayName.trim()) {
+          console.warn("[WS HELLO] missing displayName", { clientId, roomId });
+          ws.send(JSON.stringify({ 
+            type: "ERROR", 
+            error: "missing_display_name",
+            message: "Display name is required to join the meeting"
+          }));
+          return;
+        }
+        
+        // Use trimmed displayName
+        displayName = displayName.trim();
 
         // For Discord Activity mode, check if user is allowed to be host
         const allowed = discordUserId ? isAllowedHost(discordUserId, this.hostConfig) : false;
