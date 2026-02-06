@@ -77,6 +77,7 @@ export default function PopoutView({
           className="popoutAttendance popoutAttendanceClickable"
           onClick={() => setShowAttendancePanel(true)}
           title="View participant list"
+          aria-label={`View participant list. ${attendanceCount} ${attendanceCount === 1 ? 'participant' : 'participants'} in meeting`}
         >
           👥 {attendanceCount} {attendanceCount === 1 ? 'participant' : 'participants'}
         </button>

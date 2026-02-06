@@ -22,12 +22,26 @@ export default function AttendancePanel({
     return "attendee";
   };
 
+  // Handle keyboard events for closing
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
   return (
-    <div className="attendanceOverlay" onClick={onClose}>
+    <div 
+      className="attendanceOverlay" 
+      onClick={onClose}
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="attendance-panel-title"
+    >
       <div className="attendancePanel" onClick={(e) => e.stopPropagation()}>
         {/* Header with count and close button */}
         <div className="attendancePanelHeader">
-          <div className="attendancePanelTitle">
+          <div className="attendancePanelTitle" id="attendance-panel-title">
             👥 Participants ({attendeeCount})
           </div>
           <button
