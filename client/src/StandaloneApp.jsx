@@ -145,11 +145,17 @@ export default function StandaloneApp() {
             return parsed.filter(template => 
               template && 
               typeof template.name === 'string' && 
+              template.name.length > 0 &&
               Array.isArray(template.items) &&
+              template.items.length > 0 &&
               template.items.every(item => 
                 item && 
                 typeof item.title === 'string' &&
-                typeof item.durationSec === 'number'
+                item.title.length > 0 &&
+                typeof item.durationSec === 'number' &&
+                !isNaN(item.durationSec) &&
+                item.durationSec >= 0 &&
+                (item.notes === undefined || typeof item.notes === 'string')
               )
             );
           }
