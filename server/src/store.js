@@ -539,17 +539,6 @@ export function startMeeting({ sessionId, userId, startTimer = true }) {
       session.timer.durationSec = sec;
       session.timer.endsAtMs = null;
       session.timer.durationSet = sec;
-      
-      // Debug log for timer initialization
-      console.log('[store] Timer initialized on meeting start:', {
-        activeItemIndex: 0,
-        activeItemTitle: firstItem.title,
-        activeItemId: firstItem.id,
-        storedDurationSec: firstItem.durationSec,
-        computedDurationSec: sec,
-        initialRemainingSec: session.timer.remainingSec,
-        initialDurationSec: session.timer.durationSec,
-      });
     }
     
     console.log('[store] Meeting started:', { 
@@ -557,6 +546,7 @@ export function startMeeting({ sessionId, userId, startTimer = true }) {
       meetingName: session.meetingName,
       agendaItems: session.agenda.length,
       timerStarted: startTimer,
+      firstItemDuration: session.agenda.length > 0 ? session.timer.durationSec : null,
     });
   }
   
