@@ -10,6 +10,18 @@ export default function ShareModal({
   const viewerUrl = generateViewerLink(roomId);
   const hostUrl = hostKey ? generateHostLink(roomId, hostKey) : null;
   
+  // Check if debug panel should be shown
+  const showDebugPanel = (() => {
+    // Show if ?debug=1 query param is present
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('debug') === '1') return true;
+    
+    // Show if VITE_SHOW_DEBUG_PANEL env var is "true"
+    if (import.meta.env.VITE_SHOW_DEBUG_PANEL === 'true') return true;
+    
+    return false;
+  })();
+  
   // Debug info for Vercel 404 investigation
   const debugInfo = {
     windowOrigin: window.location.origin,
@@ -133,6 +145,7 @@ export default function ShareModal({
           )}
           
           {/* Debug Info Section for Vercel 404 Investigation */}
+          {showDebugPanel && (
           <div style={{
             marginTop: "var(--spacing-xl)",
             padding: "var(--spacing-md)",
@@ -166,6 +179,7 @@ export default function ShareModal({
               Check browser DevTools Network tab for x-meeting-config: 1 header
             </div>
           </div>
+          )}
           
           <button
             onClick={onClose}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AttendancePanel from "./AttendancePanel.jsx";
 
 /**
@@ -11,6 +11,16 @@ export default function PopoutView({
   formatTime
 }) {
   const [showAttendancePanel, setShowAttendancePanel] = useState(false);
+  
+  // Local tick for meeting elapsed timer - updates every second
+  const [localTick, setLocalTick] = useState(Date.now());
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLocalTick(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Status label constants
   const STATUS_CURRENT = "(current)";
@@ -45,7 +55,15 @@ export default function PopoutView({
 
   const attendanceCount = state.attendance ? Object.keys(state.attendance).length : 0;
   const meetingName = state.meetingName || "East v. West League Meeting";
-  const meetingElapsedSec = state.meetingTimer?.elapsedSec || 0;
+  
+  // Compute meeting elapsed seconds based on server meetingStartedAtMs + local tick
+  const meetingElapsedSec = (() => {
+    if (!state?.meetingTimer?.running || !state?.meetingTimer?.startedAtMs) {
+      return 0;
+    }
+    const elapsedMs = localTick - state.meetingTimer.startedAtMs;
+    return Math.max(0, Math.floor(elapsedMs / 1000));
+  })();
 
   return (
     <div className="popoutContainer">

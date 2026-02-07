@@ -133,6 +133,41 @@ export default function StandaloneApp() {
   const [setupAgendaSeconds, setSetupAgendaSeconds] = useState("");
   const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [savedAgendaTemplates, setSavedAgendaTemplates] = useState(() => {
+    // Load saved templates from localStorage on mount
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("agendaTemplates");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          // Validate structure: must be array of objects with name and items
+          if (Array.isArray(parsed)) {
+            return parsed.filter(template => 
+              template && 
+              typeof template.name === 'string' && 
+              template.name.length > 0 &&
+              Array.isArray(template.items) &&
+              template.items.length > 0 &&
+              template.items.every(item => 
+                item && 
+                typeof item.title === 'string' &&
+                item.title.length > 0 &&
+                typeof item.durationSec === 'number' &&
+                !isNaN(item.durationSec) &&
+                item.durationSec >= 0 &&
+                (item.notes === undefined || typeof item.notes === 'string')
+              )
+            );
+          }
+        } catch (e) {
+          console.error("Failed to parse saved templates:", e);
+        }
+      }
+    }
+    return [];
+  });
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
   
   // Agenda Templates - League-specific templates for quick start
   const agendaTemplates = [
@@ -179,6 +214,17 @@ export default function StandaloneApp() {
     }
   ];
   
+  // Combine preset templates with saved templates
+  const allAgendaTemplates = [
+    ...agendaTemplates,
+    ...savedAgendaTemplates.map(t => ({
+      id: `saved-${t.name}`,
+      name: t.name,
+      description: "Custom template",
+      agenda: t.items
+    }))
+  ];
+  
   const loadTemplate = (template) => {
     setSetupAgenda(template.agenda.map(item => ({
       // Use crypto.randomUUID if available, otherwise fallback to timestamp-based ID
@@ -186,6 +232,38 @@ export default function StandaloneApp() {
       ...item
     })));
     setShowTemplateSelector(false);
+  };
+  
+  const saveAsTemplate = () => {
+    if (!newTemplateName.trim()) {
+      alert("Please enter a template name");
+      return;
+    }
+    
+    if (setupAgenda.length === 0) {
+      alert("Please add some agenda items before saving");
+      return;
+    }
+    
+    const template = {
+      name: newTemplateName.trim(),
+      items: setupAgenda.map(item => ({
+        title: item.title,
+        durationSec: item.durationSec,
+        notes: item.notes || ""
+      }))
+    };
+    
+    const updated = [...savedAgendaTemplates, template];
+    setSavedAgendaTemplates(updated);
+    
+    if (typeof window !== "undefined") {
+      localStorage.setItem("agendaTemplates", JSON.stringify(updated));
+    }
+    
+    setNewTemplateName("");
+    setShowSaveTemplateModal(false);
+    alert(`Template "${template.name}" saved successfully!`);
   };
   
   // Name draft vs confirmed name flow:
@@ -294,6 +372,12 @@ export default function StandaloneApp() {
   // Detect popout mode from URL
   const inPopoutMode = isPopoutMode();
   
+  // Viewer invite mode tracking
+  const [isViewerInviteMode, setIsViewerInviteMode] = useState(false);
+  
+  // Local tick for meeting elapsed timer (updates every second)
+  const [localTick, setLocalTick] = useState(Date.now());
+  
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const timePingIntervalRef = useRef(null);
@@ -335,13 +419,22 @@ export default function StandaloneApp() {
     const isPopout = mode === 'popout' || params.get("popout") === '1';
     const asMode = params.get("as");
     
+    // Check for viewer invite mode
+    const isViewerMode = mode === 'viewer';
+    
     console.group('🔍 [PARSED URL PARAMS]');
     console.log('Room ID:', urlRoomId || '(none)');
     console.log('Host Key:', urlHostKey ? '***PRESENT***' : '(none)');
     console.log('Mode:', mode || '(none)');
     console.log('Popout Mode:', isPopout);
+    console.log('Viewer Mode:', isViewerMode);
     console.log('As Mode:', asMode || '(none)');
     console.groupEnd();
+    
+    // Set viewer invite mode if mode=viewer and room is present
+    if (isViewerMode && urlRoomId) {
+      setIsViewerInviteMode(true);
+    }
     
     // Check if URL specifies attendee view mode
     const forceAttendeeView = isAttendeeViewMode();
@@ -434,6 +527,23 @@ export default function StandaloneApp() {
       return () => clearTimeout(timer);
     }
   }, [showConnectedBanner]);
+
+  // Local tick for meeting elapsed timer - updates every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLocalTick(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Compute meeting elapsed seconds based on server meetingStartedAtMs + local tick
+  const meetingElapsedSec = (() => {
+    if (!state?.meetingTimer?.running || !state?.meetingTimer?.startedAtMs) {
+      return 0;
+    }
+    const elapsedMs = localTick - state.meetingTimer.startedAtMs;
+    return Math.max(0, Math.floor(elapsedMs / 1000));
+  })();
 
   // Confirm username - validates and commits nameDraft to username
   const confirmUsername = () => {
@@ -1429,7 +1539,7 @@ export default function StandaloneApp() {
                   gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
                   gap: "var(--spacing-md)"
                 }}>
-                  {agendaTemplates.map(template => (
+                  {allAgendaTemplates.map(template => (
                     <div 
                       key={template.id}
                       className="card card-compact"
@@ -1470,6 +1580,13 @@ export default function StandaloneApp() {
                       {setupAgenda.length} {setupAgenda.length === 1 ? 'item' : 'items'} • {Math.ceil(setupAgenda.reduce((sum, item) => sum + item.durationSec, 0) / 60)} minutes total
                     </div>
                     <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+                      <button 
+                        className="btn btnGhost btnSmall"
+                        onClick={() => setShowSaveTemplateModal(true)}
+                        title="Save current agenda as a template"
+                      >
+                        💾 Save as Template
+                      </button>
                       <button 
                         className="btn btnGhost btnSmall"
                         onClick={() => setShowTemplateSelector(!showTemplateSelector)}
@@ -1638,6 +1755,72 @@ export default function StandaloneApp() {
               Tip: Add agenda items to help structure your meeting
             </p>
           )}
+          
+          {/* Save Template Modal */}
+          {showSaveTemplateModal && (
+            <div style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "var(--color-overlay)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 2000,
+              backdropFilter: "blur(4px)",
+            }}>
+              <div className="card card-elevated" style={{
+                maxWidth: "500px",
+                width: "90%",
+              }}>
+                <div className="cardHeader">
+                  <h2 className="cardTitle">💾 Save as Template</h2>
+                </div>
+                <div className="cardBody">
+                  <p style={{ marginBottom: "var(--spacing-lg)", opacity: 0.9 }}>
+                    Save your current agenda ({setupAgenda.length} items) as a reusable template.
+                  </p>
+                  
+                  <label className="label">Template Name</label>
+                  <input
+                    className="input"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newTemplateName.trim()) {
+                        e.preventDefault();
+                        saveAsTemplate();
+                      }
+                    }}
+                    placeholder="e.g., Weekly Team Standup"
+                    autoFocus
+                    style={{ marginBottom: "var(--spacing-lg)" }}
+                  />
+                  
+                  <div style={{ display: "flex", gap: "var(--spacing-md)" }}>
+                    <button
+                      onClick={() => {
+                        setShowSaveTemplateModal(false);
+                        setNewTemplateName("");
+                      }}
+                      className="btn btnGhost btnFull"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveAsTemplate}
+                      className="btn btnPrimary btnFull"
+                      disabled={!newTemplateName.trim() || setupAgenda.length === 0}
+                    >
+                      Save Template
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       
@@ -1708,6 +1891,52 @@ export default function StandaloneApp() {
             </div>
           )}
           
+          {/* Viewer Invite Mode: Only show join card */}
+          {isViewerInviteMode ? (
+            <div style={{ 
+              maxWidth: "500px",
+              margin: "0 auto",
+              marginTop: "var(--spacing-2xl)" 
+            }}>
+              {/* Card: Join Meeting (Viewer Invite) */}
+              <div className="card">
+                <div className="cardHeader">
+                  <h3 className="cardTitle">Join Meeting</h3>
+                </div>
+                <div className="cardBody">
+                  <label className="label">Your Name</label>
+                  <input
+                    className="input"
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={handleJoinFormEnter}
+                    placeholder="Enter your name"
+                    style={{ marginBottom: "var(--spacing-lg)" }}
+                  />
+                  <label className="label">Room ID</label>
+                  <input
+                    className="input"
+                    value={roomId}
+                    readOnly
+                    disabled
+                    style={{ 
+                      marginBottom: "var(--spacing-lg)",
+                      opacity: 0.7,
+                      cursor: "not-allowed"
+                    }}
+                  />
+                  <button
+                    className="btn btnAccent btnLarge btnFull"
+                    style={{ marginTop: "var(--spacing-xl)" }}
+                    onClick={joinRoom}
+                    disabled={!nameDraft.trim()}
+                  >
+                    Join Room
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="grid2" style={{ marginTop: "var(--spacing-2xl)" }}>
             {/* Card 1: Create Meeting */}
             <div className="card">
@@ -1787,6 +2016,7 @@ export default function StandaloneApp() {
               </div>
             </div>
           </div>
+          )}
           
           {/* Footer */}
           <div style={{ 
@@ -1968,72 +2198,50 @@ export default function StandaloneApp() {
                 onPopoutClick={() => openPopoutWindow(roomId, hostKey)}
                 hidePopoutButton={inPopoutMode}
                 meetingName={state?.meetingName}
-                meetingElapsedSec={state?.meetingTimer?.elapsedSec || 0}
+                meetingElapsedSec={meetingElapsedSec}
               />
               
-              {/* Host Status Banner */}
-              <div style={{
-                padding: "var(--spacing-md) var(--spacing-lg)",
-                backgroundColor: "var(--color-bg-secondary)",
-                borderBottom: "1px solid var(--color-border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "var(--spacing-md)",
-                flexWrap: "wrap"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-md)" }}>
-                  <span style={{ fontSize: "var(--font-size-sm)", opacity: 0.7 }}>
-                    Current Host:
-                  </span>
-                  <span style={{ fontWeight: "var(--font-weight-semibold)" }}>
-                    {state.hostUserId 
-                      ? (state.attendance[state.hostUserId]?.displayName || state.hostUserId)
-                      : "No host"}
-                  </span>
-                  {isHost && (
-                    <span style={{
-                      padding: "2px 8px",
-                      backgroundColor: "var(--color-accent)",
-                      color: "var(--color-bg)",
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "var(--font-size-xs)",
-                      fontWeight: "var(--font-weight-bold)"
-                    }}>
-                      You
+              {/* Subtle Host Information Badge - Only show if needed */}
+              {state.hostUserId && (
+                <div style={{
+                  padding: "var(--spacing-sm) var(--spacing-md)",
+                  backgroundColor: "rgba(0, 0, 0, 0.2)",
+                  borderBottom: "1px solid var(--color-border-subtle)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "var(--spacing-md)",
+                  fontSize: "var(--font-size-sm)"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", opacity: 0.7 }}>
+                    <span>Host:</span>
+                    <span style={{ fontWeight: "var(--font-weight-semibold)" }}>
+                      {state.attendance[state.hostUserId]?.displayName || state.hostUserId}
+                      {isHost && <span style={{ marginLeft: "var(--spacing-xs)", opacity: 0.8 }}>(You)</span>}
                     </span>
-                  )}
+                  </div>
+                  <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+                    {isHost && (
+                      <button
+                        className="btn btnSmall btnGhost"
+                        onClick={releaseHost}
+                        title="Release host privileges"
+                      >
+                        Release
+                      </button>
+                    )}
+                    {!isHost && hostKey && (
+                      <button
+                        className="btn btnSmall btnGhost"
+                        onClick={claimHost}
+                        title="Claim host privileges"
+                      >
+                        Claim Host
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: "var(--spacing-md)" }}>
-                  {isHost && (
-                    <button
-                      className="btn btnSmall btnGhost"
-                      onClick={releaseHost}
-                      title="Release host privileges to allow another user to claim"
-                    >
-                      Release Host
-                    </button>
-                  )}
-                  {!isHost && hostKey && state.hostUserId && (
-                    <button
-                      className="btn btnSmall btnAccent"
-                      onClick={claimHost}
-                      title="Claim host privileges (requires current host to be disconnected)"
-                    >
-                      Claim Host
-                    </button>
-                  )}
-                  {!isHost && hostKey && !state.hostUserId && (
-                    <button
-                      className="btn btnSmall btnPrimary"
-                      onClick={claimHost}
-                      title="Claim vacant host role"
-                    >
-                      Claim Host
-                    </button>
-                  )}
-                </div>
-              </div>
+              )}
               
               <div className={`mainContentGrid ${isHost && !viewAsAttendee ? 'withHostPanel' : ''}`}>
                 {/* Left Column: Main Content */}
