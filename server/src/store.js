@@ -529,6 +529,12 @@ export function startMeeting({ sessionId, userId, startTimer = true }) {
       session.currentAgendaItemId = firstItem.id;
       firstItem.status = 'active';
       firstItem.startedAt = Date.now();
+      
+      // Initialize timer with first item's duration
+      const sec = Math.max(0, Math.round(firstItem.durationSec || 0));
+      session.timer.remainingSec = sec;
+      session.timer.endsAtMs = null;
+      session.timer.durationSet = sec;
     }
     
     console.log('[store] Meeting started:', { 
@@ -703,8 +709,9 @@ export function completeAgendaItem({ sessionId, userId }) {
     nextItem.startedAt = Date.now();
     session.currentAgendaItemId = nextItem.id;
     // Set timer to next item's duration
-    session.timer.remainingSec = nextItem.durationSec || 0;
-    session.timer.durationSet = nextItem.durationSec || 0;
+    const sec = Math.max(0, Math.round(nextItem.durationSec || 0));
+    session.timer.remainingSec = sec;
+    session.timer.durationSet = sec;
   } else {
     // No more items
     session.currentAgendaItemId = null;
