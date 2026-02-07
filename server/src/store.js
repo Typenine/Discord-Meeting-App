@@ -213,6 +213,7 @@ export function createSession({ userId, username, sessionId, channelId, guildId 
       running: false,
       endsAtMs: null,
       remainingSec: 0,
+      durationSec: 0, // Duration to display when timer is not running
       durationSet: 0, // Track original duration for validation
     },
     // Time bank feature
@@ -427,6 +428,7 @@ export function setActiveAgenda({ sessionId, userId, agendaId }) {
     const item = session.agenda.find((a) => a.id === agendaId);
     const sec = item ? Math.max(0, Math.round(item.durationSec)) : 0;
     session.timer.remainingSec = sec;
+    session.timer.durationSec = sec;
     session.timer.endsAtMs = null;
     session.timer.durationSet = sec;
   }
@@ -533,8 +535,20 @@ export function startMeeting({ sessionId, userId, startTimer = true }) {
       // Initialize timer with first item's duration
       const sec = Math.max(0, Math.round(firstItem.durationSec || 0));
       session.timer.remainingSec = sec;
+      session.timer.durationSec = sec;
       session.timer.endsAtMs = null;
       session.timer.durationSet = sec;
+      
+      // Debug log for timer initialization
+      console.log('[store] Timer initialized on meeting start:', {
+        activeItemIndex: 0,
+        activeItemTitle: firstItem.title,
+        activeItemId: firstItem.id,
+        storedDurationSec: firstItem.durationSec,
+        computedDurationSec: sec,
+        initialRemainingSec: session.timer.remainingSec,
+        initialDurationSec: session.timer.durationSec,
+      });
     }
     
     console.log('[store] Meeting started:', { 

@@ -989,6 +989,22 @@ export default function StandaloneApp() {
         } else if (msg.type === "STATE") {
           setState(msg.state);
           
+          // Debug log for timer initialization on meeting start
+          if (msg.state && msg.state.meetingStarted && msg.state.timer) {
+            const activeItem = msg.state.agenda?.find(a => a.id === msg.state.currentAgendaItemId);
+            const activeIndex = msg.state.agenda?.findIndex(a => a.id === msg.state.currentAgendaItemId);
+            console.log('[CLIENT] Timer state received:', {
+              activeItemIndex: activeIndex,
+              activeItemTitle: activeItem?.title,
+              activeItemId: msg.state.currentAgendaItemId,
+              storedDurationSec: activeItem?.durationSec,
+              timerRemainingSec: msg.state.timer.remainingSec,
+              timerDurationSec: msg.state.timer.durationSec,
+              timerRunning: msg.state.timer.running,
+              timerEndsAtMs: msg.state.timer.endsAtMs,
+            });
+          }
+          
           // Update server time offset if provided
           if (msg.serverNow) {
             const offset = msg.serverNow - Date.now();

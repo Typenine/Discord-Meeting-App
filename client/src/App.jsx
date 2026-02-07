@@ -333,6 +333,22 @@ export default function App() {
       setState(data.state);
       setRevision(data.revision);
       setStatus("joined"); // Now move to joined state
+      
+      // Debug log for timer initialization on meeting start
+      if (data.state.timer) {
+        const activeItem = data.state.agenda?.find(a => a.id === data.state.currentAgendaItemId);
+        const activeIndex = data.state.agenda?.findIndex(a => a.id === data.state.currentAgendaItemId);
+        console.log('[CLIENT] Timer state received on meeting start:', {
+          activeItemIndex: activeIndex,
+          activeItemTitle: activeItem?.title,
+          activeItemId: data.state.currentAgendaItemId,
+          storedDurationSec: activeItem?.durationSec,
+          timerRemainingSec: data.state.timer.remainingSec,
+          timerDurationSec: data.state.timer.durationSec,
+          timerRunning: data.state.timer.running,
+          timerEndsAtMs: data.state.timer.endsAtMs,
+        });
+      }
     } else {
       // If post returned null, it means the API call failed
       // The post() function already set an error message
