@@ -1058,8 +1058,18 @@ export default function StandaloneApp() {
   };
 
   // Host actions
-  const addAgenda = (title, durationSec, notes, type, description, link, category) => {
-    sendMessage({ type: "AGENDA_ADD", title, durationSec, notes, itemType: type || "normal", description: description || "", link: link || "", category: category || "" });
+  const addAgenda = (title, durationSec, notes, itemType, description, link, category) => {
+    // Note: using itemType parameter name to avoid shadowing message.type field
+    sendMessage({ 
+      type: "AGENDA_ADD", 
+      title, 
+      durationSec, 
+      notes, 
+      itemType: itemType || "normal", 
+      description: description || "", 
+      link: link || "", 
+      category: category || "" 
+    });
   };
 
   const updateAgenda = (agendaId, updates) => {

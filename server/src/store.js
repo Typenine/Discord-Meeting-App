@@ -305,6 +305,8 @@ export function addAgenda({ sessionId, userId, title, durationSec, type, descrip
   if (!validateHostAccess(session, userId)) return null;
   const id = randomUUID();
   const dur = Number(durationSec) || 0;
+  // Validate type: must be 'normal' or 'proposal', default to 'normal'
+  const itemType = (type === 'proposal') ? 'proposal' : 'normal';
   session.agenda.push({ 
     id, 
     title: String(title), 
@@ -315,7 +317,7 @@ export function addAgenda({ sessionId, userId, title, durationSec, type, descrip
     completedAt: null,
     timeSpent: 0,
     // New proposal and category fields
-    type: type || 'normal', // 'normal' | 'proposal'
+    type: itemType, // 'normal' | 'proposal'
     description: description || '', // Proposal description
     link: link || '', // Proposal link URL
     category: category || '', // Optional category for timeboxing
@@ -349,8 +351,11 @@ export function updateAgenda({ sessionId, userId, agendaId, title, durationSec, 
   if (title !== undefined) item.title = String(title);
   if (durationSec !== undefined) item.durationSec = Number(durationSec) || 0;
   if (notes !== undefined) item.notes = String(notes);
-  // Update new proposal and category fields
-  if (type !== undefined) item.type = String(type);
+  // Update new proposal and category fields with validation
+  if (type !== undefined) {
+    // Validate type: must be 'normal' or 'proposal', default to current value
+    item.type = (type === 'proposal' || type === 'normal') ? String(type) : item.type;
+  }
   if (description !== undefined) item.description = String(description);
   if (link !== undefined) item.link = String(link);
   if (category !== undefined) item.category = String(category);
