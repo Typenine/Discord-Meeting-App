@@ -20,6 +20,31 @@ export function createApp(config = {}) {
   const app = express();
   app.use(express.json());
 
+  // CORS middleware for local development
+  app.use((req, res, next) => {
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:8080',
+    ];
+    const origin = req.headers.origin;
+    
+    if (allowedOrigins.includes(origin)) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
+    
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    
+    // Handle preflight
+    if (req.method === "OPTIONS") {
+      return res.status(200).end();
+    }
+    
+    next();
+  });
+
   // Health endpoint
   app.get("/health", (req, res) => {
     const storeDiagnostics = store.getStoreDiagnostics();

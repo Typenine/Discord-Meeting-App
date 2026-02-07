@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import AgendaItemDetailsModal from "./AgendaItemDetailsModal.jsx";
 
 export default function RoomLayout({ 
   state, 
@@ -10,6 +11,7 @@ export default function RoomLayout({
   viewAsAttendee,
   onCastVote
 }) {
+  const [selectedAgendaItem, setSelectedAgendaItem] = useState(null);
   if (!state) {
     return (
       <div className="flex items-center justify-center text-center" style={{
@@ -155,6 +157,9 @@ export default function RoomLayout({
                 <li 
                   key={item.id} 
                   className={`timelineItem ${isActive ? 'active' : ''}`}
+                  onClick={() => setSelectedAgendaItem(item)}
+                  style={{ cursor: "pointer" }}
+                  title="Click to view details"
                 >
                   <div className="timelineItemContent">
                     <div className="timelineItemNumber">{index + 1}</div>
@@ -167,6 +172,11 @@ export default function RoomLayout({
                         {isActive && (
                           <div className="pill pill-accent">
                             ⭐ ACTIVE NOW
+                          </div>
+                        )}
+                        {item.type === "proposal" && (
+                          <div className="pill pill-accent">
+                            📋 Proposal
                           </div>
                         )}
                       </div>
@@ -379,6 +389,15 @@ export default function RoomLayout({
               ))}
           </div>
         </div>
+      )}
+      
+      {/* Agenda Item Details Modal */}
+      {selectedAgendaItem && (
+        <AgendaItemDetailsModal
+          item={selectedAgendaItem}
+          formatTime={formatTime}
+          onClose={() => setSelectedAgendaItem(null)}
+        />
       )}
     </div>
   );
