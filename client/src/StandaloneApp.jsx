@@ -139,10 +139,22 @@ export default function StandaloneApp() {
       const stored = localStorage.getItem("agendaTemplates");
       if (stored) {
         try {
-          return JSON.parse(stored);
+          const parsed = JSON.parse(stored);
+          // Validate structure: must be array of objects with name and items
+          if (Array.isArray(parsed)) {
+            return parsed.filter(template => 
+              template && 
+              typeof template.name === 'string' && 
+              Array.isArray(template.items) &&
+              template.items.every(item => 
+                item && 
+                typeof item.title === 'string' &&
+                typeof item.durationSec === 'number'
+              )
+            );
+          }
         } catch (e) {
           console.error("Failed to parse saved templates:", e);
-          return [];
         }
       }
     }
