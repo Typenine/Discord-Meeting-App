@@ -144,6 +144,7 @@ function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = nul
       pausedRemainingSec: null, // Remaining seconds when paused
       updatedAtMs: Date.now(), // Server timestamp of last timer state change
     },
+    categoryBudgets: {}, // { [category]: seconds }
     vote: {
       open: false,
       question: "",
@@ -943,11 +944,18 @@ export class MeetingRoom {
           if (typeof msg.title === "string") {
             const id = `a${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
             const durationSec = Number(msg.durationSec) || 0;
+            // Validate itemType: must be 'normal' or 'proposal', default to 'normal'
+            const itemType = (msg.itemType === 'proposal') ? 'proposal' : 'normal';
             session.agenda.push({
               id,
               title: msg.title,
               durationSec: durationSec,
               notes: msg.notes || "",
+              type: itemType, // Using 'type' for storage, 'itemType' in message to avoid shadowing
+              description: msg.description || "",
+              link: msg.link || "",
+              category: msg.category || "",
+              onBallot: false
             });
             // If first item, make it active and set timer duration
             if (session.agenda.length === 1) {
@@ -965,6 +973,14 @@ export class MeetingRoom {
               if (msg.title !== undefined) item.title = msg.title;
               if (msg.durationSec !== undefined) item.durationSec = Number(msg.durationSec) || 0;
               if (msg.notes !== undefined) item.notes = msg.notes;
+              // Validate type: must be 'normal' or 'proposal', ignore invalid values
+              if (msg.type !== undefined && (msg.type === 'normal' || msg.type === 'proposal')) {
+                item.type = msg.type;
+              }
+              if (msg.description !== undefined) item.description = msg.description;
+              if (msg.link !== undefined) item.link = msg.link;
+              if (msg.category !== undefined) item.category = msg.category;
+              if (msg.onBallot !== undefined) item.onBallot = msg.onBallot;
               this.broadcastState();
             }
           }
@@ -992,6 +1008,15 @@ export class MeetingRoom {
           break;
         case "AGENDA_REORDER":
           if (reorderAgendaItems(session, msg.orderedIds)) this.broadcastState();
+          break;
+        case "AGENDA_TOGGLE_BALLOT":
+          {
+            const item = session.agenda.find((a) => a.id === msg.agendaId);
+            if (item) {
+              item.onBallot = !item.onBallot;
+              this.broadcastState();
+            }
+          }
           break;
         case "AGENDA_NEXT":
           if (nextAgendaItem(session)) this.broadcastState();

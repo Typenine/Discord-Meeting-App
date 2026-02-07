@@ -1058,8 +1058,18 @@ export default function StandaloneApp() {
   };
 
   // Host actions
-  const addAgenda = (title, durationSec, notes) => {
-    sendMessage({ type: "AGENDA_ADD", title, durationSec, notes });
+  const addAgenda = (title, durationSec, notes, itemType, description, link, category) => {
+    // Note: using itemType parameter name to avoid shadowing message.type field
+    sendMessage({ 
+      type: "AGENDA_ADD", 
+      title, 
+      durationSec, 
+      notes, 
+      itemType: itemType || "normal", 
+      description: description || "", 
+      link: link || "", 
+      category: category || "" 
+    });
   };
 
   const updateAgenda = (agendaId, updates) => {
@@ -1068,6 +1078,10 @@ export default function StandaloneApp() {
 
   const deleteAgenda = (agendaId) => {
     sendMessage({ type: "AGENDA_DELETE", agendaId });
+  };
+
+  const toggleBallot = (agendaId) => {
+    sendMessage({ type: "AGENDA_TOGGLE_BALLOT", agendaId });
   };
 
   const reorderAgenda = (orderedIds) => {
@@ -2060,6 +2074,7 @@ export default function StandaloneApp() {
                     onExtendTimer={extendTimer}
                     onOpenVote={openVote}
                     onCloseVote={closeVote}
+                    onToggleBallot={toggleBallot}
                   />
                 )}
               </div>

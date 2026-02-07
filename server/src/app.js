@@ -221,9 +221,9 @@ export function createApp(config = {}) {
   // Add a new agenda item
   apiRouter.post('/session/:id/agenda', (req, res) => {
     const sessionId = req.params.id;
-    const { userId, title, durationSec } = req.body || {};
+    const { userId, title, durationSec, type, description, link, category } = req.body || {};
     if (!userId || !title) return res.status(400).json({ error: 'missing_fields' });
-    const state = store.addAgenda({ sessionId, userId, title, durationSec });
+    const state = store.addAgenda({ sessionId, userId, title, durationSec, type, description, link, category });
     if (!state) {
       console.warn('[Authorization] User attempted agenda operation without host access:', {
         sessionId,
@@ -240,9 +240,9 @@ export function createApp(config = {}) {
   apiRouter.put('/session/:id/agenda/:agendaId', (req, res) => {
     const sessionId = req.params.id;
     const { agendaId } = req.params;
-    const { userId, title, durationSec, notes } = req.body || {};
+    const { userId, title, durationSec, notes, type, description, link, category, onBallot } = req.body || {};
     if (!userId) return res.status(400).json({ error: 'missing_userId' });
-    const state = store.updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes });
+    const state = store.updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes, type, description, link, category, onBallot });
     if (!state) {
       console.warn('[Authorization] User attempted agenda update without host access:', {
         sessionId,
@@ -463,6 +463,45 @@ export function createApp(config = {}) {
         sessionId,
         userId,
         operation: 'closeVote',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
+  // Toggle ballot status for proposal agenda items
+  apiRouter.post('/session/:id/agenda/:agendaId/ballot', (req, res) => {
+    const sessionId = req.params.id;
+    const { agendaId } = req.params;
+    const { userId } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'missing_userId' });
+    const state = store.toggleBallot({ sessionId, userId, agendaId });
+    if (!state) {
+      console.warn('[Authorization] User attempted ballot toggle without host access:', {
+        sessionId,
+        userId,
+        agendaId,
+        operation: 'toggleBallot',
+      });
+      return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
+    }
+    const raw = store.getSession(sessionId);
+    return res.json({ state, revision: raw.revision, serverNow: Date.now() });
+  });
+
+  // Set category time budget
+  apiRouter.put('/session/:id/category-budget', (req, res) => {
+    const sessionId = req.params.id;
+    const { userId, category, seconds } = req.body || {};
+    if (!userId || !category) return res.status(400).json({ error: 'missing_fields' });
+    const state = store.setCategoryBudget({ sessionId, userId, category, seconds });
+    if (!state) {
+      console.warn('[Authorization] User attempted category budget update without host access:', {
+        sessionId,
+        userId,
+        category,
+        operation: 'setCategoryBudget',
       });
       return res.status(403).json({ error: 'forbidden', message: 'Host access required' });
     }

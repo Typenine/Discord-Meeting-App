@@ -39,6 +39,63 @@ export default function RoomLayout({
                 {activeItem.notes && (
                   <div className="itemNotes">{activeItem.notes}</div>
                 )}
+                
+                {/* Proposal Packet */}
+                {activeItem.type === "proposal" && (activeItem.description || activeItem.link) && (
+                  <div style={{
+                    marginTop: "var(--spacing-lg)",
+                    padding: "var(--spacing-lg)",
+                    backgroundColor: "rgba(191, 153, 68, 0.1)",
+                    border: "2px solid var(--color-accent)",
+                    borderRadius: "var(--radius-lg)"
+                  }}>
+                    <div style={{ 
+                      fontSize: "var(--font-size-lg)", 
+                      fontWeight: "var(--font-weight-bold)",
+                      color: "var(--color-accent)",
+                      marginBottom: "var(--spacing-md)"
+                    }}>
+                      📋 Proposal Packet
+                    </div>
+                    {activeItem.description && (
+                      <div style={{ 
+                        fontSize: "var(--font-size-base)", 
+                        marginBottom: "var(--spacing-md)",
+                        lineHeight: "1.6",
+                        whiteSpace: "pre-wrap"
+                      }}>
+                        {activeItem.description}
+                      </div>
+                    )}
+                    {activeItem.link && (
+                      <a 
+                        href={activeItem.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ 
+                          display: "inline-block",
+                          fontSize: "var(--font-size-base)",
+                          color: "var(--color-accent)",
+                          textDecoration: "none",
+                          padding: "var(--spacing-sm) var(--spacing-md)",
+                          backgroundColor: "rgba(191, 153, 68, 0.2)",
+                          border: "1px solid var(--color-accent)",
+                          borderRadius: "var(--radius-md)",
+                          transition: "all var(--transition-fast)"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = "rgba(191, 153, 68, 0.3)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = "rgba(191, 153, 68, 0.2)";
+                        }}
+                      >
+                        🔗 View Full Proposal Document
+                      </a>
+                    )}
+                  </div>
+                )}
+                
                 <div className="pill pill-accent itemDuration">
                   Duration: {formatTime(activeItem.durationSec)}
                 </div>
@@ -255,6 +312,73 @@ export default function RoomLayout({
             ))}
           </div>
         </details>
+      )}
+      
+      {/* Ballot Queue */}
+      {state.agenda && state.agenda.some(item => item.onBallot) && (
+        <div className="card">
+          <div className="sectionHeader">
+            <h3 className="sectionTitle">🗳️ Ballot Queue</h3>
+            <span className="itemCount">
+              {state.agenda.filter(item => item.onBallot).length} proposal{state.agenda.filter(item => item.onBallot).length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="cardBody">
+            <div style={{ 
+              fontSize: "var(--font-size-sm)", 
+              opacity: 0.7, 
+              marginBottom: "var(--spacing-md)" 
+            }}>
+              Proposals ready for voting
+            </div>
+            {state.agenda
+              .filter(item => item.onBallot)
+              .map((item, index) => (
+                <div 
+                  key={item.id}
+                  style={{
+                    padding: "var(--spacing-md)",
+                    marginBottom: "var(--spacing-md)",
+                    backgroundColor: "rgba(191, 153, 68, 0.1)",
+                    border: "2px solid var(--color-accent)",
+                    borderRadius: "var(--radius-md)"
+                  }}
+                >
+                  <div style={{
+                    fontSize: "var(--font-size-lg)",
+                    fontWeight: "var(--font-weight-bold)",
+                    marginBottom: "var(--spacing-sm)"
+                  }}>
+                    {index + 1}. {item.title}
+                  </div>
+                  {item.description && (
+                    <div style={{
+                      fontSize: "var(--font-size-base)",
+                      marginBottom: "var(--spacing-sm)",
+                      lineHeight: "1.6",
+                      whiteSpace: "pre-wrap"
+                    }}>
+                      {item.description}
+                    </div>
+                  )}
+                  {item.link && (
+                    <a 
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ 
+                        fontSize: "var(--font-size-sm)",
+                        color: "var(--color-accent)",
+                        textDecoration: "underline"
+                      }}
+                    >
+                      🔗 View proposal document
+                    </a>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
       )}
     </div>
   );
