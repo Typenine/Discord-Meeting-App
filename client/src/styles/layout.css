@@ -155,7 +155,8 @@
   line-height: 1;
   margin-bottom: var(--spacing-md);
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
+  will-change: transform, opacity;
 }
 
 .timerDisplay .timerValue.warning {
@@ -319,6 +320,7 @@
   height: 24px;
   left: 4px;
   top: 2px;
+  animation: agendaMarkerPulse 2s ease-in-out infinite;
 }
 
 .timelineItem.active {
@@ -330,7 +332,7 @@
   padding-right: var(--spacing-lg);
   padding-top: var(--spacing-md);
   padding-bottom: var(--spacing-md);
-  animation: fadeIn 600ms var(--easing-smooth);
+  animation: agendaActivate 600ms var(--easing-smooth) forwards;
 }
 
 .timelineItemContent {

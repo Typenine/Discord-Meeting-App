@@ -660,6 +660,7 @@ export default function App() {
       {status === "setup" && state && isHost && (
         <div className="container container-narrow" style={{ paddingTop: "var(--spacing-2xl)", paddingBottom: "var(--spacing-4xl)" }}>
           <div className="brandHeader">
+            <img src={logo} alt="League Meeting App" className="brandLogo" />
             <h1 className="brandTitle">Meeting Setup</h1>
             <div className="brandSubtitle">Configure your meeting before starting</div>
           </div>

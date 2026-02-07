@@ -63,18 +63,20 @@
   --spacing-3xl: 3rem;
   --spacing-4xl: 4rem;
   
-  /* Typography */
+  /* Typography - Enhanced scale for better hierarchy */
   --font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-family-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
   
-  --font-size-xs: 0.75rem;
-  --font-size-sm: 0.875rem;
-  --font-size-base: 1rem;
-  --font-size-lg: 1.125rem;
-  --font-size-xl: 1.25rem;
-  --font-size-2xl: 1.5rem;
-  --font-size-3xl: 2rem;
-  --font-size-4xl: 2.5rem;
+  /* Improved type scale with better proportions */
+  --font-size-xs: 0.75rem;      /* 12px */
+  --font-size-sm: 0.875rem;     /* 14px */
+  --font-size-base: 1rem;       /* 16px */
+  --font-size-lg: 1.125rem;     /* 18px */
+  --font-size-xl: 1.375rem;     /* 22px - Enhanced */
+  --font-size-2xl: 1.75rem;     /* 28px - Enhanced */
+  --font-size-3xl: 2.25rem;     /* 36px - Enhanced */
+  --font-size-4xl: 3rem;        /* 48px - Enhanced */
+  --font-size-5xl: 3.75rem;     /* 60px - New for hero text */
   
   --font-weight-normal: 400;
   --font-weight-medium: 500;
@@ -101,8 +103,10 @@
   --easing-spring: cubic-bezier(0.68, -0.55, 0.265, 1.55);
   
   /* Subtle Background Texture (Data URI for minimal load) */
-  --texture-subtle: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23bf9944' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  /* War Room / tactical control aesthetic with layered patterns */
+  --texture-subtle: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23bf9944' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   --texture-grid: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v1H0V0zm0 39h40v1H0v-1z' fill='%23bf9944' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E");
+  --texture-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
 }
 
 /* =====================================================
@@ -131,11 +135,13 @@ body {
   background: var(--color-bg);
   min-height: 100vh;
   
-  /* War Room texture + subtle vignette gradient background */
+  /* War Room / Draft Room texture + subtle vignette gradient background */
   background-image: 
+    var(--texture-noise),
     var(--texture-subtle),
-    radial-gradient(ellipse at top, rgba(11, 95, 152, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom, rgba(191, 153, 68, 0.05) 0%, transparent 50%),
+    var(--texture-grid),
+    radial-gradient(ellipse at top, rgba(11, 95, 152, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse at bottom, rgba(191, 153, 68, 0.08) 0%, transparent 60%),
     linear-gradient(180deg, #050505 0%, #0a0a0a 50%, #050505 100%);
   background-attachment: fixed;
 }
@@ -148,9 +154,9 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: var(--font-weight-bold);
 }
 
-h1 { font-size: var(--font-size-4xl); }
-h2 { font-size: var(--font-size-3xl); }
-h3 { font-size: var(--font-size-2xl); }
+h1 { font-size: var(--font-size-4xl); letter-spacing: -0.02em; }
+h2 { font-size: var(--font-size-3xl); letter-spacing: -0.01em; }
+h3 { font-size: var(--font-size-2xl); letter-spacing: -0.01em; }
 h4 { font-size: var(--font-size-xl); }
 h5 { font-size: var(--font-size-lg); }
 h6 { font-size: var(--font-size-base); }
@@ -298,10 +304,19 @@ select:focus {
   box-shadow: var(--shadow-glow-gold);
 }
 
-/* Prominent logo in TopBar */
+/* Prominent logo in TopBar - Enhanced */
 .topBar .brandLogo {
-  height: 56px;
-  filter: drop-shadow(0 0 12px rgba(191, 153, 68, 0.4));
+  height: 96px; /* DRAMATICALLY increased from 64px - 50% larger */
+  /* Enhanced multi-layer glow */
+  filter: drop-shadow(0 0 16px rgba(191, 153, 68, 0.6))
+          drop-shadow(0 0 32px rgba(191, 153, 68, 0.3));
+  transition: all var(--transition-base);
+}
+
+.topBar .brandLogo:hover {
+  filter: drop-shadow(0 0 20px rgba(191, 153, 68, 0.8))
+          drop-shadow(0 0 40px rgba(191, 153, 68, 0.5));
+  transform: scale(1.05);
 }
 
 .brand-text {
@@ -316,6 +331,8 @@ select:focus {
   color: var(--color-primary);
   line-height: 1;
   margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  letter-spacing: -0.01em;
 }
 
 .brandSubtitle {
@@ -327,41 +344,82 @@ select:focus {
   opacity: 0.9;
 }
 
-/* Large Brand Header (Home Page) */
+/* Large Brand Header (Home Page) - Enhanced prominence */
 .brandHeader {
   text-align: center;
-  padding: var(--spacing-3xl) 0;
+  padding: var(--spacing-4xl) 0; /* Increased padding */
   animation: fadeIn 600ms var(--easing-smooth);
 }
 
 .brandHeader .brandLogo {
-  height: 96px;
-  margin: 0 auto var(--spacing-xl);
+  height: 256px; /* MASSIVELY increased from 128px - DOUBLE the size! */
+  margin: 0 auto var(--spacing-3xl); /* Increased margin for larger logo */
   display: block;
-  box-shadow: var(--shadow-glow-gold), var(--shadow-lg);
+  /* Enhanced multi-layer glow for maximum visibility */
+  box-shadow: 
+    0 0 40px rgba(191, 153, 68, 0.8),
+    0 0 80px rgba(191, 153, 68, 0.5),
+    0 0 120px rgba(191, 153, 68, 0.3),
+    0 6px 30px rgba(0, 0, 0, 0.5);
   animation: logoGlow 3s ease-in-out infinite;
-  will-change: box-shadow;
+  will-change: box-shadow, transform;
+  transition: transform var(--transition-base);
+  border-radius: var(--radius-lg);
+  /* Add subtle border to make logo pop */
+  outline: 3px solid rgba(191, 153, 68, 0.3); /* Thicker outline for larger logo */
+  outline-offset: 6px; /* Increased offset */
+}
+
+.brandHeader .brandLogo:hover {
+  transform: scale(1.08);
+  outline-color: rgba(191, 153, 68, 0.6);
 }
 
 @keyframes logoGlow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(191, 153, 68, 0.3), var(--shadow-lg);
+    box-shadow: 
+      0 0 40px rgba(191, 153, 68, 0.8),
+      0 0 80px rgba(191, 153, 68, 0.5),
+      0 0 120px rgba(191, 153, 68, 0.3),
+      0 6px 30px rgba(0, 0, 0, 0.5);
   }
   50% {
-    box-shadow: 0 0 30px rgba(191, 153, 68, 0.5), var(--shadow-xl);
+    box-shadow: 
+      0 0 50px rgba(191, 153, 68, 1),
+      0 0 100px rgba(191, 153, 68, 0.7),
+      0 0 150px rgba(191, 153, 68, 0.4),
+      0 8px 40px rgba(0, 0, 0, 0.6);
   }
 }
 
 .brandHeader .brandTitle {
-  font-size: var(--font-size-4xl);
-  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-5xl); /* Using new 5xl size */
+  margin-bottom: var(--spacing-md);
   animation: slideUp 600ms var(--easing-smooth) 200ms both;
+  /* Enhanced gradient with more vibrant colors */
+  background: linear-gradient(135deg, 
+    var(--color-accent) 0%, 
+    var(--color-text) 30%, 
+    var(--color-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  /* Add glow effect to text */
+  filter: drop-shadow(0 0 20px rgba(191, 153, 68, 0.5));
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .brandHeader .brandSubtitle {
-  font-size: var(--font-size-xl);
-  opacity: 0.8;
+  font-size: var(--font-size-2xl); /* Increased from xl */
+  opacity: 0.95; /* Increased from 0.85 for better visibility */
   animation: slideUp 600ms var(--easing-smooth) 400ms both;
+  letter-spacing: 0.02em;
+  /* Add brand color accent */
+  color: var(--color-accent);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* =====================================================
@@ -369,24 +427,37 @@ select:focus {
    ===================================================== */
 .card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
+  /* Enhanced border with brand color */
+  border: 2px solid rgba(191, 153, 68, 0.3);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   overflow: hidden;
   transition: all var(--transition-base);
+  animation: cardEntrance 600ms var(--easing-smooth) both;
+  /* Add subtle brand color glow */
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(191, 153, 68, 0.15);
 }
 
 .card:hover {
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-lg), var(--shadow-glow-gold);
-  transform: translateY(-2px);
+  /* More prominent brand color on hover */
+  border-color: rgba(191, 153, 68, 0.6);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(191, 153, 68, 0.4);
+  transform: translateY(-4px);
 }
+
+/* Staggered animation for multiple cards */
+.grid2 .card:nth-child(1) { animation-delay: 600ms; }
+.grid2 .card:nth-child(2) { animation-delay: 750ms; }
 
 .cardHeader {
   padding: var(--spacing-xl);
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 2px solid rgba(191, 153, 68, 0.3); /* Enhanced with brand color */
   background: var(--color-glass);
 }
 
@@ -395,6 +466,8 @@ select:focus {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   margin: 0;
+  /* Add subtle brand color accent */
+  text-shadow: 0 0 20px rgba(191, 153, 68, 0.3);
 }
 
 .cardBody {
@@ -500,13 +573,19 @@ select:focus {
 .btnPrimary {
   background: var(--color-primary);
   color: var(--color-text);
-  box-shadow: var(--shadow-sm);
+  /* Enhanced shadow with brand glow */
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(11, 95, 152, 0.4);
+  font-weight: var(--font-weight-semibold);
 }
 
 .btnPrimary:hover:not(:disabled) {
   background: #0d6faa;
-  box-shadow: var(--shadow-md), var(--shadow-glow-blue);
-  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(11, 95, 152, 0.6);
+  transform: translateY(-2px);
 }
 
 .btnPrimary:active:not(:disabled) {
@@ -516,13 +595,19 @@ select:focus {
 .btnAccent {
   background: var(--color-accent);
   color: var(--color-bg);
-  box-shadow: var(--shadow-sm);
+  /* Enhanced shadow with brand glow */
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(191, 153, 68, 0.5);
+  font-weight: var(--font-weight-semibold);
 }
 
 .btnAccent:hover:not(:disabled) {
   background: #d4a84f;
-  box-shadow: var(--shadow-md), var(--shadow-glow-gold);
-  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(191, 153, 68, 0.8);
+  transform: translateY(-2px);
 }
 
 .btnDanger {
@@ -602,9 +687,12 @@ select:focus {
 }
 
 .pill-accent {
-  background: rgba(191, 153, 68, 0.2);
+  background: rgba(191, 153, 68, 0.25); /* Increased opacity */
   color: var(--color-accent);
-  border: 1px solid var(--color-accent);
+  border: 2px solid var(--color-accent); /* Thicker border */
+  /* Add glow effect */
+  box-shadow: 0 0 15px rgba(191, 153, 68, 0.3);
+  font-weight: var(--font-weight-semibold);
 }
 
 .pill-danger {
@@ -751,7 +839,7 @@ select:focus {
   }
   
   .brandHeader .brandLogo {
-    height: 64px;
+    height: 96px; /* Increased for mobile - was 64px */
   }
   
   .brandHeader .brandTitle {
@@ -1108,9 +1196,76 @@ select:focus {
     transform: scale(1.1);
     opacity: 0.7;
   }
+  40% {
+    transform: scale(0.95);
+  }
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+/* =====================================================
+   MICRO-ANIMATIONS FOR ENHANCED UX
+   ===================================================== */
+
+/* Active Agenda Change Highlight - Creates a smooth highlight effect when agenda item becomes active */
+@keyframes agendaActivate {
+  0% {
+    background: transparent;
+    transform: translateX(-8px);
+    opacity: 0.7;
+  }
+  30% {
+    background: rgba(191, 153, 68, 0.15);
+    transform: translateX(0);
+  }
+  100% {
+    background: rgba(191, 153, 68, 0.08);
+    opacity: 1;
+  }
+}
+
+/* Gentle pulse for active agenda marker */
+@keyframes agendaMarkerPulse {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(191, 153, 68, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(191, 153, 68, 0.8);
+    transform: scale(1.1);
+  }
+}
+
+/* Timer value transition - smooth number change */
+@keyframes timerValueChange {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Card entrance with subtle bounce */
+@keyframes cardEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% {
+    transform: translateY(0) scale(1);
   }
 }
 
