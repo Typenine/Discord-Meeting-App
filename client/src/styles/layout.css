@@ -15,6 +15,7 @@
   grid-template-columns: 1fr 340px;
   flex: 1;
   overflow: hidden;
+  min-height: 0; /* Critical: allows grid to shrink properly in flex parent */
 }
 
 /* When host panel is present, create 3-column layout */
@@ -401,6 +402,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   flex-shrink: 0;
+  min-height: 0; /* Critical: allows flex child to shrink properly */
 }
 
 .attendanceRailHeader {
@@ -428,6 +430,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--spacing-xl);
+  min-height: 0; /* Critical: allows flex child to shrink and enable scrolling */
 }
 
 /* Custom scrollbar for attendance rail */

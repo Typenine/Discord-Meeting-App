@@ -1007,6 +1007,24 @@ export default function StandaloneApp() {
           console.log("[CLAIM_HOST] Success - now host");
           setIsHost(true);
           setError(null);
+        } else if (msg.type === "TEMPLATE_LIST") {
+          // Template list response from server
+          console.log(`[WS] TEMPLATE_LIST - received ${msg.templates?.length || 0} templates`);
+          if (msg.templates) {
+            setState(prev => ({
+              ...prev,
+              templates: msg.templates
+            }));
+          }
+        } else if (msg.type === "TEMPLATE_SAVED" || msg.type === "TEMPLATE_DELETED" || msg.type === "TEMPLATES_IMPORTED") {
+          // Template operations update the state with new templates list
+          console.log(`[WS] ${msg.type} - updating templates in state`);
+          if (msg.templates) {
+            setState(prev => ({
+              ...prev,
+              templates: msg.templates
+            }));
+          }
         } else if (msg.type === "ERROR") {
           console.error("[WS] Error:", msg.error);
           const errorMsg = msg.message || msg.error;
@@ -1175,7 +1193,7 @@ export default function StandaloneApp() {
       title, 
       durationSec, 
       notes, 
-      itemType: itemType || "normal", 
+      itemType: itemType || "regular", 
       description: description || "", 
       link: link || "", 
       category: category || "" 
@@ -2268,6 +2286,7 @@ export default function StandaloneApp() {
                 {isHost && !viewAsAttendee && (
                   <HostPanel 
                     state={state}
+                    send={sendMessage}
                     onAddAgenda={addAgenda}
                     onUpdateAgenda={updateAgenda}
                     onDeleteAgenda={deleteAgenda}

@@ -153,6 +153,7 @@ function createMeetingSession({ sessionId, hostKey = null, hostKeyFallback = nul
       closedResults: [], // history
     },
     attendance: {}, // { [clientId]: { displayName, joinedAt, lastSeenAt } }
+    templates: [], // Persistent agenda templates: { id, name, createdAt, updatedAt, items: [...] }
     log: [],
   };
 }
@@ -1116,6 +1117,158 @@ export class MeetingRoom {
             this.broadcastState();
           }
           break;
+        
+        // Template Management - Host Only
+        case "TEMPLATE_SAVE":
+          if (!isHost) {
+            ws.send(JSON.stringify({ type: "ERROR", error: "host_only", message: "Only host can save templates" }));
+            break;
+          }
+          {
+            const { name, items } = msg;
+            if (!name || !name.trim()) {
+              ws.send(JSON.stringify({ type: "ERROR", error: "invalid_name", message: "Template name is required" }));
+              break;
+            }
+            if (!Array.isArray(items)) {
+              ws.send(JSON.stringify({ type: "ERROR", error: "invalid_items", message: "Template items must be an array" }));
+              break;
+            }
+            
+            // Ensure templates array exists (for backward compatibility)
+            if (!session.templates) {
+              session.templates = [];
+            }
+            
+            const now = Date.now();
+            const template = {
+              id: crypto.randomUUID(),
+              name: name.trim(),
+              createdAt: now,
+              updatedAt: now,
+              items: items.map((item) => ({
+                title: String(item.title || ''),
+                durationSec: Number(item.durationSec) || 0,
+                notes: String(item.notes || ''),
+                type: String(item.type || 'regular'),
+                description: String(item.description || ''),
+                link: String(item.link || ''),
+                category: String(item.category || ''),
+                onBallot: Boolean(item.onBallot),
+              }))
+            };
+            
+            session.templates.push(template);
+            session.log.push({ ts: now, type: "TEMPLATE_SAVED", templateId: template.id, name: template.name });
+            console.log("[TEMPLATE_SAVE]", { templateId: template.id, name: template.name });
+            
+            // Send confirmation with template list
+            ws.send(JSON.stringify({ 
+              type: "TEMPLATE_SAVED", 
+              template,
+              templates: session.templates 
+            }));
+            // No broadcast needed - templates are host-specific
+          }
+          break;
+        
+        case "TEMPLATE_DELETE":
+          if (!isHost) {
+            ws.send(JSON.stringify({ type: "ERROR", error: "host_only", message: "Only host can delete templates" }));
+            break;
+          }
+          {
+            const { templateId } = msg;
+            if (!templateId) {
+              ws.send(JSON.stringify({ type: "ERROR", error: "invalid_id", message: "Template ID is required" }));
+              break;
+            }
+            
+            // Ensure templates array exists
+            if (!session.templates) {
+              session.templates = [];
+            }
+            
+            const index = session.templates.findIndex(t => t.id === templateId);
+            if (index === -1) {
+              ws.send(JSON.stringify({ type: "ERROR", error: "not_found", message: "Template not found" }));
+              break;
+            }
+            
+            const deletedTemplate = session.templates[index];
+            session.templates.splice(index, 1);
+            session.log.push({ ts: Date.now(), type: "TEMPLATE_DELETED", templateId, name: deletedTemplate.name });
+            console.log("[TEMPLATE_DELETE]", { templateId, name: deletedTemplate.name });
+            
+            ws.send(JSON.stringify({ 
+              type: "TEMPLATE_DELETED", 
+              templateId,
+              templates: session.templates 
+            }));
+          }
+          break;
+        
+        case "TEMPLATE_LIST":
+          {
+            // Ensure templates array exists
+            if (!session.templates) {
+              session.templates = [];
+            }
+            
+            ws.send(JSON.stringify({ 
+              type: "TEMPLATE_LIST", 
+              templates: session.templates 
+            }));
+          }
+          break;
+        
+        case "TEMPLATE_IMPORT":
+          if (!isHost) {
+            ws.send(JSON.stringify({ type: "ERROR", error: "host_only", message: "Only host can import templates" }));
+            break;
+          }
+          {
+            const { templates } = msg;
+            if (!Array.isArray(templates)) {
+              ws.send(JSON.stringify({ type: "ERROR", error: "invalid_templates", message: "Templates must be an array" }));
+              break;
+            }
+            
+            // Ensure templates array exists
+            if (!session.templates) {
+              session.templates = [];
+            }
+            
+            const now = Date.now();
+            const imported = templates.map((t) => ({
+              id: crypto.randomUUID(),
+              name: String(t.name || 'Imported Template'),
+              createdAt: now,
+              updatedAt: now,
+              items: (t.items || []).map((item) => ({
+                title: String(item.title || ''),
+                durationSec: Number(item.durationSec) || 0,
+                notes: String(item.notes || ''),
+                type: String(item.type || 'regular'),
+                description: String(item.description || ''),
+                link: String(item.link || ''),
+                category: String(item.category || ''),
+                onBallot: Boolean(item.onBallot),
+              }))
+            }));
+            
+            session.templates.push(...imported);
+            session.log.push({ ts: now, type: "TEMPLATES_IMPORTED", count: imported.length });
+            console.log("[TEMPLATE_IMPORT]", { count: imported.length });
+            
+            ws.send(JSON.stringify({ 
+              type: "TEMPLATES_IMPORTED", 
+              count: imported.length,
+              templates: session.templates 
+            }));
+          }
+          break;
+        
         default:
           break;
       }

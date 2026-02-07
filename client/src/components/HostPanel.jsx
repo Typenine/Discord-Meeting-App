@@ -69,6 +69,7 @@ function DraggableAgendaItem({ item, isActive, isEditing, onEdit, onSave, onCanc
 
 export default function HostPanel({ 
   state, 
+  send,
   onAddAgenda,
   onUpdateAgenda,
   onDeleteAgenda,
@@ -103,22 +104,66 @@ export default function HostPanel({
   const [showTemplates, setShowTemplates] = useState(false);
   const [savedTemplates, setSavedTemplates] = useState([]);
   const [newTemplateName, setNewTemplateName] = useState("");
+  const [templateError, setTemplateError] = useState("");
+  const [hasRequestedTemplates, setHasRequestedTemplates] = useState(false);
+  const [migrationComplete, setMigrationComplete] = useState(false);
   
   const menuRef = useRef(null);
   const inlineTitleRef = useRef(null);
   const inlineEditRef = useRef(null);
 
-  // Load saved templates from localStorage on mount
+  // Request templates from server on mount and when connection is established
   useEffect(() => {
-    const stored = localStorage.getItem("agendaTemplates");
-    if (stored) {
-      try {
-        setSavedTemplates(JSON.parse(stored));
-      } catch (e) {
-        console.error("Failed to parse saved templates:", e);
+    if (send && !hasRequestedTemplates && state?.sessionId) {
+      console.log("[HostPanel] Requesting templates from server");
+      send({ type: "TEMPLATE_LIST" });
+      setHasRequestedTemplates(true);
+    }
+  }, [send, hasRequestedTemplates, state?.sessionId]);
+
+  // Handle template-related WebSocket messages via state updates
+  useEffect(() => {
+    if (state?.templates) {
+      console.log("[HostPanel] Received templates from server:", state.templates);
+      setSavedTemplates(state.templates);
+      
+      // Migration: Import localStorage templates if server has none and we haven't migrated yet
+      if (!migrationComplete && state.templates.length === 0) {
+        const stored = localStorage.getItem("agendaTemplates");
+        const migrated = localStorage.getItem("agendaTemplatesMigrated");
+        
+        if (stored && !migrated) {
+          try {
+            const localTemplates = JSON.parse(stored);
+            if (Array.isArray(localTemplates) && localTemplates.length > 0) {
+              console.log("[HostPanel] Migrating", localTemplates.length, "templates from localStorage to server");
+              
+              // Convert old format to new format with required fields
+              const templatesForImport = localTemplates.map(template => ({
+                name: template.name,
+                items: template.items.map(item => ({
+                  title: item.title,
+                  durationSec: item.durationSec,
+                  notes: item.notes || "",
+                  type: item.type || "regular",
+                  description: item.description || "",
+                  link: item.link || "",
+                  category: item.category || "",
+                  onBallot: item.onBallot || false
+                }))
+              }));
+              
+              send({ type: "TEMPLATE_IMPORT", templates: templatesForImport });
+              localStorage.setItem("agendaTemplatesMigrated", "true");
+              setMigrationComplete(true);
+            }
+          } catch (e) {
+            console.error("[HostPanel] Failed to migrate templates:", e);
+          }
+        }
       }
     }
-  }, []);
+  }, [state?.templates, send, migrationComplete]);
 
   // Auto-focus title input when entering inline edit mode
   useEffect(() => {
@@ -327,35 +372,48 @@ export default function HostPanel({
 
   // Template management
   const saveAsTemplate = () => {
-    if (!newTemplateName.trim()) return;
+    if (!newTemplateName.trim()) {
+      setTemplateError("Template name is required");
+      return;
+    }
     
-    const template = {
-      name: newTemplateName,
-      items: state.agenda.map((item) => ({
-        title: item.title,
-        durationSec: item.durationSec,
-        notes: item.notes || ""
-      }))
-    };
+    const items = state.agenda.map((item) => ({
+      title: item.title,
+      durationSec: item.durationSec,
+      notes: item.notes || "",
+      type: item.type || "regular",
+      description: item.description || "",
+      link: item.link || "",
+      category: item.category || "",
+      onBallot: item.onBallot || false
+    }));
     
-    const updated = [...savedTemplates, template];
-    setSavedTemplates(updated);
-    localStorage.setItem("agendaTemplates", JSON.stringify(updated));
+    console.log("[HostPanel] Saving template:", newTemplateName);
+    send({ type: "TEMPLATE_SAVE", name: newTemplateName, items });
     setNewTemplateName("");
+    setTemplateError("");
   };
 
   const loadTemplate = (template) => {
     // Note: This adds template items to the current agenda.
     // To replace the agenda, first delete unwanted items manually.
     template.items.forEach((item) => {
-      onAddAgenda(item.title, item.durationSec, item.notes);
+      onAddAgenda(
+        item.title, 
+        item.durationSec, 
+        item.notes, 
+        item.type, 
+        item.description, 
+        item.link, 
+        item.category
+      );
     });
   };
 
-  const deleteTemplate = (index) => {
-    const updated = savedTemplates.filter((_, i) => i !== index);
-    setSavedTemplates(updated);
-    localStorage.setItem("agendaTemplates", JSON.stringify(updated));
+  const deleteTemplate = (templateId) => {
+    console.log("[HostPanel] Deleting template:", templateId);
+    setTemplateError("");
+    send({ type: "TEMPLATE_DELETE", templateId });
   };
 
   const exportTemplates = () => {
@@ -377,13 +435,29 @@ export default function HostPanel({
     reader.onload = (evt) => {
       try {
         const imported = JSON.parse(evt.target.result);
-        if (Array.isArray(imported)) {
-          const updated = [...savedTemplates, ...imported];
-          setSavedTemplates(updated);
-          localStorage.setItem("agendaTemplates", JSON.stringify(updated));
+        if (Array.isArray(imported) && imported.length > 0) {
+          // Convert imported templates to format expected by server (no IDs needed)
+          const templatesForImport = imported.map(template => ({
+            name: template.name,
+            items: template.items.map(item => ({
+              title: item.title,
+              durationSec: item.durationSec,
+              notes: item.notes || "",
+              type: item.type || "regular",
+              description: item.description || "",
+              link: item.link || "",
+              category: item.category || "",
+              onBallot: item.onBallot || false
+            }))
+          }));
+          
+          console.log("[HostPanel] Importing", templatesForImport.length, "templates");
+          send({ type: "TEMPLATE_IMPORT", templates: templatesForImport });
+          setTemplateError("");
         }
       } catch (err) {
-        console.error("Failed to import templates:", err);
+        console.error("[HostPanel] Failed to import templates:", err);
+        setTemplateError("Failed to import templates. Please check file format.");
       }
     };
     reader.readAsText(file);
@@ -1008,6 +1082,11 @@ export default function HostPanel({
                     💾 Save
                   </button>
                 </div>
+                {templateError && (
+                  <div className="error-message" style={{ color: 'red', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                    {templateError}
+                  </div>
+                )}
               </div>
 
               {/* Preset templates */}
@@ -1031,8 +1110,8 @@ export default function HostPanel({
               {savedTemplates.length > 0 && (
                 <div className="templateSection mb-md">
                   <label className="label">My Templates</label>
-                  {savedTemplates.map((template, idx) => (
-                    <div key={idx} className="templateItem">
+                  {savedTemplates.map((template) => (
+                    <div key={template.id} className="templateItem">
                       <span className="templateName">{template.name}</span>
                       <div className="flex gap-xs">
                         <button
@@ -1044,7 +1123,7 @@ export default function HostPanel({
                         </button>
                         <button
                           className="btn btnDanger btnSmall"
-                          onClick={() => deleteTemplate(idx)}
+                          onClick={() => deleteTemplate(template.id)}
                         >
                           ×
                         </button>

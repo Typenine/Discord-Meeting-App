@@ -14,6 +14,7 @@
   box-shadow: var(--shadow-xl);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  min-height: 0; /* Critical: allows flex child to shrink properly */
   
   /* Add subtle background texture */
   background-image: 
@@ -46,9 +47,10 @@
 /* Scrollable Content Area */
 .hostPanelContent {
   flex: 1;
-  overflow-y: scroll; /* Changed from auto to scroll to ensure scrollbar is always visible */
+  overflow-y: auto; /* Allow scrolling when content overflows */
   overflow-x: hidden;
   padding: var(--spacing-xl);
+  min-height: 0; /* Critical: allows flex child to shrink and enable scrolling */
   scrollbar-width: thin; /* For Firefox */
   scrollbar-color: var(--color-border-subtle) rgba(0, 0, 0, 0.3); /* For Firefox */
 }
