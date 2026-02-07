@@ -293,6 +293,16 @@ function reorderAgendaItems(session, orderedIds) {
 function timerStart(session) {
   if (session.timer.running) return;
   const serverNowMs = Date.now();
+  
+  // Start meeting elapsed timer if not already running
+  if (!session.meetingTimer.running) {
+    session.meetingTimer.running = true;
+    session.meetingTimer.startedAtMs = serverNowMs;
+    console.log('[worker] Meeting elapsed timer started:', { 
+      startedAtMs: session.meetingTimer.startedAtMs
+    });
+  }
+  
   session.timer.running = true;
   session.timer.endsAtMs = serverNowMs + session.timer.durationSec * 1000;
   session.timer.pausedRemainingSec = null;

@@ -561,6 +561,16 @@ export function startTimer({ sessionId, userId, durationMinutes }) {
     }
   }
   
+  // Start meeting elapsed timer if not already running
+  if (!session.meetingTimer.running) {
+    session.meetingTimer.running = true;
+    session.meetingTimer.startedAtMs = Date.now();
+    console.log('[store] Meeting elapsed timer started:', { 
+      sessionId, 
+      startedAtMs: session.meetingTimer.startedAtMs
+    });
+  }
+  
   session.timer.running = true;
   session.timer.remainingSec = remaining;
   session.timer.endsAtMs = Date.now() + remaining * 1000;
