@@ -372,7 +372,10 @@ export default function HostPanel({
 
   // Template management
   const saveAsTemplate = () => {
-    if (!newTemplateName.trim()) return;
+    if (!newTemplateName.trim()) {
+      setTemplateError("Template name is required");
+      return;
+    }
     
     const items = state.agenda.map((item) => ({
       title: item.title,
@@ -409,8 +412,8 @@ export default function HostPanel({
 
   const deleteTemplate = (templateId) => {
     console.log("[HostPanel] Deleting template:", templateId);
-    send({ type: "TEMPLATE_DELETE", templateId });
     setTemplateError("");
+    send({ type: "TEMPLATE_DELETE", templateId });
   };
 
   const exportTemplates = () => {
