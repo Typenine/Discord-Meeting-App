@@ -1252,6 +1252,33 @@ export default function HostPanel({
               </div>
             ) : (
               <div>
+                {/* Auto-populate from proposal hint */}
+                {state.currentAgendaItemId && (() => {
+                  const currentItem = state.agenda.find(item => item.id === state.currentAgendaItemId);
+                  return currentItem && currentItem.type === "proposal" && (currentItem.description || currentItem.title) && (
+                    <div style={{
+                      padding: "var(--spacing-sm)",
+                      backgroundColor: "rgba(191, 153, 68, 0.1)",
+                      border: "1px solid var(--color-accent)",
+                      borderRadius: "var(--radius-sm)",
+                      marginBottom: "var(--spacing-md)",
+                      fontSize: "var(--font-size-xs)"
+                    }}>
+                      💡 Tip: The current item is a proposal. 
+                      <button
+                        className="btn btnGhost btnSmall"
+                        style={{ marginLeft: "var(--spacing-xs)" }}
+                        onClick={() => {
+                          setVoteQuestion(currentItem.description || currentItem.title);
+                          setVoteOptions("Approve,Reject,Abstain");
+                        }}
+                      >
+                        Use Proposal for Vote
+                      </button>
+                    </div>
+                  );
+                })()}
+                
                 <label className="label">Question</label>
                 <input
                   className="input mb-sm"
