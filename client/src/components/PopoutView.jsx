@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AttendancePanel from "./AttendancePanel.jsx";
+import AgendaItemDetailsModal from "./AgendaItemDetailsModal.jsx";
 
 /**
  * PopoutView - Compact overlay window optimized for ~420x720px
@@ -11,6 +12,7 @@ export default function PopoutView({
   formatTime
 }) {
   const [showAttendancePanel, setShowAttendancePanel] = useState(false);
+  const [selectedAgendaItem, setSelectedAgendaItem] = useState(null);
   
   // Local tick for meeting elapsed timer - updates every second
   const [localTick, setLocalTick] = useState(Date.now());
@@ -182,6 +184,7 @@ export default function PopoutView({
               return (
                 <div 
                   key={item.id}
+                  onClick={() => setSelectedAgendaItem(item)}
                   style={{
                     padding: "var(--spacing-md)",
                     marginBottom: "var(--spacing-sm)",
@@ -198,8 +201,22 @@ export default function PopoutView({
                     gap: "var(--spacing-md)",
                     alignItems: "flex-start",
                     transition: "all var(--transition-fast)",
-                    opacity: isPast ? 0.6 : 1
+                    opacity: isPast ? 0.6 : 1,
+                    cursor: "pointer"
                   }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.12)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = isPast 
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(255, 255, 255, 0.08)";
+                    }
+                  }}
+                  title="Click to view details"
                 >
                   {/* Item Number */}
                   <div style={{
@@ -302,6 +319,15 @@ export default function PopoutView({
           attendance={state.attendance}
           hostUserId={state.hostUserId}
           onClose={() => setShowAttendancePanel(false)}
+        />
+      )}
+
+      {/* Agenda Item Details Modal */}
+      {selectedAgendaItem && (
+        <AgendaItemDetailsModal
+          item={selectedAgendaItem}
+          formatTime={formatTime}
+          onClose={() => setSelectedAgendaItem(null)}
         />
       )}
     </div>
