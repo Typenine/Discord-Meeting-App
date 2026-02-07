@@ -306,7 +306,7 @@ select:focus {
 
 /* Prominent logo in TopBar - Enhanced */
 .topBar .brandLogo {
-  height: 64px; /* Increased from 56px */
+  height: 96px; /* DRAMATICALLY increased from 64px - 50% larger */
   /* Enhanced multi-layer glow */
   filter: drop-shadow(0 0 16px rgba(191, 153, 68, 0.6))
           drop-shadow(0 0 32px rgba(191, 153, 68, 0.3));
@@ -352,22 +352,22 @@ select:focus {
 }
 
 .brandHeader .brandLogo {
-  height: 128px; /* Increased from 96px */
-  margin: 0 auto var(--spacing-2xl); /* Increased margin */
+  height: 256px; /* MASSIVELY increased from 128px - DOUBLE the size! */
+  margin: 0 auto var(--spacing-3xl); /* Increased margin for larger logo */
   display: block;
   /* Enhanced multi-layer glow for maximum visibility */
   box-shadow: 
-    0 0 30px rgba(191, 153, 68, 0.8),
-    0 0 60px rgba(191, 153, 68, 0.5),
-    0 0 90px rgba(191, 153, 68, 0.3),
-    0 4px 20px rgba(0, 0, 0, 0.5);
+    0 0 40px rgba(191, 153, 68, 0.8),
+    0 0 80px rgba(191, 153, 68, 0.5),
+    0 0 120px rgba(191, 153, 68, 0.3),
+    0 6px 30px rgba(0, 0, 0, 0.5);
   animation: logoGlow 3s ease-in-out infinite;
   will-change: box-shadow, transform;
   transition: transform var(--transition-base);
   border-radius: var(--radius-lg);
   /* Add subtle border to make logo pop */
-  outline: 2px solid rgba(191, 153, 68, 0.3);
-  outline-offset: 4px;
+  outline: 3px solid rgba(191, 153, 68, 0.3); /* Thicker outline for larger logo */
+  outline-offset: 6px; /* Increased offset */
 }
 
 .brandHeader .brandLogo:hover {
@@ -378,17 +378,17 @@ select:focus {
 @keyframes logoGlow {
   0%, 100% {
     box-shadow: 
-      0 0 30px rgba(191, 153, 68, 0.8),
-      0 0 60px rgba(191, 153, 68, 0.5),
-      0 0 90px rgba(191, 153, 68, 0.3),
-      0 4px 20px rgba(0, 0, 0, 0.5);
+      0 0 40px rgba(191, 153, 68, 0.8),
+      0 0 80px rgba(191, 153, 68, 0.5),
+      0 0 120px rgba(191, 153, 68, 0.3),
+      0 6px 30px rgba(0, 0, 0, 0.5);
   }
   50% {
     box-shadow: 
-      0 0 40px rgba(191, 153, 68, 1),
-      0 0 80px rgba(191, 153, 68, 0.7),
-      0 0 120px rgba(191, 153, 68, 0.4),
-      0 6px 30px rgba(0, 0, 0, 0.6);
+      0 0 50px rgba(191, 153, 68, 1),
+      0 0 100px rgba(191, 153, 68, 0.7),
+      0 0 150px rgba(191, 153, 68, 0.4),
+      0 8px 40px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -839,7 +839,7 @@ select:focus {
   }
   
   .brandHeader .brandLogo {
-    height: 64px;
+    height: 96px; /* Increased for mobile - was 64px */
   }
   
   .brandHeader .brandTitle {
