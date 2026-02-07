@@ -334,6 +334,7 @@ export function addAgenda({ sessionId, userId, title, durationSec, type, descrip
       // Set timer to item's duration if not running
       if (!session.timer.running) {
         session.timer.remainingSec = dur;
+        session.timer.durationSec = dur;
         session.timer.durationSet = dur;
       }
     }
