@@ -80,6 +80,49 @@ export default function PopoutView({
           <div className="popoutLabel">NOW PLAYING</div>
           <div className="popoutTitle">{activeItem.title}</div>
           
+          {/* Proposal Packet */}
+          {activeItem.type === "proposal" && (activeItem.description || activeItem.link) && (
+            <div style={{
+              marginTop: "var(--spacing-md)",
+              padding: "var(--spacing-md)",
+              backgroundColor: "rgba(191, 153, 68, 0.1)",
+              border: "1px solid var(--color-accent)",
+              borderRadius: "var(--radius-md)"
+            }}>
+              <div style={{ 
+                fontSize: "var(--font-size-sm)", 
+                fontWeight: "var(--font-weight-semibold)",
+                color: "var(--color-accent)",
+                marginBottom: "var(--spacing-xs)"
+              }}>
+                📋 Proposal Packet
+              </div>
+              {activeItem.description && (
+                <div style={{ 
+                  fontSize: "var(--font-size-sm)", 
+                  marginBottom: "var(--spacing-xs)",
+                  whiteSpace: "pre-wrap"
+                }}>
+                  {activeItem.description}
+                </div>
+              )}
+              {activeItem.link && (
+                <a 
+                  href={activeItem.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ 
+                    fontSize: "var(--font-size-sm)",
+                    color: "var(--color-accent)",
+                    textDecoration: "underline"
+                  }}
+                >
+                  🔗 View Proposal Document
+                </a>
+              )}
+            </div>
+          )}
+          
           {/* Large Timer */}
           <div className="popoutTimer">
             <div className={`popoutTimerValue ${localTimer < 10 && localTimer >= 0 ? 'warning' : ''} ${localTimer < 0 ? 'overtime' : ''}`}>
@@ -177,6 +220,49 @@ export default function PopoutView({
               );
             })}
           </div>
+        </div>
+      )}
+      
+      {/* Ballot Queue (Read-only for attendees) */}
+      {state.agenda && state.agenda.some(item => item.onBallot) && (
+        <div className="popoutSection popoutSectionSecondary" style={{
+          borderTop: "1px solid var(--color-border-subtle)",
+          paddingTop: "var(--spacing-md)"
+        }}>
+          <div className="popoutLabel">🗳️ BALLOT QUEUE</div>
+          <div style={{ fontSize: "var(--font-size-xs)", opacity: 0.7, marginBottom: "var(--spacing-sm)" }}>
+            Proposals ready for voting
+          </div>
+          {state.agenda
+            .filter(item => item.onBallot)
+            .map((item, index) => (
+              <div 
+                key={item.id}
+                style={{
+                  padding: "var(--spacing-sm)",
+                  marginBottom: "var(--spacing-xs)",
+                  backgroundColor: "rgba(191, 153, 68, 0.1)",
+                  border: "1px solid var(--color-accent)",
+                  borderRadius: "var(--radius-sm)"
+                }}
+              >
+                <div style={{
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "var(--font-weight-semibold)"
+                }}>
+                  {index + 1}. {item.title}
+                </div>
+                {item.description && (
+                  <div style={{
+                    fontSize: "var(--font-size-xs)",
+                    opacity: 0.8,
+                    marginTop: "var(--spacing-xs)"
+                  }}>
+                    {item.description}
+                  </div>
+                )}
+              </div>
+            ))}
         </div>
       )}
       

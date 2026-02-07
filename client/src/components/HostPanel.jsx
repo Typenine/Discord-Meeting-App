@@ -82,13 +82,18 @@ export default function HostPanel({
   onResetTimer,
   onExtendTimer,
   onOpenVote,
-  onCloseVote
+  onCloseVote,
+  onToggleBallot
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [newAgendaTitle, setNewAgendaTitle] = useState("");
   const [newAgendaMinutes, setNewAgendaMinutes] = useState("");
   const [newAgendaSeconds, setNewAgendaSeconds] = useState("");
   const [newAgendaNotes, setNewAgendaNotes] = useState("");
+  const [newAgendaType, setNewAgendaType] = useState("normal");
+  const [newAgendaDescription, setNewAgendaDescription] = useState("");
+  const [newAgendaLink, setNewAgendaLink] = useState("");
+  const [newAgendaCategory, setNewAgendaCategory] = useState("");
   const [inlineEditId, setInlineEditId] = useState(null);
   const [inlineEditData, setInlineEditData] = useState({});
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -141,7 +146,11 @@ export default function HostPanel({
           onUpdateAgenda(inlineEditId, {
             title: inlineEditData.title,
             durationSec: totalSeconds,
-            notes: inlineEditData.notes
+            notes: inlineEditData.notes,
+            type: inlineEditData.type,
+            description: inlineEditData.description,
+            link: inlineEditData.link,
+            category: inlineEditData.category
           });
           
           setInlineEditId(null);
@@ -197,7 +206,11 @@ export default function HostPanel({
     onUpdateAgenda(inlineEditId, {
       title: inlineEditData.title,
       durationSec: totalSeconds,
-      notes: inlineEditData.notes
+      notes: inlineEditData.notes,
+      type: inlineEditData.type,
+      description: inlineEditData.description,
+      link: inlineEditData.link,
+      category: inlineEditData.category
     });
     
     setInlineEditId(null);
@@ -214,7 +227,11 @@ export default function HostPanel({
       title: item.title,
       minutes: String(mins),
       seconds: String(secs),
-      notes: item.notes || ""
+      notes: item.notes || "",
+      type: item.type || "normal",
+      description: item.description || "",
+      link: item.link || "",
+      category: item.category || ""
     });
     setOpenMenuId(null);
   };
@@ -238,9 +255,13 @@ export default function HostPanel({
     const copy = {
       title: `${item.title} (Copy)`,
       durationSec: item.durationSec,
-      notes: item.notes || ""
+      notes: item.notes || "",
+      type: item.type || "normal",
+      description: item.description || "",
+      link: item.link || "",
+      category: item.category || ""
     };
-    onAddAgenda(copy.title, copy.durationSec, copy.notes);
+    onAddAgenda(copy.title, copy.durationSec, copy.notes, copy.type, copy.description, copy.link, copy.category);
     setOpenMenuId(null);
   };
 
@@ -689,6 +710,41 @@ export default function HostPanel({
                               placeholder="Notes (optional)"
                               rows="2"
                             />
+                            <select
+                              className="inlineEditSelect"
+                              value={inlineEditData.type || "normal"}
+                              onChange={(e) => setInlineEditData({ ...inlineEditData, type: e.target.value })}
+                              style={{ marginTop: "var(--spacing-xs)" }}
+                            >
+                              <option value="normal">Normal Item</option>
+                              <option value="proposal">Proposal Item</option>
+                            </select>
+                            {inlineEditData.type === "proposal" && (
+                              <>
+                                <textarea
+                                  className="inlineEditNotes"
+                                  value={inlineEditData.description || ""}
+                                  onChange={(e) => setInlineEditData({ ...inlineEditData, description: e.target.value })}
+                                  placeholder="Proposal description"
+                                  rows="2"
+                                  style={{ marginTop: "var(--spacing-xs)" }}
+                                />
+                                <input
+                                  className="inlineEditTitle"
+                                  value={inlineEditData.link || ""}
+                                  onChange={(e) => setInlineEditData({ ...inlineEditData, link: e.target.value })}
+                                  placeholder="Proposal link URL"
+                                  style={{ marginTop: "var(--spacing-xs)" }}
+                                />
+                              </>
+                            )}
+                            <input
+                              className="inlineEditTitle"
+                              value={inlineEditData.category || ""}
+                              onChange={(e) => setInlineEditData({ ...inlineEditData, category: e.target.value })}
+                              placeholder="Category (optional, e.g., Rules, Budget)"
+                              style={{ marginTop: "var(--spacing-xs)" }}
+                            />
                           </div>
                         ) : (
                           <div 
@@ -705,7 +761,12 @@ export default function HostPanel({
                               </button>
                               <div className="agendaItemContent" onClick={() => startInlineEdit(item)}>
                                 <div className="agendaItemHeader">
-                                  <span className="agendaItemTitle">{item.title}</span>
+                                  <span className="agendaItemTitle">
+                                    {item.title}
+                                    {item.type === "proposal" && <span className="pill pill-accent" style={{ marginLeft: "var(--spacing-xs)" }}>📋 Proposal</span>}
+                                    {item.onBallot && <span className="pill pill-success" style={{ marginLeft: "var(--spacing-xs)" }}>🗳️ On Ballot</span>}
+                                    {item.category && <span className="pill pill-neutral" style={{ marginLeft: "var(--spacing-xs)" }}>🏷️ {item.category}</span>}
+                                  </span>
                                   <span className="pill pill-neutral">{formatTime(item.durationSec)}</span>
                                 </div>
                                 {item.notes && (
@@ -736,6 +797,18 @@ export default function HostPanel({
                                         }}
                                       >
                                         ⭐ Set Active
+                                      </button>
+                                    )}
+                                    {item.type === "proposal" && onToggleBallot && (
+                                      <button
+                                        className="menuItem"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onToggleBallot(item.id);
+                                          setOpenMenuId(null);
+                                        }}
+                                      >
+                                        {item.onBallot ? "❌ Remove from Ballot" : "🗳️ Add to Ballot"}
                                       </button>
                                     )}
                                     <button
@@ -840,6 +913,41 @@ export default function HostPanel({
                 onChange={(e) => setNewAgendaNotes(e.target.value)}
                 rows="2"
               />
+              <label className="label">Type</label>
+              <select
+                className="input mb-sm"
+                value={newAgendaType}
+                onChange={(e) => setNewAgendaType(e.target.value)}
+              >
+                <option value="normal">Normal Item</option>
+                <option value="proposal">Proposal Item</option>
+              </select>
+              {newAgendaType === "proposal" && (
+                <>
+                  <label className="label">Proposal Description</label>
+                  <textarea
+                    className="input mb-sm"
+                    placeholder="Description of the proposal"
+                    value={newAgendaDescription}
+                    onChange={(e) => setNewAgendaDescription(e.target.value)}
+                    rows="2"
+                  />
+                  <label className="label">Proposal Link</label>
+                  <input
+                    className="input mb-sm"
+                    placeholder="https://... (link to proposal document)"
+                    value={newAgendaLink}
+                    onChange={(e) => setNewAgendaLink(e.target.value)}
+                  />
+                </>
+              )}
+              <label className="label">Category (optional)</label>
+              <input
+                className="input mb-sm"
+                placeholder="e.g., Rules, Budget, Draft"
+                value={newAgendaCategory}
+                onChange={(e) => setNewAgendaCategory(e.target.value)}
+              />
               <button
                 className="btn btnPrimary btnFull"
                 onClick={() => {
@@ -849,11 +957,15 @@ export default function HostPanel({
                     const validSecs = Math.max(0, Math.min(59, secs));
                     const totalSeconds = mins * 60 + validSecs;
                     
-                    onAddAgenda(newAgendaTitle, totalSeconds, newAgendaNotes);
+                    onAddAgenda(newAgendaTitle, totalSeconds, newAgendaNotes, newAgendaType, newAgendaDescription, newAgendaLink, newAgendaCategory);
                     setNewAgendaTitle("");
                     setNewAgendaMinutes("");
                     setNewAgendaSeconds("");
                     setNewAgendaNotes("");
+                    setNewAgendaType("normal");
+                    setNewAgendaDescription("");
+                    setNewAgendaLink("");
+                    setNewAgendaCategory("");
                   }
                 }}
               >
@@ -963,6 +1075,164 @@ export default function HostPanel({
             </div>
           )}
         </div>
+
+        {/* Ballot Queue */}
+        {state.agenda && state.agenda.some(item => item.type === "proposal") && (
+          <div className="card card-compact mb-lg">
+            <div className="cardHeader">
+              <h4 className="cardTitle">Ballot Queue</h4>
+            </div>
+            <div className="cardBody">
+              {state.agenda.filter(item => item.onBallot).length > 0 ? (
+                <div>
+                  {state.agenda
+                    .filter(item => item.onBallot)
+                    .map((item, index) => (
+                      <div 
+                        key={item.id}
+                        style={{
+                          padding: "var(--spacing-sm)",
+                          marginBottom: "var(--spacing-xs)",
+                          backgroundColor: "rgba(191, 153, 68, 0.1)",
+                          border: "1px solid var(--color-accent)",
+                          borderRadius: "var(--radius-md)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center"
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: "var(--font-weight-semibold)" }}>
+                            {index + 1}. {item.title}
+                          </div>
+                          {item.description && (
+                            <div style={{ fontSize: "var(--font-size-xs)", opacity: 0.8, marginTop: "var(--spacing-xs)" }}>
+                              {item.description}
+                            </div>
+                          )}
+                        </div>
+                        {onToggleBallot && (
+                          <button
+                            className="btn btnSmall btnDanger"
+                            onClick={() => onToggleBallot(item.id)}
+                            title="Remove from ballot"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: "center", opacity: 0.6, padding: "var(--spacing-md)" }}>
+                  No proposals on ballot. Use the "Add to Ballot" option in proposal items' quick actions menu.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Category Budget Management */}
+        {state.agenda && state.agenda.some(item => item.category) && (
+          <div className="card card-compact mb-lg">
+            <div className="cardHeader">
+              <h4 className="cardTitle">Category Timeboxing</h4>
+            </div>
+            <div className="cardBody">
+              {(() => {
+                // Calculate category totals and budgets
+                const categories = {};
+                state.agenda.forEach(item => {
+                  if (item.category) {
+                    if (!categories[item.category]) {
+                      categories[item.category] = {
+                        totalDuration: 0,
+                        budget: state.categoryBudgets?.[item.category] || 0,
+                        items: []
+                      };
+                    }
+                    categories[item.category].totalDuration += item.durationSec || 0;
+                    categories[item.category].items.push(item);
+                  }
+                });
+
+                return Object.keys(categories).map(category => {
+                  const { totalDuration, budget, items } = categories[category];
+                  const overBudget = budget > 0 && totalDuration > budget;
+                  const utilizationPercent = budget > 0 ? Math.round((totalDuration / budget) * 100) : 0;
+
+                  return (
+                    <div 
+                      key={category}
+                      style={{
+                        padding: "var(--spacing-md)",
+                        marginBottom: "var(--spacing-sm)",
+                        backgroundColor: overBudget ? "rgba(255, 69, 58, 0.1)" : "rgba(255, 255, 255, 0.05)",
+                        border: `1px solid ${overBudget ? "var(--color-danger)" : "var(--color-border-subtle)"}`,
+                        borderRadius: "var(--radius-md)"
+                      }}
+                    >
+                      <div style={{ 
+                        display: "flex", 
+                        justifyContent: "space-between", 
+                        alignItems: "center",
+                        marginBottom: "var(--spacing-sm)"
+                      }}>
+                        <div style={{ fontWeight: "var(--font-weight-semibold)", fontSize: "var(--font-size-base)" }}>
+                          🏷️ {category}
+                        </div>
+                        <div style={{ fontSize: "var(--font-size-sm)" }}>
+                          {items.length} item{items.length !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--spacing-xs)" }}>
+                        <strong>Total Duration:</strong> {formatTime(totalDuration)}
+                        {budget > 0 && (
+                          <>
+                            {" / "}
+                            <strong>Budget:</strong> {formatTime(budget)}
+                            {overBudget && (
+                              <span style={{ color: "var(--color-danger)", marginLeft: "var(--spacing-xs)" }}>
+                                ⚠️ {formatTime(totalDuration - budget)} over!
+                              </span>
+                            )}
+                            {!overBudget && totalDuration < budget && (
+                              <span style={{ color: "var(--color-success)", marginLeft: "var(--spacing-xs)" }}>
+                                ✓ {formatTime(budget - totalDuration)} remaining
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      {budget > 0 && (
+                        <div style={{ 
+                          height: "4px", 
+                          backgroundColor: "rgba(255, 255, 255, 0.1)", 
+                          borderRadius: "2px",
+                          overflow: "hidden",
+                          marginTop: "var(--spacing-xs)"
+                        }}>
+                          <div style={{
+                            height: "100%",
+                            width: `${Math.min(utilizationPercent, 100)}%`,
+                            backgroundColor: overBudget ? "var(--color-danger)" : "var(--color-success)",
+                            transition: "width 0.3s ease"
+                          }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+              <div style={{ marginTop: "var(--spacing-md)" }}>
+                <label className="label">Set Category Budget (optional)</label>
+                <div style={{ fontSize: "var(--font-size-xs)", opacity: 0.7, marginBottom: "var(--spacing-sm)" }}>
+                  Set time budgets for categories to track timebox compliance.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Voting Controls */}
         <div className="card card-compact">
