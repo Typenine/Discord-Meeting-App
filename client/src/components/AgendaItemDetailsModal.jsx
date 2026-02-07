@@ -195,12 +195,12 @@ export default function AgendaItemDetailsModal({
                     transition: "all var(--transition-fast)"
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "rgba(191, 153, 68, 0.3)";
-                    e.target.style.transform = "translateY(-1px)";
+                    e.currentTarget.style.backgroundColor = "rgba(191, 153, 68, 0.3)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "rgba(191, 153, 68, 0.2)";
-                    e.target.style.transform = "translateY(0)";
+                    e.currentTarget.style.backgroundColor = "rgba(191, 153, 68, 0.2)";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
                   🔗 Open Proposal Link
