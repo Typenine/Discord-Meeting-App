@@ -1769,7 +1769,7 @@ export default function StandaloneApp() {
                         setSetupAgendaLinkError(validation.error);
                       }}
                       placeholder="https://example.com/proposal"
-                      style={{ marginBottom: "var(--spacing-xs)" }}
+                      style={{ marginBottom: setupAgendaLinkError ? "var(--spacing-xs)" : "var(--spacing-md)" }}
                     />
                     {setupAgendaLinkError && (
                       <div style={{
@@ -1779,9 +1779,6 @@ export default function StandaloneApp() {
                       }}>
                         {setupAgendaLinkError}
                       </div>
-                    )}
-                    {!setupAgendaLinkError && (
-                      <div style={{ marginBottom: "var(--spacing-md)" }} />
                     )}
                   </>
                 )}
