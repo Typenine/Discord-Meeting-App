@@ -246,9 +246,9 @@ export function createApp(config = {}) {
   // Add a new agenda item
   apiRouter.post('/session/:id/agenda', (req, res) => {
     const sessionId = req.params.id;
-    const { userId, title, durationSec, type, description, link, category } = req.body || {};
+    const { userId, title, durationSec, type, description, link, category, imageUrl, imageDataUrl } = req.body || {};
     if (!userId || !title) return res.status(400).json({ error: 'missing_fields' });
-    const state = store.addAgenda({ sessionId, userId, title, durationSec, type, description, link, category });
+    const state = store.addAgenda({ sessionId, userId, title, durationSec, type, description, link, category, imageUrl, imageDataUrl });
     if (!state) {
       console.warn('[Authorization] User attempted agenda operation without host access:', {
         sessionId,
@@ -265,9 +265,9 @@ export function createApp(config = {}) {
   apiRouter.put('/session/:id/agenda/:agendaId', (req, res) => {
     const sessionId = req.params.id;
     const { agendaId } = req.params;
-    const { userId, title, durationSec, notes, type, description, link, category, onBallot } = req.body || {};
+    const { userId, title, durationSec, notes, type, description, link, category, onBallot, imageUrl, imageDataUrl } = req.body || {};
     if (!userId) return res.status(400).json({ error: 'missing_userId' });
-    const state = store.updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes, type, description, link, category, onBallot });
+    const state = store.updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes, type, description, link, category, onBallot, imageUrl, imageDataUrl });
     if (!state) {
       console.warn('[Authorization] User attempted agenda update without host access:', {
         sessionId,
