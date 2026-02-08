@@ -28,6 +28,16 @@ function validateUrl(url, source) {
   return urlStr;
 }
 
+// Validate link URL for agenda items
+function validateAgendaLink(link) {
+  if (!link || link.trim() === "") return { valid: true, error: "" };
+  const trimmed = link.trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return { valid: true, error: "" };
+  }
+  return { valid: false, error: "Link must start with http:// or https://" };
+}
+
 // Log configuration at module load time
 const RAW_VITE_WORKER_DOMAIN = import.meta.env.VITE_WORKER_DOMAIN;
 const RAW_VITE_API_BASE = import.meta.env.VITE_API_BASE;
@@ -132,6 +142,11 @@ export default function StandaloneApp() {
   const [setupAgendaMinutes, setSetupAgendaMinutes] = useState("");
   const [setupAgendaSeconds, setSetupAgendaSeconds] = useState("");
   const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
+  const [setupAgendaType, setSetupAgendaType] = useState("normal");
+  const [setupAgendaDescription, setSetupAgendaDescription] = useState("");
+  const [setupAgendaLink, setSetupAgendaLink] = useState("");
+  const [setupAgendaCategory, setSetupAgendaCategory] = useState("");
+  const [setupAgendaLinkError, setSetupAgendaLinkError] = useState("");
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [savedAgendaTemplates, setSavedAgendaTemplates] = useState(() => {
     // Load saved templates from localStorage on mount
@@ -155,7 +170,12 @@ export default function StandaloneApp() {
                 typeof item.durationSec === 'number' &&
                 !isNaN(item.durationSec) &&
                 item.durationSec >= 0 &&
-                (item.notes === undefined || typeof item.notes === 'string')
+                (item.notes === undefined || typeof item.notes === 'string') &&
+                (item.type === undefined || item.type === 'normal' || item.type === 'proposal') &&
+                (item.description === undefined || typeof item.description === 'string') &&
+                (item.link === undefined || typeof item.link === 'string') &&
+                (item.category === undefined || typeof item.category === 'string') &&
+                (item.onBallot === undefined || typeof item.onBallot === 'boolean')
               )
             );
           }
@@ -250,7 +270,12 @@ export default function StandaloneApp() {
       items: setupAgenda.map(item => ({
         title: item.title,
         durationSec: item.durationSec,
-        notes: item.notes || ""
+        notes: item.notes || "",
+        type: item.type || "normal",
+        description: item.description || "",
+        link: item.link || "",
+        category: item.category || "",
+        onBallot: item.onBallot || false
       }))
     };
     
@@ -1711,6 +1736,65 @@ export default function StandaloneApp() {
                   </div>
                 </div>
                 
+                <label className="label">Type</label>
+                <select
+                  className="input"
+                  value={setupAgendaType}
+                  onChange={(e) => setSetupAgendaType(e.target.value)}
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="proposal">Proposal</option>
+                </select>
+                
+                {setupAgendaType === "proposal" && (
+                  <>
+                    <label className="label">Description</label>
+                    <textarea 
+                      className="input"
+                      value={setupAgendaDescription}
+                      onChange={(e) => setSetupAgendaDescription(e.target.value)}
+                      placeholder="Proposal description"
+                      rows="3"
+                      style={{ marginBottom: "var(--spacing-md)" }}
+                    />
+                    
+                    <label className="label">Link</label>
+                    <input 
+                      className="input"
+                      value={setupAgendaLink}
+                      onChange={(e) => {
+                        setSetupAgendaLink(e.target.value);
+                        const validation = validateAgendaLink(e.target.value);
+                        setSetupAgendaLinkError(validation.error);
+                      }}
+                      placeholder="https://example.com/proposal"
+                      style={{ marginBottom: "var(--spacing-xs)" }}
+                    />
+                    {setupAgendaLinkError && (
+                      <div style={{
+                        color: "var(--color-danger, #dc3545)",
+                        fontSize: "var(--font-size-sm)",
+                        marginBottom: "var(--spacing-md)"
+                      }}>
+                        {setupAgendaLinkError}
+                      </div>
+                    )}
+                    {!setupAgendaLinkError && (
+                      <div style={{ marginBottom: "var(--spacing-md)" }} />
+                    )}
+                  </>
+                )}
+                
+                <label className="label">Category (optional)</label>
+                <input 
+                  className="input"
+                  value={setupAgendaCategory}
+                  onChange={(e) => setSetupAgendaCategory(e.target.value)}
+                  placeholder="e.g., Budget, Rules, Planning"
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                />
+                
                 <label className="label">Notes (optional)</label>
                 <textarea 
                   className="input"
@@ -1725,6 +1809,16 @@ export default function StandaloneApp() {
                   className="btn btnSecondary btnFull"
                   onClick={() => {
                     if (!setupAgendaTitle) return;
+                    
+                    // Validate link if it's a proposal
+                    if (setupAgendaType === "proposal" && setupAgendaLink) {
+                      const validation = validateAgendaLink(setupAgendaLink);
+                      if (!validation.valid) {
+                        setSetupAgendaLinkError(validation.error);
+                        return;
+                      }
+                    }
+                    
                     const mins = parseInt(setupAgendaMinutes) || 0;
                     const secs = parseInt(setupAgendaSeconds) || 0;
                     // Safety clamp (redundant with input validation but defensive)
@@ -1737,7 +1831,12 @@ export default function StandaloneApp() {
                         id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `a${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         title: setupAgendaTitle,
                         durationSec: totalSeconds,
-                        notes: setupAgendaNotes
+                        notes: setupAgendaNotes,
+                        type: setupAgendaType,
+                        description: setupAgendaType === "proposal" ? setupAgendaDescription : "",
+                        link: setupAgendaType === "proposal" ? setupAgendaLink : "",
+                        category: setupAgendaCategory,
+                        onBallot: false
                       }
                     ]);
                     
@@ -1746,8 +1845,13 @@ export default function StandaloneApp() {
                     setSetupAgendaMinutes("");
                     setSetupAgendaSeconds("");
                     setSetupAgendaNotes("");
+                    setSetupAgendaType("normal");
+                    setSetupAgendaDescription("");
+                    setSetupAgendaLink("");
+                    setSetupAgendaCategory("");
+                    setSetupAgendaLinkError("");
                   }}
-                  disabled={!setupAgendaTitle}
+                  disabled={!setupAgendaTitle || (setupAgendaType === "proposal" && setupAgendaLinkError)}
                 >
                   + Add to Agenda
                 </button>
