@@ -587,6 +587,122 @@ export class MeetingRoom {
     this.voteBatchPending = false;
   }
 
+  // ---- Template Persistence Methods ----
+  // Templates are stored per userId (clientId) using Durable Object storage
+  // This ensures templates persist across deployments and new Vercel URLs
+  // Max templates per user to prevent storage bloat
+  static MAX_TEMPLATES_PER_USER = 50;
+
+  async getTemplatesForUser(userId) {
+    if (!userId) return [];
+    const key = `templates:${userId}`;
+    try {
+      const stored = await this.state.storage.get(key);
+      return stored || [];
+    } catch (e) {
+      console.error(`[getTemplatesForUser] Error loading templates for ${userId}:`, e);
+      return [];
+    }
+  }
+
+  async saveTemplatesForUser(userId, templates) {
+    if (!userId) return false;
+    const key = `templates:${userId}`;
+    try {
+      await this.state.storage.put(key, templates);
+      return true;
+    } catch (e) {
+      console.error(`[saveTemplatesForUser] Error saving templates for ${userId}:`, e);
+      return false;
+    }
+  }
+
+  // Atomic add operation - uses storage transaction to prevent race conditions
+  async addTemplateForUser(userId, template) {
+    if (!userId) return { success: false, error: 'invalid_user' };
+    const key = `templates:${userId}`;
+    try {
+      // Use storage.transaction for atomicity
+      await this.state.storage.transaction(async (txn) => {
+        const templates = (await txn.get(key)) || [];
+        
+        // Check template limit
+        if (templates.length >= MeetingRoom.MAX_TEMPLATES_PER_USER) {
+          throw new Error('max_templates_exceeded');
+        }
+        
+        templates.push(template);
+        await txn.put(key, templates);
+      });
+      return { success: true };
+    } catch (e) {
+      if (e.message === 'max_templates_exceeded') {
+        return { success: false, error: 'max_templates_exceeded', limit: MeetingRoom.MAX_TEMPLATES_PER_USER };
+      }
+      console.error(`[addTemplateForUser] Error adding template for ${userId}:`, e);
+      return { success: false, error: 'storage_error' };
+    }
+  }
+
+  // Atomic delete operation - uses storage transaction to prevent race conditions
+  async deleteTemplateForUser(userId, templateId) {
+    if (!userId) return { success: false, error: 'invalid_user' };
+    const key = `templates:${userId}`;
+    try {
+      let deleted = null;
+      let templates = [];
+      
+      // Use storage.transaction for atomicity
+      await this.state.storage.transaction(async (txn) => {
+        templates = (await txn.get(key)) || [];
+        const index = templates.findIndex(t => t.id === templateId);
+        if (index === -1) {
+          throw new Error('not_found');
+        }
+        deleted = templates.splice(index, 1)[0];
+        await txn.put(key, templates);
+      });
+      
+      return { success: true, deleted, templates };
+    } catch (e) {
+      if (e.message === 'not_found') {
+        return { success: false, error: 'not_found' };
+      }
+      console.error(`[deleteTemplateForUser] Error deleting template for ${userId}:`, e);
+      return { success: false, error: 'storage_error' };
+    }
+  }
+
+  // Atomic import operation - uses storage transaction to prevent race conditions
+  async importTemplatesForUser(userId, newTemplates) {
+    if (!userId) return { success: false, error: 'invalid_user' };
+    const key = `templates:${userId}`;
+    try {
+      let allTemplates = [];
+      
+      // Use storage.transaction for atomicity
+      await this.state.storage.transaction(async (txn) => {
+        const existing = (await txn.get(key)) || [];
+        allTemplates = [...existing, ...newTemplates];
+        
+        // Check template limit
+        if (allTemplates.length > MeetingRoom.MAX_TEMPLATES_PER_USER) {
+          throw new Error('max_templates_exceeded');
+        }
+        
+        await txn.put(key, allTemplates);
+      });
+      
+      return { success: true, templates: allTemplates };
+    } catch (e) {
+      if (e.message === 'max_templates_exceeded') {
+        return { success: false, error: 'max_templates_exceeded', limit: MeetingRoom.MAX_TEMPLATES_PER_USER };
+      }
+      console.error(`[importTemplatesForUser] Error importing templates for ${userId}:`, e);
+      return { success: false, error: 'storage_error' };
+    }
+  }
+
   async fetch(request) {
     if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
@@ -838,10 +954,16 @@ export class MeetingRoom {
           hostKeyFallback: !!session.hostKeyFallback,
         });
 
+        // Load user's templates from persistent storage
+        // This ensures templates are available even after deployments
+        const userTemplates = await this.getTemplatesForUser(identifier);
+        console.log(`[WS HELLO] Loaded ${userTemplates.length} templates for user ${identifier}`);
+
         ws.send(JSON.stringify({ 
           type: "HELLO_ACK", 
           isHost,
           serverNow: Date.now(),
+          templates: userTemplates, // Send templates immediately on connect
         }));
         this.broadcastState();
         return;
@@ -1139,11 +1261,6 @@ export class MeetingRoom {
               break;
             }
             
-            // Ensure templates array exists (for backward compatibility)
-            if (!session.templates) {
-              session.templates = [];
-            }
-            
             const now = Date.now();
             const template = {
               id: crypto.randomUUID(),
@@ -1164,17 +1281,34 @@ export class MeetingRoom {
               }))
             };
             
-            session.templates.push(template);
-            session.log.push({ ts: now, type: "TEMPLATE_SAVED", templateId: template.id, name: template.name });
-            console.log("[TEMPLATE_SAVE]", { templateId: template.id, name: template.name });
+            // Save to persistent storage using userId (clientId)
+            const result = await this.addTemplateForUser(meta.clientId, template);
+            
+            if (!result.success) {
+              const errorMsg = result.error === 'max_templates_exceeded'
+                ? `Maximum template limit (${result.limit}) reached. Delete at least one to save new ones.`
+                : "Failed to save template to persistent storage";
+              ws.send(JSON.stringify({ 
+                type: "ERROR", 
+                error: result.error || "storage_failed", 
+                message: errorMsg
+              }));
+              break;
+            }
+            
+            // Get updated template list
+            const userTemplates = await this.getTemplatesForUser(meta.clientId);
+            
+            session.log.push({ ts: now, type: "TEMPLATE_SAVED", templateId: template.id, name: template.name, userId: meta.clientId });
+            console.log("[TEMPLATE_SAVE]", { templateId: template.id, name: template.name, userId: meta.clientId });
             
             // Send confirmation with template list
             ws.send(JSON.stringify({ 
               type: "TEMPLATE_SAVED", 
               template,
-              templates: session.templates 
+              templates: userTemplates 
             }));
-            // No broadcast needed - templates are host-specific
+            // No broadcast needed - templates are user-specific
           }
           break;
         
@@ -1190,40 +1324,33 @@ export class MeetingRoom {
               break;
             }
             
-            // Ensure templates array exists
-            if (!session.templates) {
-              session.templates = [];
-            }
+            // Delete from persistent storage
+            const result = await this.deleteTemplateForUser(meta.clientId, templateId);
             
-            const index = session.templates.findIndex(t => t.id === templateId);
-            if (index === -1) {
+            if (!result.success) {
               ws.send(JSON.stringify({ type: "ERROR", error: "not_found", message: "Template not found" }));
               break;
             }
             
-            const deletedTemplate = session.templates[index];
-            session.templates.splice(index, 1);
-            session.log.push({ ts: Date.now(), type: "TEMPLATE_DELETED", templateId, name: deletedTemplate.name });
-            console.log("[TEMPLATE_DELETE]", { templateId, name: deletedTemplate.name });
+            session.log.push({ ts: Date.now(), type: "TEMPLATE_DELETED", templateId, name: result.deleted.name, userId: meta.clientId });
+            console.log("[TEMPLATE_DELETE]", { templateId, name: result.deleted.name, userId: meta.clientId });
             
             ws.send(JSON.stringify({ 
               type: "TEMPLATE_DELETED", 
               templateId,
-              templates: session.templates 
+              templates: result.templates 
             }));
           }
           break;
         
         case "TEMPLATE_LIST":
           {
-            // Ensure templates array exists
-            if (!session.templates) {
-              session.templates = [];
-            }
+            // Load templates from persistent storage for this user
+            const userTemplates = await this.getTemplatesForUser(meta.clientId);
             
             ws.send(JSON.stringify({ 
               type: "TEMPLATE_LIST", 
-              templates: session.templates 
+              templates: userTemplates 
             }));
           }
           break;
@@ -1238,11 +1365,6 @@ export class MeetingRoom {
             if (!Array.isArray(templates)) {
               ws.send(JSON.stringify({ type: "ERROR", error: "invalid_templates", message: "Templates must be an array" }));
               break;
-            }
-            
-            // Ensure templates array exists
-            if (!session.templates) {
-              session.templates = [];
             }
             
             const now = Date.now();
@@ -1260,17 +1382,33 @@ export class MeetingRoom {
                 link: String(item.link || ''),
                 category: String(item.category || ''),
                 onBallot: Boolean(item.onBallot),
+                imageUrl: String(item.imageUrl || ''),
+                imageDataUrl: String(item.imageDataUrl || '')
               }))
             }));
             
-            session.templates.push(...imported);
-            session.log.push({ ts: now, type: "TEMPLATES_IMPORTED", count: imported.length });
-            console.log("[TEMPLATE_IMPORT]", { count: imported.length });
+            // Atomic import operation using transaction
+            const result = await this.importTemplatesForUser(meta.clientId, imported);
+            
+            if (!result.success) {
+              const errorMsg = result.error === 'max_templates_exceeded'
+                ? `Maximum template limit (${result.limit}) reached. You have too many templates. Delete some to import new ones.`
+                : "Failed to import templates to persistent storage";
+              ws.send(JSON.stringify({ 
+                type: "ERROR", 
+                error: result.error || "storage_failed", 
+                message: errorMsg
+              }));
+              break;
+            }
+            
+            session.log.push({ ts: now, type: "TEMPLATES_IMPORTED", count: imported.length, userId: meta.clientId });
+            console.log("[TEMPLATE_IMPORT]", { count: imported.length, userId: meta.clientId });
             
             ws.send(JSON.stringify({ 
               type: "TEMPLATES_IMPORTED", 
               count: imported.length,
-              templates: session.templates 
+              templates: result.templates 
             }));
           }
           break;
