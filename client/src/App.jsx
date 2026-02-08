@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import AgendaItemDetailsModal from "./components/AgendaItemDetailsModal.jsx";
+import { formatTime } from "./utils/timeFormat.js";
 import logo from "./assets/league-meeting-logo.png";
 
 const UI_VERSION = "WAR-ROOM-001";
@@ -431,8 +433,8 @@ export default function App() {
   };
 
   // Agenda operations
-  const addAgenda = async (title, durationSec) => {
-    const data = await post(`/session/${sessionId}/agenda`, { userId, title, durationSec });
+  const addAgenda = async (title, durationSec, notes, type, description, link, category, imageUrl, imageDataUrl) => {
+    const data = await post(`/session/${sessionId}/agenda`, { userId, title, durationSec, notes, type, description, link, category, imageUrl, imageDataUrl });
     if (data && data.state) {
       setState(data.state);
       setRevision(data.revision);
@@ -517,6 +519,7 @@ export default function App() {
   const [newAgendaDuration, setNewAgendaDuration] = useState("");
   const [voteQuestion, setVoteQuestion] = useState("");
   const [voteOptions, setVoteOptions] = useState("Yes,No,Abstain");
+  const [selectedAgendaItem, setSelectedAgendaItem] = useState(null);
   
   // Setup form states
   const [setupMeetingName, setSetupMeetingName] = useState("East v. West League Meeting");
@@ -525,6 +528,10 @@ export default function App() {
   const [setupAgendaMinutes, setSetupAgendaMinutes] = useState("");
   const [setupAgendaSeconds, setSetupAgendaSeconds] = useState("");
   const [setupAgendaNotes, setSetupAgendaNotes] = useState("");
+  const [setupAgendaType, setSetupAgendaType] = useState("normal");
+  const [setupAgendaDescription, setSetupAgendaDescription] = useState("");
+  const [setupAgendaLink, setSetupAgendaLink] = useState("");
+  const [setupAgendaCategory, setSetupAgendaCategory] = useState("");
 
   return (
     <div className="appShell">
@@ -704,7 +711,11 @@ export default function App() {
                       }}
                     >
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: "var(--font-weight-semibold)" }}>{item.title}</div>
+                        <div style={{ fontWeight: "var(--font-weight-semibold)" }}>
+                          {item.title}
+                          {item.type === "proposal" && <span className="pill pill-accent" style={{ marginLeft: "var(--spacing-xs)" }}>📋 Proposal</span>}
+                          {item.category && <span className="pill pill-neutral" style={{ marginLeft: "var(--spacing-xs)" }}>🏷️ {item.category}</span>}
+                        </div>
                         <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.7 }}>
                           Duration: {Math.floor(item.durationSec / 60)}m {item.durationSec % 60}s
                         </div>
@@ -777,6 +788,49 @@ export default function App() {
                   style={{ marginBottom: "var(--spacing-md)" }}
                 />
                 
+                <label className="label">Type</label>
+                <select
+                  className="input"
+                  value={setupAgendaType}
+                  onChange={(e) => setSetupAgendaType(e.target.value)}
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="proposal">Proposal</option>
+                </select>
+                
+                {setupAgendaType === "proposal" && (
+                  <>
+                    <label className="label">Description</label>
+                    <textarea 
+                      className="input"
+                      value={setupAgendaDescription}
+                      onChange={(e) => setSetupAgendaDescription(e.target.value)}
+                      placeholder="Proposal description"
+                      rows="3"
+                      style={{ marginBottom: "var(--spacing-md)" }}
+                    />
+                    
+                    <label className="label">Link</label>
+                    <input 
+                      className="input"
+                      value={setupAgendaLink}
+                      onChange={(e) => setSetupAgendaLink(e.target.value)}
+                      placeholder="https://example.com/proposal"
+                      style={{ marginBottom: "var(--spacing-md)" }}
+                    />
+                  </>
+                )}
+                
+                <label className="label">Category (optional)</label>
+                <input 
+                  className="input"
+                  value={setupAgendaCategory}
+                  onChange={(e) => setSetupAgendaCategory(e.target.value)}
+                  placeholder="e.g., Budget, Rules, Planning"
+                  style={{ marginBottom: "var(--spacing-md)" }}
+                />
+                
                 <button 
                   className="btn btnSecondary btnFull"
                   onClick={() => {
@@ -791,7 +845,11 @@ export default function App() {
                       {
                         title: setupAgendaTitle,
                         durationSec: totalSeconds,
-                        notes: setupAgendaNotes
+                        notes: setupAgendaNotes,
+                        type: setupAgendaType,
+                        description: setupAgendaType === "proposal" ? setupAgendaDescription : "",
+                        link: setupAgendaType === "proposal" ? setupAgendaLink : "",
+                        category: setupAgendaCategory
                       }
                     ]);
                     
@@ -800,6 +858,10 @@ export default function App() {
                     setSetupAgendaMinutes("");
                     setSetupAgendaSeconds("");
                     setSetupAgendaNotes("");
+                    setSetupAgendaType("normal");
+                    setSetupAgendaDescription("");
+                    setSetupAgendaLink("");
+                    setSetupAgendaCategory("");
                   }}
                   disabled={!setupAgendaTitle}
                 >
@@ -973,8 +1035,12 @@ export default function App() {
           <h3 style={{ marginBottom: "var(--spacing-md)" }}>Agenda</h3>
           <ul style={{ marginBottom: "var(--spacing-lg)", paddingLeft: "var(--spacing-xl)" }}>
             {state.agenda.map((item) => (
-              <li key={item.id} style={{ marginBottom: "var(--spacing-md)" }}>
-                <strong>{item.title}</strong> ({item.durationSec || 0}s) {state.currentAgendaItemId === item.id && <span>[Active]</span>}
+              <li key={item.id} style={{ marginBottom: "var(--spacing-md)", cursor: "pointer" }}>
+                <span onClick={() => setSelectedAgendaItem(item)} title="Click to view details">
+                  <strong>{item.title}</strong> ({formatTime(item.durationSec || 0)}) {state.currentAgendaItemId === item.id && <span>[Active]</span>}
+                  {item.type === "proposal" && <span className="pill pill-accent" style={{ marginLeft: "var(--spacing-xs)" }}>📋 Proposal</span>}
+                  {item.category && <span className="pill pill-neutral" style={{ marginLeft: "var(--spacing-xs)" }}>🏷️ {item.category}</span>}
+                </span>
                 {isHost && (
                   <>
                     <button className="btn btnSmall btnSecondary" onClick={() => setActiveAgenda(item.id)} style={{ marginLeft: "var(--spacing-sm)" }}>Set Active</button>
@@ -1086,6 +1152,15 @@ export default function App() {
             <div style={{ marginTop: "var(--spacing-2xl)" }}>
               <button className="btn btnDanger btnLarge" onClick={endMeeting}>End meeting</button>
             </div>
+          )}
+          
+          {/* Agenda Item Details Modal */}
+          {selectedAgendaItem && (
+            <AgendaItemDetailsModal
+              item={selectedAgendaItem}
+              formatTime={formatTime}
+              onClose={() => setSelectedAgendaItem(null)}
+            />
           )}
         </div>
       )}

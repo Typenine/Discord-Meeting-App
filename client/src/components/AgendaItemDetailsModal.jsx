@@ -108,6 +108,36 @@ export default function AgendaItemDetailsModal({
         <div style={{
           padding: "var(--spacing-lg)"
         }}>
+          {/* Type indicator for proposals */}
+          {item.type === "proposal" && !item.description && !item.link && (
+            <div style={{
+              marginBottom: "var(--spacing-lg)",
+              padding: "var(--spacing-md)",
+              backgroundColor: "rgba(191, 153, 68, 0.1)",
+              border: "1px solid var(--color-accent)",
+              borderRadius: "var(--radius-md)",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--spacing-sm)"
+            }}>
+              <span style={{ color: "var(--color-accent)", fontWeight: "var(--font-weight-semibold)" }}>
+                📋 Proposal Item
+              </span>
+              {item.onBallot && (
+                <span style={{
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "var(--font-weight-semibold)",
+                  backgroundColor: "var(--color-accent)",
+                  color: "var(--color-bg)",
+                  padding: "var(--spacing-xs) var(--spacing-sm)",
+                  borderRadius: "var(--radius-sm)"
+                }}>
+                  ON BALLOT
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Notes */}
           {item.notes && (
             <div style={{ marginBottom: "var(--spacing-lg)" }}>
@@ -282,6 +312,19 @@ export default function AgendaItemDetailsModal({
                   }}
                 />
               </div>
+            </div>
+          )}
+
+          {/* No additional details fallback */}
+          {!item.notes && !(item.type === "proposal") && !item.category && !(item.imageDataUrl || item.imageUrl) && (
+            <div style={{
+              fontSize: "var(--font-size-base)",
+              color: "var(--color-text-muted)",
+              fontStyle: "italic",
+              textAlign: "center",
+              padding: "var(--spacing-lg)"
+            }}>
+              No additional details for this agenda item.
             </div>
           )}
         </div>
