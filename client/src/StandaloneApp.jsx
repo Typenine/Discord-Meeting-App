@@ -7,6 +7,7 @@ import ShareModal from "./components/ShareModal.jsx";
 import PopoutView from "./components/PopoutView.jsx";
 import { formatTime } from "./utils/timeFormat.js";
 import { generateViewerLink, generateHostLink, openPopoutWindow, isPopoutMode, isAttendeeViewMode } from "./utils/linkHelpers.js";
+import { processImageFile, validateImageUrl } from "./utils/imageProcessing.js";
 import logo from "./assets/league-meeting-logo.png";
 import "./styles/theme.css";
 import "./styles/layout.css";
@@ -147,6 +148,10 @@ export default function StandaloneApp() {
   const [setupAgendaLink, setSetupAgendaLink] = useState("");
   const [setupAgendaCategory, setSetupAgendaCategory] = useState("");
   const [setupAgendaLinkError, setSetupAgendaLinkError] = useState("");
+  const [setupAgendaImageUrl, setSetupAgendaImageUrl] = useState("");
+  const [setupAgendaImageDataUrl, setSetupAgendaImageDataUrl] = useState("");
+  const [setupAgendaImageError, setSetupAgendaImageError] = useState("");
+  const [setupAgendaImageProcessing, setSetupAgendaImageProcessing] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [savedAgendaTemplates, setSavedAgendaTemplates] = useState(() => {
     // Load saved templates from localStorage on mount
@@ -175,7 +180,9 @@ export default function StandaloneApp() {
                 (item.description === undefined || typeof item.description === 'string') &&
                 (item.link === undefined || typeof item.link === 'string') &&
                 (item.category === undefined || typeof item.category === 'string') &&
-                (item.onBallot === undefined || typeof item.onBallot === 'boolean')
+                (item.onBallot === undefined || typeof item.onBallot === 'boolean') &&
+                (item.imageUrl === undefined || typeof item.imageUrl === 'string') &&
+                (item.imageDataUrl === undefined || typeof item.imageDataUrl === 'string')
               )
             );
           }
@@ -275,7 +282,9 @@ export default function StandaloneApp() {
         description: item.description || "",
         link: item.link || "",
         category: item.category || "",
-        onBallot: item.onBallot || false
+        onBallot: item.onBallot || false,
+        imageUrl: item.imageUrl || "",
+        imageDataUrl: item.imageDataUrl || ""
       }))
     };
     
@@ -1792,6 +1801,141 @@ export default function StandaloneApp() {
                   style={{ marginBottom: "var(--spacing-md)" }}
                 />
                 
+                <label className="label">Image (optional)</label>
+                <div style={{ marginBottom: "var(--spacing-md)" }}>
+                  {/* Upload from computer */}
+                  <div style={{ marginBottom: "var(--spacing-sm)" }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        
+                        setSetupAgendaImageProcessing(true);
+                        setSetupAgendaImageError("");
+                        
+                        const result = await processImageFile(file);
+                        setSetupAgendaImageProcessing(false);
+                        
+                        if (result.success) {
+                          setSetupAgendaImageDataUrl(result.dataUrl);
+                          setSetupAgendaImageUrl(""); // Clear URL if data URL is set
+                        } else {
+                          setSetupAgendaImageError(result.error);
+                        }
+                        
+                        // Reset file input
+                        e.target.value = "";
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "var(--spacing-sm)",
+                        fontSize: "var(--font-size-sm)"
+                      }}
+                      disabled={setupAgendaImageProcessing}
+                    />
+                  </div>
+                  
+                  {/* Or use URL */}
+                  <div style={{ marginTop: "var(--spacing-sm)" }}>
+                    <input 
+                      className="input"
+                      value={setupAgendaImageUrl}
+                      onChange={(e) => {
+                        const url = e.target.value;
+                        setSetupAgendaImageUrl(url);
+                        const validation = validateImageUrl(url);
+                        if (!validation.valid) {
+                          setSetupAgendaImageError(validation.error);
+                        } else {
+                          setSetupAgendaImageError("");
+                          if (url) {
+                            setSetupAgendaImageDataUrl(""); // Clear data URL if URL is set
+                          }
+                        }
+                      }}
+                      placeholder="Or enter image URL (https://...)"
+                      style={{ marginBottom: "var(--spacing-xs)" }}
+                      disabled={setupAgendaImageProcessing}
+                    />
+                  </div>
+                  
+                  {/* Processing indicator */}
+                  {setupAgendaImageProcessing && (
+                    <div style={{
+                      color: "var(--color-accent)",
+                      fontSize: "var(--font-size-sm)",
+                      marginBottom: "var(--spacing-sm)"
+                    }}>
+                      Processing image...
+                    </div>
+                  )}
+                  
+                  {/* Error display */}
+                  {setupAgendaImageError && (
+                    <div style={{
+                      color: "var(--color-danger, #dc3545)",
+                      fontSize: "var(--font-size-sm)",
+                      marginBottom: "var(--spacing-sm)"
+                    }}>
+                      {setupAgendaImageError}
+                    </div>
+                  )}
+                  
+                  {/* Preview */}
+                  {(setupAgendaImageDataUrl || setupAgendaImageUrl) && (
+                    <div style={{
+                      marginTop: "var(--spacing-sm)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "var(--spacing-sm)",
+                      backgroundColor: "var(--color-bg-subtle, #2a2a2a)"
+                    }}>
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "var(--spacing-sm)"
+                      }}>
+                        <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
+                          Preview
+                        </span>
+                        <button
+                          className="btn"
+                          onClick={() => {
+                            setSetupAgendaImageDataUrl("");
+                            setSetupAgendaImageUrl("");
+                            setSetupAgendaImageError("");
+                          }}
+                          style={{
+                            padding: "var(--spacing-xs) var(--spacing-sm)",
+                            fontSize: "var(--font-size-sm)",
+                            backgroundColor: "var(--color-danger, #dc3545)"
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <img 
+                        src={setupAgendaImageDataUrl || setupAgendaImageUrl}
+                        alt="Preview"
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "150px",
+                          objectFit: "contain",
+                          display: "block",
+                          margin: "0 auto"
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                          setSetupAgendaImageError("Failed to load image");
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                
                 <label className="label">Notes (optional)</label>
                 <textarea 
                   className="input"
@@ -1816,6 +1960,11 @@ export default function StandaloneApp() {
                       }
                     }
                     
+                    // Block if there's an image error
+                    if (setupAgendaImageError) {
+                      return;
+                    }
+                    
                     const mins = parseInt(setupAgendaMinutes) || 0;
                     const secs = parseInt(setupAgendaSeconds) || 0;
                     // Safety clamp (redundant with input validation but defensive)
@@ -1833,7 +1982,9 @@ export default function StandaloneApp() {
                         description: setupAgendaType === "proposal" ? setupAgendaDescription : "",
                         link: setupAgendaType === "proposal" ? setupAgendaLink : "",
                         category: setupAgendaCategory,
-                        onBallot: false
+                        onBallot: false,
+                        imageUrl: setupAgendaImageUrl || "",
+                        imageDataUrl: setupAgendaImageDataUrl || ""
                       }
                     ]);
                     
@@ -1847,8 +1998,11 @@ export default function StandaloneApp() {
                     setSetupAgendaLink("");
                     setSetupAgendaCategory("");
                     setSetupAgendaLinkError("");
+                    setSetupAgendaImageUrl("");
+                    setSetupAgendaImageDataUrl("");
+                    setSetupAgendaImageError("");
                   }}
-                  disabled={!setupAgendaTitle || (setupAgendaType === "proposal" && setupAgendaLinkError)}
+                  disabled={!setupAgendaTitle || (setupAgendaType === "proposal" && setupAgendaLinkError) || setupAgendaImageError || setupAgendaImageProcessing}
                 >
                   + Add to Agenda
                 </button>

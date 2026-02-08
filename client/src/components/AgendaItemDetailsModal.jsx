@@ -229,6 +229,61 @@ export default function AgendaItemDetailsModal({
               </div>
             </div>
           )}
+          
+          {/* Image (if present) */}
+          {(item.imageDataUrl || item.imageUrl) && (
+            <div style={{ marginBottom: "var(--spacing-lg)" }}>
+              <div style={{
+                fontSize: "var(--font-size-sm)",
+                fontWeight: "var(--font-weight-semibold)",
+                color: "var(--color-text-muted)",
+                marginBottom: "var(--spacing-xs)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em"
+              }}>
+                Image
+              </div>
+              <div 
+                style={{
+                  maxHeight: "220px",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "rgba(0, 0, 0, 0.2)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "var(--spacing-sm)",
+                  cursor: "pointer"
+                }}
+                onClick={() => {
+                  const imageSource = item.imageDataUrl || item.imageUrl;
+                  if (item.imageDataUrl) {
+                    // For data URLs, open in new tab
+                    const win = window.open();
+                    win.document.write(`<img src="${imageSource}" style="max-width:100%;" />`);
+                  } else {
+                    // For URLs, open the link
+                    window.open(imageSource, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                title="Click to view full size"
+              >
+                <img 
+                  src={item.imageDataUrl || item.imageUrl}
+                  alt="Agenda item"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "220px",
+                    objectFit: "contain",
+                    display: "block"
+                  }}
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                    e.target.parentElement.innerHTML = `<div style="color: var(--color-text-muted); font-size: var(--font-size-sm); padding: var(--spacing-md);">⚠️ Image failed to load</div>`;
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
