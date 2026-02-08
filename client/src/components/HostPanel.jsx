@@ -200,7 +200,9 @@ export default function HostPanel({
             type: inlineEditData.type,
             description: inlineEditData.description,
             link: inlineEditData.link,
-            category: inlineEditData.category
+            category: inlineEditData.category,
+            imageUrl: inlineEditData.imageUrl,
+            imageDataUrl: inlineEditData.imageDataUrl
           });
           
           setInlineEditId(null);
@@ -315,10 +317,12 @@ export default function HostPanel({
       type: item.type || "normal",
       description: item.description || "",
       link: item.link || "",
-      category: item.category || ""
+      category: item.category || "",
+      imageUrl: item.imageUrl || "",
+      imageDataUrl: item.imageDataUrl || ""
     };
     // Pass all fields as separate parameters for backward compatibility with existing API
-    onAddAgenda(copy.title, copy.durationSec, copy.notes, copy.type, copy.description, copy.link, copy.category);
+    onAddAgenda(copy.title, copy.durationSec, copy.notes, copy.type, copy.description, copy.link, copy.category, copy.imageUrl, copy.imageDataUrl);
     setOpenMenuId(null);
   };
 
