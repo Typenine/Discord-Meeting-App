@@ -300,7 +300,7 @@ function bumpRevision(session) {
 }
 
 // Agenda management - Enhanced with validateHostAccess and status tracking
-export function addAgenda({ sessionId, userId, title, durationSec, type, description, link, category }) {
+export function addAgenda({ sessionId, userId, title, durationSec, type, description, link, category, imageUrl, imageDataUrl }) {
   const session = sessions[sessionId];
   if (!session) return null;
   if (!validateHostAccess(session, userId)) return null;
@@ -323,6 +323,9 @@ export function addAgenda({ sessionId, userId, title, durationSec, type, descrip
     link: link || '', // Proposal link URL
     category: category || '', // Optional category for timeboxing
     onBallot: false, // Whether this proposal is on the ballot
+    // Image fields
+    imageUrl: imageUrl || '', // External image URL
+    imageDataUrl: imageDataUrl || '', // Base64 encoded image data
   });
   // If this is the first agenda item, make it active and set timer duration
   if (!session.currentAgendaItemId) {
@@ -344,7 +347,7 @@ export function addAgenda({ sessionId, userId, title, durationSec, type, descrip
   return snapshotSession(session);
 }
 
-export function updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes, type, description, link, category, onBallot }) {
+export function updateAgenda({ sessionId, userId, agendaId, title, durationSec, notes, type, description, link, category, onBallot, imageUrl, imageDataUrl }) {
   const session = sessions[sessionId];
   if (!session) return null;
   if (!validateHostAccess(session, userId)) return null;
@@ -362,6 +365,9 @@ export function updateAgenda({ sessionId, userId, agendaId, title, durationSec, 
   if (link !== undefined) item.link = String(link);
   if (category !== undefined) item.category = String(category);
   if (onBallot !== undefined) item.onBallot = Boolean(onBallot);
+  // Update image fields
+  if (imageUrl !== undefined) item.imageUrl = String(imageUrl);
+  if (imageDataUrl !== undefined) item.imageDataUrl = String(imageDataUrl);
   bumpRevision(session);
   saveSessions();
   return snapshotSession(session);
