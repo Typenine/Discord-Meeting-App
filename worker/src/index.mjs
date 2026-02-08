@@ -186,6 +186,13 @@ function updateMeetingSetup(session, { meetingName, agenda }) {
       title: String(item.title || ''),
       durationSec: Number(item.durationSec) || 0,
       notes: String(item.notes || ''),
+      type: (item.type === 'proposal') ? 'proposal' : 'normal',
+      description: String(item.description || ''),
+      link: String(item.link || ''),
+      category: String(item.category || ''),
+      onBallot: Boolean(item.onBallot),
+      imageUrl: String(item.imageUrl || ''),
+      imageDataUrl: String(item.imageDataUrl || ''),
     }));
     
     if (session.agenda.length > 0 && !session.activeAgendaId) {
