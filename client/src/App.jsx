@@ -1036,11 +1036,15 @@ export default function App() {
           <ul style={{ marginBottom: "var(--spacing-lg)", paddingLeft: "var(--spacing-xl)" }}>
             {state.agenda.map((item) => (
               <li key={item.id} style={{ marginBottom: "var(--spacing-md)", cursor: "pointer" }}>
-                <span onClick={() => setSelectedAgendaItem(item)} title="Click to view details">
+                <button 
+                  onClick={() => setSelectedAgendaItem(item)} 
+                  title="Click to view details"
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0, font: "inherit", textAlign: "left" }}
+                >
                   <strong>{item.title}</strong> ({formatTime(item.durationSec || 0)}) {state.currentAgendaItemId === item.id && <span>[Active]</span>}
                   {item.type === "proposal" && <span className="pill pill-accent" style={{ marginLeft: "var(--spacing-xs)" }}>📋 Proposal</span>}
                   {item.category && <span className="pill pill-neutral" style={{ marginLeft: "var(--spacing-xs)" }}>🏷️ {item.category}</span>}
-                </span>
+                </button>
                 {isHost && (
                   <>
                     <button className="btn btnSmall btnSecondary" onClick={() => setActiveAgenda(item.id)} style={{ marginLeft: "var(--spacing-sm)" }}>Set Active</button>

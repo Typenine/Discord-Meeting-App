@@ -316,7 +316,7 @@ export default function AgendaItemDetailsModal({
           )}
 
           {/* No additional details fallback */}
-          {!item.notes && !(item.type === "proposal") && !item.category && !(item.imageDataUrl || item.imageUrl) && (
+          {!item.notes && item.type !== "proposal" && !item.category && !(item.imageDataUrl || item.imageUrl) && (
             <div style={{
               fontSize: "var(--font-size-base)",
               color: "var(--color-text-muted)",
