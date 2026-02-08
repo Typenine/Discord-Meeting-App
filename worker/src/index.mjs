@@ -590,6 +590,8 @@ export class MeetingRoom {
   // ---- Template Persistence Methods ----
   // Templates are stored per userId (clientId) using Durable Object storage
   // This ensures templates persist across deployments and new Vercel URLs
+  // Max templates per user to prevent storage bloat
+  static MAX_TEMPLATES_PER_USER = 50;
 
   async getTemplatesForUser(userId) {
     if (!userId) return [];
@@ -617,19 +619,28 @@ export class MeetingRoom {
 
   // Atomic add operation - uses storage transaction to prevent race conditions
   async addTemplateForUser(userId, template) {
-    if (!userId) return false;
+    if (!userId) return { success: false, error: 'invalid_user' };
     const key = `templates:${userId}`;
     try {
       // Use storage.transaction for atomicity
       await this.state.storage.transaction(async (txn) => {
         const templates = (await txn.get(key)) || [];
+        
+        // Check template limit
+        if (templates.length >= MeetingRoom.MAX_TEMPLATES_PER_USER) {
+          throw new Error('max_templates_exceeded');
+        }
+        
         templates.push(template);
         await txn.put(key, templates);
       });
-      return true;
+      return { success: true };
     } catch (e) {
+      if (e.message === 'max_templates_exceeded') {
+        return { success: false, error: 'max_templates_exceeded', limit: MeetingRoom.MAX_TEMPLATES_PER_USER };
+      }
       console.error(`[addTemplateForUser] Error adding template for ${userId}:`, e);
-      return false;
+      return { success: false, error: 'storage_error' };
     }
   }
 
@@ -673,11 +684,20 @@ export class MeetingRoom {
       await this.state.storage.transaction(async (txn) => {
         const existing = (await txn.get(key)) || [];
         allTemplates = [...existing, ...newTemplates];
+        
+        // Check template limit
+        if (allTemplates.length > MeetingRoom.MAX_TEMPLATES_PER_USER) {
+          throw new Error('max_templates_exceeded');
+        }
+        
         await txn.put(key, allTemplates);
       });
       
       return { success: true, templates: allTemplates };
     } catch (e) {
+      if (e.message === 'max_templates_exceeded') {
+        return { success: false, error: 'max_templates_exceeded', limit: MeetingRoom.MAX_TEMPLATES_PER_USER };
+      }
       console.error(`[importTemplatesForUser] Error importing templates for ${userId}:`, e);
       return { success: false, error: 'storage_error' };
     }
@@ -1262,13 +1282,16 @@ export class MeetingRoom {
             };
             
             // Save to persistent storage using userId (clientId)
-            const success = await this.addTemplateForUser(meta.clientId, template);
+            const result = await this.addTemplateForUser(meta.clientId, template);
             
-            if (!success) {
+            if (!result.success) {
+              const errorMsg = result.error === 'max_templates_exceeded'
+                ? `Maximum template limit (${result.limit}) reached. Delete some templates to save new ones.`
+                : "Failed to save template to persistent storage";
               ws.send(JSON.stringify({ 
                 type: "ERROR", 
-                error: "storage_failed", 
-                message: "Failed to save template to persistent storage" 
+                error: result.error || "storage_failed", 
+                message: errorMsg
               }));
               break;
             }
