@@ -1220,7 +1220,7 @@ export default function StandaloneApp() {
   };
 
   // Host actions
-  const addAgenda = (title, durationSec, notes, itemType, description, link, category) => {
+  const addAgenda = (title, durationSec, notes, itemType, description, link, category, imageUrl, imageDataUrl) => {
     // Note: using itemType parameter name to avoid shadowing message.type field
     sendMessage({ 
       type: "AGENDA_ADD", 
@@ -1230,7 +1230,9 @@ export default function StandaloneApp() {
       itemType: itemType || "regular", 
       description: description || "", 
       link: link || "", 
-      category: category || "" 
+      category: category || "",
+      imageUrl: imageUrl || "",
+      imageDataUrl: imageDataUrl || ""
     });
   };
 

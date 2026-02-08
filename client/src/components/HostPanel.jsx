@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { formatTime } from "../utils/timeFormat.js";
+import { processImageFile, validateImageUrl } from "../utils/imageProcessing.js";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -95,6 +96,10 @@ export default function HostPanel({
   const [newAgendaDescription, setNewAgendaDescription] = useState("");
   const [newAgendaLink, setNewAgendaLink] = useState("");
   const [newAgendaCategory, setNewAgendaCategory] = useState("");
+  const [newAgendaImageUrl, setNewAgendaImageUrl] = useState("");
+  const [newAgendaImageDataUrl, setNewAgendaImageDataUrl] = useState("");
+  const [newAgendaImageError, setNewAgendaImageError] = useState("");
+  const [newAgendaImageProcessing, setNewAgendaImageProcessing] = useState(false);
   const [inlineEditId, setInlineEditId] = useState(null);
   const [inlineEditData, setInlineEditData] = useState({});
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -255,7 +260,9 @@ export default function HostPanel({
       type: inlineEditData.type,
       description: inlineEditData.description,
       link: inlineEditData.link,
-      category: inlineEditData.category
+      category: inlineEditData.category,
+      imageUrl: inlineEditData.imageUrl,
+      imageDataUrl: inlineEditData.imageDataUrl
     });
     
     setInlineEditId(null);
@@ -276,7 +283,11 @@ export default function HostPanel({
       type: item.type || "normal",
       description: item.description || "",
       link: item.link || "",
-      category: item.category || ""
+      category: item.category || "",
+      imageUrl: item.imageUrl || "",
+      imageDataUrl: item.imageDataUrl || "",
+      imageError: "",
+      imageProcessing: false
     });
     setOpenMenuId(null);
   };
@@ -820,6 +831,95 @@ export default function HostPanel({
                               placeholder="Category (optional, e.g., Rules, Budget)"
                               style={{ marginTop: "var(--spacing-xs)" }}
                             />
+                            
+                            {/* Image upload/URL section */}
+                            <div style={{ marginTop: "var(--spacing-sm)", padding: "var(--spacing-sm)", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "var(--radius-sm)" }}>
+                              <div style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--spacing-xs)", color: "var(--color-text-muted)" }}>
+                                Image (optional)
+                              </div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  
+                                  setInlineEditData({ ...inlineEditData, imageProcessing: true, imageError: "" });
+                                  
+                                  const result = await processImageFile(file);
+                                  
+                                  if (result.success) {
+                                    setInlineEditData({ 
+                                      ...inlineEditData, 
+                                      imageDataUrl: result.dataUrl,
+                                      imageUrl: "",
+                                      imageProcessing: false,
+                                      imageError: ""
+                                    });
+                                  } else {
+                                    setInlineEditData({ 
+                                      ...inlineEditData, 
+                                      imageProcessing: false,
+                                      imageError: result.error
+                                    });
+                                  }
+                                  
+                                  e.target.value = "";
+                                }}
+                                style={{ fontSize: "var(--font-size-xs)", marginBottom: "var(--spacing-xs)" }}
+                                disabled={inlineEditData.imageProcessing}
+                              />
+                              <input
+                                className="inlineEditTitle"
+                                value={inlineEditData.imageUrl || ""}
+                                onChange={(e) => {
+                                  const url = e.target.value;
+                                  const validation = validateImageUrl(url);
+                                  setInlineEditData({ 
+                                    ...inlineEditData, 
+                                    imageUrl: url,
+                                    imageDataUrl: url ? "" : inlineEditData.imageDataUrl,
+                                    imageError: validation.error
+                                  });
+                                }}
+                                placeholder="Or image URL (https://...)"
+                                style={{ marginTop: "var(--spacing-xs)" }}
+                                disabled={inlineEditData.imageProcessing}
+                              />
+                              {inlineEditData.imageProcessing && (
+                                <div style={{ color: "var(--color-accent)", fontSize: "var(--font-size-xs)", marginTop: "var(--spacing-xs)" }}>
+                                  Processing...
+                                </div>
+                              )}
+                              {inlineEditData.imageError && (
+                                <div style={{ color: "var(--color-danger, #dc3545)", fontSize: "var(--font-size-xs)", marginTop: "var(--spacing-xs)" }}>
+                                  {inlineEditData.imageError}
+                                </div>
+                              )}
+                              {(inlineEditData.imageDataUrl || inlineEditData.imageUrl) && (
+                                <div style={{ marginTop: "var(--spacing-xs)" }}>
+                                  <img 
+                                    src={inlineEditData.imageDataUrl || inlineEditData.imageUrl}
+                                    alt="Preview"
+                                    style={{ maxWidth: "100%", maxHeight: "80px", objectFit: "contain", display: "block" }}
+                                    onError={(e) => {
+                                      e.target.style.display = "none";
+                                      setInlineEditData({ ...inlineEditData, imageError: "Failed to load image" });
+                                    }}
+                                  />
+                                  <button
+                                    className="btn btnDanger"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setInlineEditData({ ...inlineEditData, imageUrl: "", imageDataUrl: "", imageError: "" });
+                                    }}
+                                    style={{ fontSize: "var(--font-size-xs)", padding: "var(--spacing-xs)", marginTop: "var(--spacing-xs)" }}
+                                  >
+                                    Remove Image
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <div 
@@ -1023,16 +1123,102 @@ export default function HostPanel({
                 value={newAgendaCategory}
                 onChange={(e) => setNewAgendaCategory(e.target.value)}
               />
+              
+              {/* Image upload/URL section */}
+              <label className="label">Image (optional)</label>
+              <div style={{ marginBottom: "var(--spacing-md)", padding: "var(--spacing-sm)", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "var(--radius-sm)" }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    
+                    setNewAgendaImageProcessing(true);
+                    setNewAgendaImageError("");
+                    
+                    const result = await processImageFile(file);
+                    setNewAgendaImageProcessing(false);
+                    
+                    if (result.success) {
+                      setNewAgendaImageDataUrl(result.dataUrl);
+                      setNewAgendaImageUrl(""); // Clear URL if data URL is set
+                    } else {
+                      setNewAgendaImageError(result.error);
+                    }
+                    
+                    e.target.value = "";
+                  }}
+                  style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--spacing-xs)" }}
+                  disabled={newAgendaImageProcessing}
+                />
+                <input
+                  className="input"
+                  value={newAgendaImageUrl}
+                  onChange={(e) => {
+                    const url = e.target.value;
+                    setNewAgendaImageUrl(url);
+                    const validation = validateImageUrl(url);
+                    if (!validation.valid) {
+                      setNewAgendaImageError(validation.error);
+                    } else {
+                      setNewAgendaImageError("");
+                      if (url) {
+                        setNewAgendaImageDataUrl(""); // Clear data URL if URL is set
+                      }
+                    }
+                  }}
+                  placeholder="Or image URL (https://...)"
+                  style={{ marginTop: "var(--spacing-xs)" }}
+                  disabled={newAgendaImageProcessing}
+                />
+                {newAgendaImageProcessing && (
+                  <div style={{ color: "var(--color-accent)", fontSize: "var(--font-size-sm)", marginTop: "var(--spacing-xs)" }}>
+                    Processing image...
+                  </div>
+                )}
+                {newAgendaImageError && (
+                  <div style={{ color: "var(--color-danger, #dc3545)", fontSize: "var(--font-size-sm)", marginTop: "var(--spacing-xs)" }}>
+                    {newAgendaImageError}
+                  </div>
+                )}
+                {(newAgendaImageDataUrl || newAgendaImageUrl) && (
+                  <div style={{ marginTop: "var(--spacing-sm)" }}>
+                    <img 
+                      src={newAgendaImageDataUrl || newAgendaImageUrl}
+                      alt="Preview"
+                      style={{ maxWidth: "100%", maxHeight: "100px", objectFit: "contain", display: "block", marginBottom: "var(--spacing-xs)" }}
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                        setNewAgendaImageError("Failed to load image");
+                      }}
+                    />
+                    <button
+                      className="btn btnDanger"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setNewAgendaImageUrl("");
+                        setNewAgendaImageDataUrl("");
+                        setNewAgendaImageError("");
+                      }}
+                      style={{ fontSize: "var(--font-size-sm)", padding: "var(--spacing-xs)" }}
+                    >
+                      Remove Image
+                    </button>
+                  </div>
+                )}
+              </div>
+              
               <button
                 className="btn btnPrimary btnFull"
                 onClick={() => {
-                  if (newAgendaTitle) {
+                  if (newAgendaTitle && !newAgendaImageError && !newAgendaImageProcessing) {
                     const mins = parseInt(newAgendaMinutes) || 0;
                     const secs = parseInt(newAgendaSeconds) || 0;
                     const validSecs = Math.max(0, Math.min(59, secs));
                     const totalSeconds = mins * 60 + validSecs;
                     
-                    onAddAgenda(newAgendaTitle, totalSeconds, newAgendaNotes, newAgendaType, newAgendaDescription, newAgendaLink, newAgendaCategory);
+                    onAddAgenda(newAgendaTitle, totalSeconds, newAgendaNotes, newAgendaType, newAgendaDescription, newAgendaLink, newAgendaCategory, newAgendaImageUrl, newAgendaImageDataUrl);
                     setNewAgendaTitle("");
                     setNewAgendaMinutes("");
                     setNewAgendaSeconds("");
@@ -1041,8 +1227,12 @@ export default function HostPanel({
                     setNewAgendaDescription("");
                     setNewAgendaLink("");
                     setNewAgendaCategory("");
+                    setNewAgendaImageUrl("");
+                    setNewAgendaImageDataUrl("");
+                    setNewAgendaImageError("");
                   }
                 }}
+                disabled={!newAgendaTitle || newAgendaImageError || newAgendaImageProcessing}
               >
                 + Add Item
               </button>

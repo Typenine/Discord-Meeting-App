@@ -966,7 +966,9 @@ export class MeetingRoom {
               description: msg.description || "",
               link: msg.link || "",
               category: msg.category || "",
-              onBallot: false
+              onBallot: false,
+              imageUrl: msg.imageUrl || "",
+              imageDataUrl: msg.imageDataUrl || ""
             });
             // If first item, make it active and set timer duration
             if (session.agenda.length === 1) {
@@ -992,6 +994,8 @@ export class MeetingRoom {
               if (msg.link !== undefined) item.link = msg.link;
               if (msg.category !== undefined) item.category = msg.category;
               if (msg.onBallot !== undefined) item.onBallot = msg.onBallot;
+              if (msg.imageUrl !== undefined) item.imageUrl = msg.imageUrl;
+              if (msg.imageDataUrl !== undefined) item.imageDataUrl = msg.imageDataUrl;
               this.broadcastState();
             }
           }
@@ -1155,6 +1159,8 @@ export class MeetingRoom {
                 link: String(item.link || ''),
                 category: String(item.category || ''),
                 onBallot: Boolean(item.onBallot),
+                imageUrl: String(item.imageUrl || ''),
+                imageDataUrl: String(item.imageDataUrl || '')
               }))
             };
             
