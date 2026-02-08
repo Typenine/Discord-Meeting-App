@@ -1286,7 +1286,7 @@ export class MeetingRoom {
             
             if (!result.success) {
               const errorMsg = result.error === 'max_templates_exceeded'
-                ? `Maximum template limit (${result.limit}) reached. You have ${result.limit} templates. Delete at least one to save new ones.`
+                ? `Maximum template limit (${result.limit}) reached. Delete at least one to save new ones.`
                 : "Failed to save template to persistent storage";
               ws.send(JSON.stringify({ 
                 type: "ERROR", 
