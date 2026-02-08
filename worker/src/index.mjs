@@ -587,6 +587,49 @@ export class MeetingRoom {
     this.voteBatchPending = false;
   }
 
+  // ---- Template Persistence Methods ----
+  // Templates are stored per userId (clientId) using Durable Object storage
+  // This ensures templates persist across deployments and new Vercel URLs
+
+  async getTemplatesForUser(userId) {
+    if (!userId) return [];
+    const key = `templates:${userId}`;
+    try {
+      const stored = await this.state.storage.get(key);
+      return stored || [];
+    } catch (e) {
+      console.error(`[getTemplatesForUser] Error loading templates for ${userId}:`, e);
+      return [];
+    }
+  }
+
+  async saveTemplatesForUser(userId, templates) {
+    if (!userId) return false;
+    const key = `templates:${userId}`;
+    try {
+      await this.state.storage.put(key, templates);
+      return true;
+    } catch (e) {
+      console.error(`[saveTemplatesForUser] Error saving templates for ${userId}:`, e);
+      return false;
+    }
+  }
+
+  async addTemplateForUser(userId, template) {
+    const templates = await this.getTemplatesForUser(userId);
+    templates.push(template);
+    return await this.saveTemplatesForUser(userId, templates);
+  }
+
+  async deleteTemplateForUser(userId, templateId) {
+    const templates = await this.getTemplatesForUser(userId);
+    const index = templates.findIndex(t => t.id === templateId);
+    if (index === -1) return { success: false, error: 'not_found' };
+    const deleted = templates.splice(index, 1)[0];
+    const success = await this.saveTemplatesForUser(userId, templates);
+    return { success, deleted, templates };
+  }
+
   async fetch(request) {
     if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
@@ -838,10 +881,16 @@ export class MeetingRoom {
           hostKeyFallback: !!session.hostKeyFallback,
         });
 
+        // Load user's templates from persistent storage
+        // This ensures templates are available even after deployments
+        const userTemplates = await this.getTemplatesForUser(identifier);
+        console.log(`[WS HELLO] Loaded ${userTemplates.length} templates for user ${identifier}`);
+
         ws.send(JSON.stringify({ 
           type: "HELLO_ACK", 
           isHost,
           serverNow: Date.now(),
+          templates: userTemplates, // Send templates immediately on connect
         }));
         this.broadcastState();
         return;
@@ -1139,11 +1188,6 @@ export class MeetingRoom {
               break;
             }
             
-            // Ensure templates array exists (for backward compatibility)
-            if (!session.templates) {
-              session.templates = [];
-            }
-            
             const now = Date.now();
             const template = {
               id: crypto.randomUUID(),
@@ -1164,17 +1208,31 @@ export class MeetingRoom {
               }))
             };
             
-            session.templates.push(template);
-            session.log.push({ ts: now, type: "TEMPLATE_SAVED", templateId: template.id, name: template.name });
-            console.log("[TEMPLATE_SAVE]", { templateId: template.id, name: template.name });
+            // Save to persistent storage using userId (clientId)
+            const success = await this.addTemplateForUser(meta.clientId, template);
+            
+            if (!success) {
+              ws.send(JSON.stringify({ 
+                type: "ERROR", 
+                error: "storage_failed", 
+                message: "Failed to save template to persistent storage" 
+              }));
+              break;
+            }
+            
+            // Get updated template list
+            const userTemplates = await this.getTemplatesForUser(meta.clientId);
+            
+            session.log.push({ ts: now, type: "TEMPLATE_SAVED", templateId: template.id, name: template.name, userId: meta.clientId });
+            console.log("[TEMPLATE_SAVE]", { templateId: template.id, name: template.name, userId: meta.clientId });
             
             // Send confirmation with template list
             ws.send(JSON.stringify({ 
               type: "TEMPLATE_SAVED", 
               template,
-              templates: session.templates 
+              templates: userTemplates 
             }));
-            // No broadcast needed - templates are host-specific
+            // No broadcast needed - templates are user-specific
           }
           break;
         
@@ -1190,40 +1248,33 @@ export class MeetingRoom {
               break;
             }
             
-            // Ensure templates array exists
-            if (!session.templates) {
-              session.templates = [];
-            }
+            // Delete from persistent storage
+            const result = await this.deleteTemplateForUser(meta.clientId, templateId);
             
-            const index = session.templates.findIndex(t => t.id === templateId);
-            if (index === -1) {
+            if (!result.success) {
               ws.send(JSON.stringify({ type: "ERROR", error: "not_found", message: "Template not found" }));
               break;
             }
             
-            const deletedTemplate = session.templates[index];
-            session.templates.splice(index, 1);
-            session.log.push({ ts: Date.now(), type: "TEMPLATE_DELETED", templateId, name: deletedTemplate.name });
-            console.log("[TEMPLATE_DELETE]", { templateId, name: deletedTemplate.name });
+            session.log.push({ ts: Date.now(), type: "TEMPLATE_DELETED", templateId, name: result.deleted.name, userId: meta.clientId });
+            console.log("[TEMPLATE_DELETE]", { templateId, name: result.deleted.name, userId: meta.clientId });
             
             ws.send(JSON.stringify({ 
               type: "TEMPLATE_DELETED", 
               templateId,
-              templates: session.templates 
+              templates: result.templates 
             }));
           }
           break;
         
         case "TEMPLATE_LIST":
           {
-            // Ensure templates array exists
-            if (!session.templates) {
-              session.templates = [];
-            }
+            // Load templates from persistent storage for this user
+            const userTemplates = await this.getTemplatesForUser(meta.clientId);
             
             ws.send(JSON.stringify({ 
               type: "TEMPLATE_LIST", 
-              templates: session.templates 
+              templates: userTemplates 
             }));
           }
           break;
@@ -1238,11 +1289,6 @@ export class MeetingRoom {
             if (!Array.isArray(templates)) {
               ws.send(JSON.stringify({ type: "ERROR", error: "invalid_templates", message: "Templates must be an array" }));
               break;
-            }
-            
-            // Ensure templates array exists
-            if (!session.templates) {
-              session.templates = [];
             }
             
             const now = Date.now();
@@ -1260,17 +1306,34 @@ export class MeetingRoom {
                 link: String(item.link || ''),
                 category: String(item.category || ''),
                 onBallot: Boolean(item.onBallot),
+                imageUrl: String(item.imageUrl || ''),
+                imageDataUrl: String(item.imageDataUrl || '')
               }))
             }));
             
-            session.templates.push(...imported);
-            session.log.push({ ts: now, type: "TEMPLATES_IMPORTED", count: imported.length });
-            console.log("[TEMPLATE_IMPORT]", { count: imported.length });
+            // Get existing templates
+            const existingTemplates = await this.getTemplatesForUser(meta.clientId);
+            const updatedTemplates = [...existingTemplates, ...imported];
+            
+            // Save to persistent storage
+            const success = await this.saveTemplatesForUser(meta.clientId, updatedTemplates);
+            
+            if (!success) {
+              ws.send(JSON.stringify({ 
+                type: "ERROR", 
+                error: "storage_failed", 
+                message: "Failed to import templates to persistent storage" 
+              }));
+              break;
+            }
+            
+            session.log.push({ ts: now, type: "TEMPLATES_IMPORTED", count: imported.length, userId: meta.clientId });
+            console.log("[TEMPLATE_IMPORT]", { count: imported.length, userId: meta.clientId });
             
             ws.send(JSON.stringify({ 
               type: "TEMPLATES_IMPORTED", 
               count: imported.length,
-              templates: session.templates 
+              templates: updatedTemplates 
             }));
           }
           break;

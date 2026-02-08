@@ -1010,6 +1010,15 @@ export default function StandaloneApp() {
             setServerTimeOffset(offset);
           }
           
+          // Load templates from HELLO_ACK (persistent storage)
+          if (msg.templates) {
+            console.log(`[WS] HELLO_ACK - received ${msg.templates.length} templates from persistent storage`);
+            setState(prev => ({
+              ...prev,
+              templates: msg.templates
+            }));
+          }
+          
           // Extract userId from attendance or generate one
           // The server should send back the resolved userId in a future enhancement
           // For now, we'll track it when we receive the first STATE update
