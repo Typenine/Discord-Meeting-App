@@ -615,19 +615,72 @@ export class MeetingRoom {
     }
   }
 
+  // Atomic add operation - uses storage transaction to prevent race conditions
   async addTemplateForUser(userId, template) {
-    const templates = await this.getTemplatesForUser(userId);
-    templates.push(template);
-    return await this.saveTemplatesForUser(userId, templates);
+    if (!userId) return false;
+    const key = `templates:${userId}`;
+    try {
+      // Use storage.transaction for atomicity
+      await this.state.storage.transaction(async (txn) => {
+        const templates = (await txn.get(key)) || [];
+        templates.push(template);
+        await txn.put(key, templates);
+      });
+      return true;
+    } catch (e) {
+      console.error(`[addTemplateForUser] Error adding template for ${userId}:`, e);
+      return false;
+    }
   }
 
+  // Atomic delete operation - uses storage transaction to prevent race conditions
   async deleteTemplateForUser(userId, templateId) {
-    const templates = await this.getTemplatesForUser(userId);
-    const index = templates.findIndex(t => t.id === templateId);
-    if (index === -1) return { success: false, error: 'not_found' };
-    const deleted = templates.splice(index, 1)[0];
-    const success = await this.saveTemplatesForUser(userId, templates);
-    return { success, deleted, templates };
+    if (!userId) return { success: false, error: 'invalid_user' };
+    const key = `templates:${userId}`;
+    try {
+      let deleted = null;
+      let templates = [];
+      
+      // Use storage.transaction for atomicity
+      await this.state.storage.transaction(async (txn) => {
+        templates = (await txn.get(key)) || [];
+        const index = templates.findIndex(t => t.id === templateId);
+        if (index === -1) {
+          throw new Error('not_found');
+        }
+        deleted = templates.splice(index, 1)[0];
+        await txn.put(key, templates);
+      });
+      
+      return { success: true, deleted, templates };
+    } catch (e) {
+      if (e.message === 'not_found') {
+        return { success: false, error: 'not_found' };
+      }
+      console.error(`[deleteTemplateForUser] Error deleting template for ${userId}:`, e);
+      return { success: false, error: 'storage_error' };
+    }
+  }
+
+  // Atomic import operation - uses storage transaction to prevent race conditions
+  async importTemplatesForUser(userId, newTemplates) {
+    if (!userId) return { success: false, error: 'invalid_user' };
+    const key = `templates:${userId}`;
+    try {
+      let allTemplates = [];
+      
+      // Use storage.transaction for atomicity
+      await this.state.storage.transaction(async (txn) => {
+        const existing = (await txn.get(key)) || [];
+        allTemplates = [...existing, ...newTemplates];
+        await txn.put(key, allTemplates);
+      });
+      
+      return { success: true, templates: allTemplates };
+    } catch (e) {
+      console.error(`[importTemplatesForUser] Error importing templates for ${userId}:`, e);
+      return { success: false, error: 'storage_error' };
+    }
   }
 
   async fetch(request) {
@@ -1311,17 +1364,13 @@ export class MeetingRoom {
               }))
             }));
             
-            // Get existing templates
-            const existingTemplates = await this.getTemplatesForUser(meta.clientId);
-            const updatedTemplates = [...existingTemplates, ...imported];
+            // Atomic import operation using transaction
+            const result = await this.importTemplatesForUser(meta.clientId, imported);
             
-            // Save to persistent storage
-            const success = await this.saveTemplatesForUser(meta.clientId, updatedTemplates);
-            
-            if (!success) {
+            if (!result.success) {
               ws.send(JSON.stringify({ 
                 type: "ERROR", 
-                error: "storage_failed", 
+                error: result.error || "storage_failed", 
                 message: "Failed to import templates to persistent storage" 
               }));
               break;
@@ -1333,7 +1382,7 @@ export class MeetingRoom {
             ws.send(JSON.stringify({ 
               type: "TEMPLATES_IMPORTED", 
               count: imported.length,
-              templates: updatedTemplates 
+              templates: result.templates 
             }));
           }
           break;
