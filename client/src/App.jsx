@@ -1034,7 +1034,7 @@ export default function App() {
           
           <h3 style={{ marginBottom: "var(--spacing-md)" }}>Agenda</h3>
           <ul style={{ marginBottom: "var(--spacing-lg)", paddingLeft: "var(--spacing-xl)" }}>
-            {state.agenda.map((item) => (
+            {(state.agenda || []).map((item) => (
               <li key={item.id} style={{ marginBottom: "var(--spacing-md)", cursor: "pointer" }}>
                 <button 
                   onClick={() => setSelectedAgendaItem(item)} 
