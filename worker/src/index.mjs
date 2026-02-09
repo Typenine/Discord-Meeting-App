@@ -801,7 +801,7 @@ export class MeetingRoom {
     ws.accept();
     this.sockets.add(ws);
 
-    ws.addEventListener("message", (event) => {
+    ws.addEventListener("message", async (event) => {
       let msg;
       try {
         msg = JSON.parse(event.data);
@@ -1115,9 +1115,10 @@ export class MeetingRoom {
               if (msg.title !== undefined) item.title = msg.title;
               if (msg.durationSec !== undefined) item.durationSec = Number(msg.durationSec) || 0;
               if (msg.notes !== undefined) item.notes = msg.notes;
-              // Validate type: must be 'normal' or 'proposal', ignore invalid values
-              if (msg.type !== undefined && (msg.type === 'normal' || msg.type === 'proposal')) {
-                item.type = msg.type;
+              // Validate itemType: must be 'normal' or 'proposal', ignore invalid values
+              // Note: uses 'itemType' in message to avoid shadowing the message 'type' field
+              if (msg.itemType !== undefined && (msg.itemType === 'normal' || msg.itemType === 'proposal')) {
+                item.type = msg.itemType;
               }
               if (msg.description !== undefined) item.description = msg.description;
               if (msg.link !== undefined) item.link = msg.link;

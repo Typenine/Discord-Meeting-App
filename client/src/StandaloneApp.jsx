@@ -1246,7 +1246,10 @@ export default function StandaloneApp() {
   };
 
   const updateAgenda = (agendaId, updates) => {
-    sendMessage({ type: "AGENDA_UPDATE", agendaId, ...updates });
+    // Extract 'type' from updates to avoid overwriting the message 'type' field
+    // Send it as 'itemType' instead, matching the AGENDA_ADD convention
+    const { type: itemType, ...rest } = updates;
+    sendMessage({ type: "AGENDA_UPDATE", agendaId, ...rest, ...(itemType !== undefined ? { itemType } : {}) });
   };
 
   const deleteAgenda = (agendaId) => {
