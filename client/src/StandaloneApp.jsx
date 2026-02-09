@@ -419,6 +419,18 @@ export default function StandaloneApp() {
   const connectionTimeoutRef = useRef(null);
   const pendingTemplatesRef = useRef(null);
 
+  // Helper: safely update templates in state without creating a partial state from null.
+  // If state doesn't exist yet, stores templates in a ref to be merged when STATE arrives.
+  const updateTemplatesInState = (templates) => {
+    setState(prev => {
+      if (!prev) {
+        pendingTemplatesRef.current = templates;
+        return prev;
+      }
+      return { ...prev, templates };
+    });
+  };
+
   // Parse URL on mount - support multiple URL patterns for flexibility
   useEffect(() => {
     const path = window.location.pathname;
@@ -1016,11 +1028,7 @@ export default function StandaloneApp() {
           // to avoid creating a partial state object from null (which causes render crashes)
           if (msg.templates) {
             console.log(`[WS] HELLO_ACK - received ${msg.templates.length} templates from persistent storage`);
-            pendingTemplatesRef.current = msg.templates;
-            setState(prev => {
-              if (!prev) return prev;
-              return { ...prev, templates: msg.templates };
-            });
+            updateTemplatesInState(msg.templates);
           }
           
           // Extract userId from attendance or generate one
@@ -1065,21 +1073,13 @@ export default function StandaloneApp() {
           // Template list response from server
           console.log(`[WS] TEMPLATE_LIST - received ${msg.templates?.length || 0} templates`);
           if (msg.templates) {
-            pendingTemplatesRef.current = msg.templates;
-            setState(prev => {
-              if (!prev) return prev;
-              return { ...prev, templates: msg.templates };
-            });
+            updateTemplatesInState(msg.templates);
           }
         } else if (msg.type === "TEMPLATE_SAVED" || msg.type === "TEMPLATE_DELETED" || msg.type === "TEMPLATES_IMPORTED") {
           // Template operations update the state with new templates list
           console.log(`[WS] ${msg.type} - updating templates in state`);
           if (msg.templates) {
-            pendingTemplatesRef.current = msg.templates;
-            setState(prev => {
-              if (!prev) return prev;
-              return { ...prev, templates: msg.templates };
-            });
+            updateTemplatesInState(msg.templates);
           }
         } else if (msg.type === "ERROR") {
           console.error("[WS] Error:", msg.error);
