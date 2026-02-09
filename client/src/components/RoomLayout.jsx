@@ -24,6 +24,10 @@ export default function RoomLayout({
     );
   }
 
+  const agenda = state.agenda || [];
+  const timer = state.timer || {};
+  const vote = state.vote || {};
+
   return (
     <div className="mainColumn">
       {/* Hero Panel - Current Agenda Item */}
@@ -33,7 +37,7 @@ export default function RoomLayout({
         </div>
         
         {state.activeAgendaId ? (() => {
-          const activeItem = state.agenda.find(item => item.id === state.activeAgendaId);
+          const activeItem = agenda.find(item => item.id === state.activeAgendaId);
           return activeItem ? (
             <div key={activeItem.id}>
               <div className="agendaItemDisplay">
@@ -104,14 +108,14 @@ export default function RoomLayout({
               </div>
               
               {/* Timer Display */}
-              <div className={`timerDisplay ${state.timer.running ? 'running' : ''} ${localTimer < 0 ? 'overtime' : ''}`}>
-                <div className={`timerValue ${state.timer.running && localTimer < 10 && localTimer >= 0 ? 'warning' : ''} ${localTimer < 0 ? 'overtime' : ''}`}>
+              <div className={`timerDisplay ${timer.running ? 'running' : ''} ${localTimer < 0 ? 'overtime' : ''}`}>
+                <div className={`timerValue ${timer.running && localTimer < 10 && localTimer >= 0 ? 'warning' : ''} ${localTimer < 0 ? 'overtime' : ''}`}>
                   {formatTime(localTimer)}
                 </div>
                 <div className="timerStatus">
                   {localTimer < 0 ? '⏱️ Overtime' :
-                   state.timer.running ? '▶️ Running' : 
-                   state.timer.pausedRemainingSec !== null ? '⏸ Paused' : 
+                   timer.running ? '▶️ Running' : 
+                   timer.pausedRemainingSec !== null ? '⏸ Paused' : 
                    '⏹ Stopped'}
                 </div>
               </div>
@@ -136,10 +140,10 @@ export default function RoomLayout({
       <div className="timelinePanel">
         <div className="sectionHeader">
           <h3 className="sectionTitle">Agenda Timeline</h3>
-          <span className="itemCount">{state.agenda.length} {state.agenda.length === 1 ? 'item' : 'items'}</span>
+          <span className="itemCount">{agenda.length} {agenda.length === 1 ? 'item' : 'items'}</span>
         </div>
         
-        {state.agenda.length === 0 ? (
+        {agenda.length === 0 ? (
           <div className="text-center text-muted" style={{ 
             padding: "var(--spacing-lg)",
             fontStyle: "italic"
@@ -148,7 +152,7 @@ export default function RoomLayout({
           </div>
         ) : (
           <ul className="agendaTimeline">
-            {state.agenda.map((item, index) => {
+            {agenda.map((item, index) => {
               // For active item, show live remaining time; otherwise show configured duration
               const isActive = state.activeAgendaId === item.id;
               const displayTime = isActive ? localTimer : item.durationSec;
@@ -193,23 +197,23 @@ export default function RoomLayout({
       </div>
 
       {/* Voting Section */}
-      {state.vote.open && (
+      {vote.open && (
         <div className="votingSection">
           <div className="sectionHeader">
             <h3 className="sectionTitle">🗳️ Active Vote</h3>
           </div>
           
-          <div className="voteQuestion">{state.vote.question}</div>
+          <div className="voteQuestion">{vote.question}</div>
           
           <div className="voteOptions">
-            {state.vote.options.map((opt) => {
+            {(vote.options || []).map((opt) => {
               const optionId = opt.id || opt;
               const optionLabel = opt.label || opt;
-              const voteCount = state.vote.votesByClientId 
-                ? Object.values(state.vote.votesByClientId).filter(v => v === optionId).length 
+              const voteCount = vote.votesByClientId 
+                ? Object.values(vote.votesByClientId).filter(v => v === optionId).length 
                 : 0;
-              const hasVoted = state.vote.votesByClientId?.[clientId] !== undefined;
-              const votedForThis = state.vote.votesByClientId?.[clientId] === optionId;
+              const hasVoted = vote.votesByClientId?.[clientId] !== undefined;
+              const votedForThis = vote.votesByClientId?.[clientId] === optionId;
               
               return (
                 <div 
@@ -239,13 +243,13 @@ export default function RoomLayout({
           <div className="text-center text-muted" style={{ 
             fontWeight: "var(--font-weight-medium)"
           }}>
-            Total votes cast: {Object.keys(state.vote.votesByClientId || {}).length}
+            Total votes cast: {Object.keys(vote.votesByClientId || {}).length}
           </div>
         </div>
       )}
 
       {/* Past Votes */}
-      {state.vote.closedResults && state.vote.closedResults.length > 0 && (
+      {vote.closedResults && vote.closedResults.length > 0 && (
         <details className="card">
           <summary style={{ 
             cursor: "pointer", 
@@ -253,10 +257,10 @@ export default function RoomLayout({
             fontSize: "var(--font-size-lg)",
             padding: "var(--spacing-lg)"
           }}>
-            📊 Past Votes ({state.vote.closedResults.length})
+            📊 Past Votes ({vote.closedResults.length})
           </summary>
           <div style={{ padding: "0 var(--spacing-lg) var(--spacing-lg)" }}>
-            {state.vote.closedResults.map((result, idx) => (
+            {vote.closedResults.map((result, idx) => (
               <div key={idx} className="listItem mb-lg">
                 <div className="mb-md" style={{ 
                   fontWeight: "var(--font-weight-bold)",
@@ -325,12 +329,12 @@ export default function RoomLayout({
       )}
       
       {/* Ballot Queue */}
-      {state.agenda && state.agenda.some(item => item.onBallot) && (
+      {agenda.some(item => item.onBallot) && (
         <div className="card">
           <div className="sectionHeader">
             <h3 className="sectionTitle">🗳️ Ballot Queue</h3>
             <span className="itemCount">
-              {state.agenda.filter(item => item.onBallot).length} proposal{state.agenda.filter(item => item.onBallot).length !== 1 ? 's' : ''}
+              {agenda.filter(item => item.onBallot).length} proposal{agenda.filter(item => item.onBallot).length !== 1 ? 's' : ''}
             </span>
           </div>
           <div className="cardBody">
@@ -341,7 +345,7 @@ export default function RoomLayout({
             }}>
               Proposals ready for voting
             </div>
-            {state.agenda
+            {agenda
               .filter(item => item.onBallot)
               .map((item, index) => (
                 <div 

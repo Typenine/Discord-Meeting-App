@@ -417,6 +417,19 @@ export default function StandaloneApp() {
   const timePingIntervalRef = useRef(null);
   const localTimerIntervalRef = useRef(null);
   const connectionTimeoutRef = useRef(null);
+  const pendingTemplatesRef = useRef(null);
+
+  // Helper: safely update templates in state without creating a partial state from null.
+  // If state doesn't exist yet, stores templates in a ref to be merged when STATE arrives.
+  const updateTemplatesInState = (templates) => {
+    setState(prev => {
+      if (!prev) {
+        pendingTemplatesRef.current = templates;
+        return prev;
+      }
+      return { ...prev, templates };
+    });
+  };
 
   // Parse URL on mount - support multiple URL patterns for flexibility
   useEffect(() => {
@@ -1011,12 +1024,11 @@ export default function StandaloneApp() {
           }
           
           // Load templates from HELLO_ACK (persistent storage)
+          // Store in ref first; merge into state only if state already exists
+          // to avoid creating a partial state object from null (which causes render crashes)
           if (msg.templates) {
             console.log(`[WS] HELLO_ACK - received ${msg.templates.length} templates from persistent storage`);
-            setState(prev => ({
-              ...prev,
-              templates: msg.templates
-            }));
+            updateTemplatesInState(msg.templates);
           }
           
           // Extract userId from attendance or generate one
@@ -1030,7 +1042,14 @@ export default function StandaloneApp() {
           const offset = serverNow - now;
           setServerTimeOffset(offset);
         } else if (msg.type === "STATE") {
-          setState(msg.state);
+          // Merge pending templates from HELLO_ACK if they haven't been applied yet
+          if (pendingTemplatesRef.current) {
+            const templates = pendingTemplatesRef.current;
+            pendingTemplatesRef.current = null;
+            setState({ ...msg.state, templates });
+          } else {
+            setState(msg.state);
+          }
           
           // Update server time offset if provided
           if (msg.serverNow) {
@@ -1054,19 +1073,13 @@ export default function StandaloneApp() {
           // Template list response from server
           console.log(`[WS] TEMPLATE_LIST - received ${msg.templates?.length || 0} templates`);
           if (msg.templates) {
-            setState(prev => ({
-              ...prev,
-              templates: msg.templates
-            }));
+            updateTemplatesInState(msg.templates);
           }
         } else if (msg.type === "TEMPLATE_SAVED" || msg.type === "TEMPLATE_DELETED" || msg.type === "TEMPLATES_IMPORTED") {
           // Template operations update the state with new templates list
           console.log(`[WS] ${msg.type} - updating templates in state`);
           if (msg.templates) {
-            setState(prev => ({
-              ...prev,
-              templates: msg.templates
-            }));
+            updateTemplatesInState(msg.templates);
           }
         } else if (msg.type === "ERROR") {
           console.error("[WS] Error:", msg.error);
